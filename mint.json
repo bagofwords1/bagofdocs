@@ -2,13 +2,13 @@
     "$schema": "https://mintlify.com/schema.json",
     "name": "Bag of words",
     "logo": {
-      "dark": "/logo/dark.svg",
-      "light": "/logo/light.svg"
+      "dark": "/assets/logo-128.png",
+      "light": "/assets/logo-128.png"
     },
-    "favicon": "/favicon.svg",
+    "favicon": "/favicon.png",
     "colors": {
         "primary": "#0C0C15",
-        "light": "#0C0C15",
+        "light": "#fff",
         "dark": "#0C0C15",
         "background": {
           "dark": "#0C0C15",
@@ -18,7 +18,7 @@
           "from": "#0C0C15",
           "to": "#0C0C15"
         }
-      },
+    },
     "topbarLinks": [
       {
         "name": "Support",
@@ -29,24 +29,16 @@
       {
         "group": "Get Started",
         "pages": [
-          "get-started/introduction",
-          "get-started/install"
+          "introduction",
+          "quickstart",
+          "install"
         ]
       },
       {
-        "group": "Reports",
+        "group": "Advanced",
         "pages": [
-          "reports/introduction",
-          "reports/install"
-        ]
-      },
-      {
-        "group": "Examples",
-        "pages": [
-          "examples/postgres",
-          "examples/aws",
-          "examples/azure",
-          "examples/gcp"
+          "advanced/prompt",
+          "advanced/data_source"
         ]
       }
     ],
@@ -54,4 +46,4 @@
       "x": "https://x.com/bagofwords1",
       "github": "https://github.com/bagofwords1"
     }
-  }
+}

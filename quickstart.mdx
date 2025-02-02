@@ -1,0 +1,46 @@
+---
+title: Quickstart 
+---
+
+This is a quickstart guide for **Bag of words**. Complete the following steps to get started 🚀.
+
+## Install with Docker
+---
+You can install Bag of words with a single docker command. By default, it will use SQLite as the database. 
+You can also configure it to use PostgreSQL by passing `BOW_DATABASE_URL` environment variable.
+
+```bash
+docker run -d --name bagofwords -p 8080:8080 -v $(pwd)/mint.json:/app/mint.json bagofwords/doc
+```
+
+<Info>
+To use PostgreSQL, you need to set the `BOW_DATABASE_URL` environment variable.
+For example: `BOW_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bagofwords`
+</Info>
+
+## Sign up and create your organization
+---
+After setting up the docker container, you will be able to sign up and create your organization. Simply go to the deployment URL (usually `http://localhost:3000`) and sign up.
+
+<Warning>
+Signing up without an invitation email will work only for the first (admin) user.
+</Warning>
+
+## Configure your LLM provider
+---
+Bag of words supports multiple LLM providers. You can configure the LLM provider after signing up and creating your organization.
+Go to `http://localhost:3000/settings/models` and click "Integrate Model" button.
+
+<Info>
+Adding an LLM provider is required to create reports and connect data.
+</Info>
+
+## Connect your data
+---
+Bag of words supports multiple data sources. You can connect your data after signing up and creating your organization.
+Go to `http://localhost:3000/integrations`, choose the data source you want to connect and follow the instructions.
+
+## Create your first report
+---
+Reports are the core of Bag of words. Completing the previous steps will allow you to create your first report.
+Go to `http://localhost:3000/` and write a prompt to query, analyze and visualize your data.
