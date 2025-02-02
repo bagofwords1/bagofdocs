@@ -7,14 +7,18 @@
     },
     "favicon": "/favicon.svg",
     "colors": {
-      "primary": "#0D9373",
-      "light": "#07C983",
-      "dark": "#0D9373",
-      "anchors": {
-        "from": "#0D9373",
-        "to": "#07C983"
-      }
-    },
+        "primary": "#0C0C15",
+        "light": "#0C0C15",
+        "dark": "#0C0C15",
+        "background": {
+          "dark": "#0C0C15",
+          "light": "#fff"
+        },
+        "anchors": {
+          "from": "#0C0C15",
+          "to": "#0C0C15"
+        }
+      },
     "topbarLinks": [
       {
         "name": "Support",
@@ -25,9 +29,9 @@
       {
         "group": "Get Started",
         "pages": [
-          "introduction",
-          "install",
-          "quickstart"
+          "get-started/introduction",
+          "get-started/install",
+          "get-started/quickstart"
         ]
       },
       {
