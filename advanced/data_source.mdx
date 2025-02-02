@@ -1,11 +1,10 @@
 ---
-title: 'Data Sources'
-description: 'How to connect and manage data sources context in Bag of words'
+title: 'Customize Context'
+description: 'How to customize the LLM context in Bag of words'
 ---
-Bag of words supoprts multiple data sources. Among them are: postgres, mysql, excel, api, and more.
+Context in Bag of words is associated with a data source. When connecting a data source, Bag of words will set the data source summary, its schema, and the set AI context and rules to the db and eventually to the LLM.
+When writing prompts, Bag of words will automatically add the right context (with prioritization) to the LLM request, to ensure the LLM will generate the best results.
 
-## Context
----
 When connecting a data source, Bag of words will use the data source summary and the set AI rules to generate the right data model and code to get the data.
 You can adjust the context and rules to tailor the data source to your needs and get the best results.
 
@@ -49,7 +48,23 @@ For example, you can set the following rules:
 - Always order by date desc.
 ```
 
+### Data Source Schema
+---
+The data source schema will be automatically added to the user prompt as part of the context. Schema is formatted as a `DDL` query. For example:
+```
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
 
-
-
-
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id INT,
+    order_date TIMESTAMP,
+    total DECIMAL(10, 2),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```

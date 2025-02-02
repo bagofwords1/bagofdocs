@@ -40,7 +40,8 @@
           "advanced/prompt",
           "advanced/data_source",
           "advanced/memory",
-          "advanced/llm"
+          "advanced/llm",
+          "advanced/agents"
         ]
       }
     ],

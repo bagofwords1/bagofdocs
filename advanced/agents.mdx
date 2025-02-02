@@ -1,0 +1,93 @@
+---
+title: 'Agents'
+description: 'How to use the AI agents in Bag of words'
+---
+Bag of Words leverages specialized AI agents to transform raw data into meaningful insights. Each agent has a specific role in the data analysis pipeline, working together to understand user requests, process data, and generate visualizations.
+
+<span style={{color: 'green'}}>This section is mostly for educational purposes. There is no action to take here, but you can learn more about the agents and how they work so you can write better prompts.</span>
+
+## Agent Types and Capabilities
+---
+### Planner Agent
+The Planner agent is the strategic orchestrator of the analysis process:
+- **Primary Role**: Converts user requests into structured analysis plans
+- **Key Capabilities**:
+  - Breaks down complex queries into actionable steps
+  - Determines optimal analysis sequence
+  - Identifies required data sources and transformations
+- **Input Processing**:
+  - User prompts and context
+  - Data schemas
+  - Historical analysis context
+  - Previous conversation memory
+- **Output**: Structured action plan containing:
+  - Widget creation/modification steps
+  - Question-answering tasks
+  - Dashboard design instructions
+
+### Coder Agent
+The Coder agent transforms analysis plans into executable code:
+- **Primary Role**: Generates Python code for data processing
+- **Key Capabilities**:
+  - Writes optimized data transformation logic
+  - Handles multiple data source integrations
+  - Implements error handling and validation
+- **Specialties**:
+  - DataFrame operations
+  - Data cleaning and preprocessing
+  - Complex calculations and aggregations
+  - Query optimization
+
+### Answer Agent
+The Answer agent provides natural language insights:
+- **Primary Role**: Generates clear, contextual responses to user questions
+- **Key Capabilities**:
+  - Data interpretation
+  - Trend analysis
+  - Statistical explanations
+  - Context-aware responses
+- **Output Formats**:
+  - Markdown-formatted text
+  - Bulleted summaries
+  - Technical explanations
+  - Business insights
+
+### Dashboard Designer Agent
+The Dashboard Designer agent creates intuitive data presentations:
+- **Primary Role**: Optimizes dashboard layouts and visualization placement
+- **Key Capabilities**:
+  - Widget arrangement optimization
+  - Layout responsiveness
+  - Visual hierarchy implementation
+  - Annotation placement
+- **Design Considerations**:
+  - User experience
+  - Information flow
+  - Visual balance
+  - Screen space utilization
+
+### Reporter Agent
+The Reporter agent handles documentation and summarization:
+- **Primary Role**: Creates report titles and analysis summaries
+- **Key Capabilities**:
+  - Concise title generation
+  - Key insight extraction
+  - Progress tracking
+  - Analysis documentation
+- **Output Types**:
+  - Report titles
+  - Executive summaries
+  - Analysis narratives
+  - Progress updates
+
+## Agent Interaction Flow
+
+1. User submits a data analysis request
+2. Planner agent creates structured analysis plan
+3. Coder agent generates required data processing code
+4. Answer agent provides explanations and insights
+5. Dashboard Designer agent optimizes visualization layout
+6. Reporter agent documents the analysis process
+
+Each agent's output serves as input for subsequent agents, creating a seamless analysis pipeline that transforms raw data into actionable insights.
+
