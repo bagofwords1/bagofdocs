@@ -30,14 +30,14 @@
         "group": "Get Started",
         "pages": [
           "get-started/introduction",
-          "get-started/install",
+          "get-started/install"
         ]
       },
       {
         "group": "Reports",
         "pages": [
           "reports/introduction",
-          "reports/install",
+          "reports/install"
         ]
       },
       {
