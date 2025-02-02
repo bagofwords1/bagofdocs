@@ -1,0 +1,28 @@
+---
+title: 'Memory'
+description: 'Save, use and share queries and data models'
+---
+
+You can save queries and data models to your memory. This is a great way to collaborate with your team and share your knowledge.
+
+## Save queries and data models as memories
+---
+Whenever a user submits a prompt that generates a data model, a memory can be created. A memory will include the data model and the code generated to get the data.
+You can then save a memory, add a title and a description, and other users will be able to see and use the memory.
+This is very useful to ground your team to use specific tables that are validated and tested.
+
+## Use memories in your prompts
+---
+In your prompts, you can reference memories by using the @ symbol. Using memories in prompts is recommended, and a great way to provide more context to the LLM so it can generate better results.
+For example, if a user saved a "Top Customers" memory, and you want to get the top customers in a specific time period, you can use the following prompt:
+
+```
+Get me @Top Customers for the last 30 days
+```
+
+You can also reference multiple memories in a single prompt. For example, if you want to get the top customers and the top products, you can use the following prompt:
+
+```
+Get me @Top Customers that purchased @Top Products
+```
+

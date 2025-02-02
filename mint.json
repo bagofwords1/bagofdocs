@@ -38,7 +38,8 @@
         "group": "Advanced",
         "pages": [
           "advanced/prompt",
-          "advanced/data_source"
+          "advanced/data_source",
+          "advanced/memory"
         ]
       }
     ],
