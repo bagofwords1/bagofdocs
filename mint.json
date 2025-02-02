@@ -39,7 +39,8 @@
         "pages": [
           "advanced/prompt",
           "advanced/data_source",
-          "advanced/memory"
+          "advanced/memory",
+          "advanced/llm"
         ]
       }
     ],
