@@ -9,7 +9,7 @@ You can install Bag of words with a single docker command. By default, it will u
 You can also configure it to use PostgreSQL by passing `BOW_DATABASE_URL` environment variable.
 
 ```bash
-docker run -d --name bagofwords -p 8080:8080 -v $(pwd)/mint.json:/app/mint.json bagofwords/doc
+docker run -p 3000:3000 bagofwords/bagofwords
 ```
 
 <Info>
@@ -51,6 +51,11 @@ encryption_key: ${BOW_ENCRYPTION_KEY}
 intercom:
   enabled: true
 
+```
+To use the custom config file, you can run the following command:
+
+```bash
+docker run -p 3000:3000 -v $(pwd)/bow-config.yaml:/app/bow-config.yaml bagofwords/bagofwords
 ```
 
 
