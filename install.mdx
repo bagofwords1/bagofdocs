@@ -60,7 +60,6 @@ docker run --pull always -d -p 3000:3000 -v $(pwd)/bow-config.yaml:/app/bow-conf
 
 
 
-
 ## Install with Kubernetes
 ---
 You can install Bag of words on a Kubernetes cluster. The following deployment will deploy the Bagofwords container alongside a postgres instance.
@@ -109,3 +108,20 @@ helm upgrade -i --create-namespace \
  --set config.googleClientId=<CLIENT_ID> \
  --set config.googleClientSecret=<CLIENT_SECRET>
 ``` 
+
+
+## Google OAuth
+
+To enable Google OAuth authentication, configure the following parameters in your bow config (or in env/k8s configmap)
+```yaml
+google_oauth:
+  enabled: true
+  client_id: ${BOW_GOOGLE_CLIENT_ID}
+  client_secret: ${BOW_GOOGLE_CLIENT_SECRET}
+```
+
+You should also set the following in your Google OAuth configurations
+
+1. Callback URL: `https://yourbaseurl.com//api/auth/google/callback`
+2. Scopes: `/auth/userinfo.email`, `/auth/userinfo.profile`, `openid`
+3. Enable People API 
