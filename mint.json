@@ -41,7 +41,8 @@
           "advanced/data_source",
           "advanced/memory",
           "advanced/llm",
-          "advanced/agents"
+          "advanced/agents",
+          "advanced/slack"
         ]
       }
     ],
