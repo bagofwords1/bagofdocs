@@ -5,6 +5,7 @@
       "dark": "/assets/logo-128.png",
       "light": "/assets/logo-128.png"
     },
+    "icons": "lucide",
     "favicon": "/favicon.png",
     "colors": {
         "primary": "#0C0C15",
@@ -35,31 +36,23 @@
         ]
       },
       {
-        "group": "Concepts",
+        "group": "Core",
         "pages": [
-          "concepts/reports",
-          "concepts/dashboards",
-          "concepts/instructions",
-          "concepts/data_source",
-          "management/quality",
-          "management/monitoring"
+          "core/agent",
+          "core/context",
+          "core/monitoring"
         ]
       },
       {
-        "group": "Management",
+        "group": "Using Bag of words",
         "pages": [
-          "management/context",
-          "management/quality",
-          "management/monitoring",
-          "management/access"
+          "using-bow/reports",
+          "using-bow/dashboards",
+          "using-bow/instructions",
+          "using-bow/data_source",
+          "using-bow/llm",
+          "using-bow/quality"
         ]
-      },
-      {
-        "group": "Integrations",
-        "pages": [
-          "integrations/data_sources",
-          "integrations/llm",
-          "integrations/context"]
       }
     ],
     "footerSocials": {
