@@ -35,19 +35,35 @@
         ]
       },
       {
-        "group": "Advanced",
+        "group": "Concepts",
         "pages": [
-          "advanced/prompt",
-          "advanced/data_source",
-          "advanced/memory",
-          "advanced/llm",
-          "advanced/agents",
-          "advanced/slack"
+          "concepts/reports",
+          "concepts/dashboards",
+          "concepts/instructions",
+          "concepts/data_source",
+          "management/quality",
+          "management/monitoring"
         ]
+      },
+      {
+        "group": "Management",
+        "pages": [
+          "management/context",
+          "management/quality",
+          "management/monitoring",
+          "management/access"
+        ]
+      },
+      {
+        "group": "Integrations",
+        "pages": [
+          "integrations/data_sources",
+          "integrations/llm",
+          "integrations/context"]
       }
     ],
     "footerSocials": {
-      "x": "https://x.com/bagofwords1",
+      "x": "https://x.com/bagofwords_com",
       "github": "https://github.com/bagofwords1"
     }
 }

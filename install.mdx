@@ -1,5 +1,5 @@
 ---
-title: 'Install Bag of words'
+title: 'Deployment Options'
 description: 'Install Bag of Words on your own server using Docker'
 ---
 
@@ -122,6 +122,16 @@ google_oauth:
 
 You should also set the following in your Google OAuth configurations
 
-1. Callback URL: `https://yourbaseurl.com//api/auth/google/callback`
+1. Callback URL: `https://yourbaseurl.com/api/auth/google/callback`
 2. Scopes: `/auth/userinfo.email`, `/auth/userinfo.profile`, `openid`
 3. Enable People API 
+
+
+## OppenID Connect (OIDC)
+```yaml
+
+```
+
+### Okta
+1. Set a new OIDC application: web 
+2. Set callback URL `https://your-base-bow-url.com/api/auth/call
