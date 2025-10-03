@@ -1,32 +1,16 @@
 {
-    "$schema": "https://mintlify.com/schema.json",
-    "name": "Bag of words",
-    "logo": {
-      "dark": "/assets/logo-128.png",
-      "light": "/assets/logo-128.png"
-    },
-    "icons": "lucide",
-    "favicon": "/favicon.png",
-    "colors": {
-        "primary": "#0C0C15",
-        "light": "#fff",
-        "dark": "#0C0C15",
-        "background": {
-          "dark": "#0C0C15",
-          "light": "#fff"
-        },
-        "anchors": {
-          "from": "#0C0C15",
-          "to": "#0C0C15"
-        }
-    },
-    "topbarLinks": [
-      {
-        "name": "Support",
-        "url": "mailto:hi@bagofwords.com"
-      }
-    ],
-    "navigation": [
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Bag of words",
+  "colors": {
+    "primary": "#0C0C15",
+    "light": "#fff",
+    "dark": "#0C0C15"
+  },
+  "favicon": "/favicon.png",
+  "icons": { "library" : "lucide" },
+  "navigation": {
+    "groups": [
       {
         "group": "Get Started",
         "pages": [
@@ -54,9 +38,30 @@
           "using-bow/quality"
         ]
       }
-    ],
-    "footerSocials": {
+    ]
+  },
+  "logo": {
+    "light": "/assets/logo-128.png",
+    "dark": "/assets/logo-128.png"
+  },
+  "background": {
+    "color": {
+      "light": "#fff",
+      "dark": "#0C0C15"
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:hi@bagofwords.com"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
       "x": "https://x.com/bagofwords_com",
       "github": "https://github.com/bagofwords1"
     }
+  }
 }
