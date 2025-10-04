@@ -1,17 +1,155 @@
 ---
 title: 'Instructions'
-description: 'Generate, save and publish reports with Bag of words'
-icon: 'box'
+description: 'Guide your AI agent with custom instructions for better, more accurate results'
+icon: 'book'
 ---
 
-Each chat session that is created will point to a report. A report will include all the generated tables, data models, visualizations, and more.
+Instructions are **critical** for getting accurate, consistent results from your AI agent. They transform the agent from a generic query tool into a domain expert that understands your specific business context, data quirks, and calculation logic.
 
-## Publish reports
----
+Think of instructions as your organization's shared knowledge base. They capture the tribal knowledge that typically lives in people's heads or scattered documentation - business definitions, data relationships, calculation formulas, coding standards, and best practices. Once documented as instructions, this knowledge becomes available to everyone through the AI agent.
 
-Reports can be published to the web. This is a great way to share your reports with your team, or with the public. Click on the "Share" button in the report to set the report to public.
+**Common scenarios where instructions make a difference:**
 
-## Schedule reports
----
+* **Ambiguous terms**: "Active user" might mean different things across teams. Instructions define it precisely.
+* **Complex calculations**: Revenue recognition rules, churn formulas, or cohort definitions need exact specifications.
+* **Data quality issues**: Known data gaps, column meanings, or table relationships that aren't obvious.
+* **Business rules**: Filters that should always apply, date ranges to use, or tables to prioritize.
+* **Code standards**: Formatting preferences, library usage, or architectural patterns.
 
-Reports can be scheduled to be rerun at a specific time
+Without instructions, the agent makes educated guesses - sometimes right, sometimes wrong. With instructions, it follows your organization's exact specifications every time.
+
+## Instruction Examples
+
+Here are practical examples of instructions across different use cases:
+
+<AccordionGroup>
+  <Accordion title="Defining Business Terms" icon="book-open">
+    Use instructions to create consistent definitions across your organization.
+
+    ```
+    An "active user" is defined as a user with at least one session 
+    in the last 30 days. Use this definition for all activity-based metrics.
+    ```
+
+    **Category**: General  
+    **Scope**: All data sources
+  </Accordion>
+
+  <Accordion title="Prioritizing Data Sources" icon="database">
+    Guide the agent to use the right tables and avoid test or staging data.
+
+    ```
+    When analyzing customer data, always use the `customers_prod` table 
+    instead of `customers_staging`. The staging table contains test data.
+    ```
+
+    **Category**: Data Modeling  
+    **Scope**: Production database
+  </Accordion>
+
+  <Accordion title="Describing Column Meanings" icon="columns">
+    Explain coded values or non-obvious column semantics.
+
+    ```
+    The `status_code` column in the orders table uses these values:
+    - 1: Pending
+    - 2: Processing  
+    - 3: Shipped
+    - 4: Delivered
+    - 5: Cancelled
+    - 6: Refunded
+    ```
+
+    **Category**: Data Modeling  
+    **Scope**: Orders table
+  </Accordion>
+
+  <Accordion title="Calculation Formulas" icon="calculator">
+    Specify exact formulas for complex business metrics.
+
+    ```
+    To calculate Monthly Recurring Revenue (MRR):
+    MRR = SUM(subscription_amount) WHERE billing_frequency = 'monthly'
+    + SUM(subscription_amount / 12) WHERE billing_frequency = 'annual'
+    + SUM(subscription_amount / 3) WHERE billing_frequency = 'quarterly'
+    ```
+
+    **Category**: General  
+    **Scope**: Subscriptions data source
+  </Accordion>
+
+  <Accordion title="SQL Best Practices" icon="code">
+    Share data modeling techniques and query optimization tips.
+
+    ```
+    When joining tables on *_id fields, always cast integer IDs to strings 
+    or vice versa to avoid type mismatch errors. Example:
+    JOIN table2 ON table1.user_id::text = table2.user_id
+    ```
+
+    **Category**: Data Modeling  
+    **Scope**: All data sources
+  </Accordion>
+
+  <Accordion title="Code Standards" icon="file-code">
+    Enforce coding conventions and library preferences.
+
+    ```
+    For all Python data processing scripts:
+    - Use pandas for data manipulation
+    - Follow PEP 8 naming conventions
+    - Include docstrings for all functions
+    - Handle missing values explicitly with .fillna() or .dropna()
+    ```
+
+    **Category**: Code  
+    **Scope**: All data sources
+  </Accordion>
+</AccordionGroup>
+
+## Creating Instructions
+
+Anyone can suggest instructions by clicking **"+ Add Instruction"** on the Instructions page. Admins approve or reject suggestions.
+
+![Customize prompt LLM](/assets/media/instructions/instructions.png)
+
+**Instruction Content**: Enter the rule, code snippet, or guidance the agent should follow.
+
+**Scope**: Control when the instruction applies
+* All Data Sources - applies globally
+* Specific Data Source - limits to one source (e.g., PostgreSQL)
+* Table References - narrows to specific tables
+
+**Category**: Choose when to apply the instruction
+* **General** - all queries (business rules, definitions)
+* **Data Modeling** - building queries and joins (SQL practices)
+* **Code** - code generation (coding standards)
+
+New instructions start as **Draft - Pending Approval**. Admins can approve (Published) or reject (Archived) them.
+
+## Managing Instructions
+
+The instructions page shows **Published** (active) and **Suggested** (pending) tabs. Filter by creator type or category.
+
+**Approval (Admin Only)**: Go to the **Suggested** tab, click an instruction, review it, change **Status** to approve or reject, then click **"Update Instruction"**.
+
+## AI Auto-Generated Instructions
+
+During report sessions, when you provide clarifications or corrections, Bag of words will automatically detect these as potential instructions and suggest saving them.
+
+**Example**: If you clarify "Treat an active user as a user with at least one session in the last 30 days for all activity-based metrics," the system will offer to save this as a draft instruction for future use.
+
+This ensures valuable domain knowledge is captured organically during analysis and made available across your organization.
+
+<Note>Autosuggesting instructions can be turned off/on in the AI settings page</Note>
+
+## Monitoring Instruction Effectiveness
+
+Admins can track instruction performance through the **Monitoring** dashboard:
+
+* **Coverage Metrics**: See how many queries benefit from instructions
+* **Instruction Usage**: Identify which instructions are used most frequently  
+* **Effectiveness Scores**: Monitor whether instructions reduce errors and corrections
+* **Gaps Analysis**: Discover areas where additional instructions could help
+
+Use these insights to continuously improve your instruction library and agent accuracy.

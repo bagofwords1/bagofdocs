@@ -1,0 +1,6 @@
+---
+description: always write "Bag of words" or Bow - not "Bag of Words"
+globs:
+alwaysApply: true
+---
+always write "Bag of words" or Bow - not "Bag of Words"

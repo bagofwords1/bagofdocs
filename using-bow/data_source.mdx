@@ -1,71 +1,119 @@
 ---
 title: 'Data Sources'
-description: 'How to customize the LLM context in Bag of words'
+description: 'Connect databases, data warehouses, and services to power your AI-driven analytics'
 icon: 'database'
 ---
-Context in Bag of words is associated with a data source. When connecting a data source, Bag of words will set the data source summary, its schema, and the set AI context and rules to the db and eventually to the LLM.
-When writing prompts, Bag of words will automatically add the right context (with prioritization) to the LLM request, to ensure the LLM will generate the best results.
 
-When connecting a data source, Bag of words will use the data source summary and the set AI rules to generate the right data model and code to get the data.
-You can adjust the context and rules to tailor the data source to your needs and get the best results.
+Bag of words connects to virtually any data source, bringing your data directly into AI-powered analysis. Whether your data lives in a traditional database, a modern cloud warehouse, or specialized business services, you can connect it in minutes and start asking questions immediately.
 
-### Data Source Summary
----
-Bag of words will automatically generate a summary of the data source. You can adjust the summary to tailor the data source to your needs.
-A good summary will be concise, and include the most important information about the data source. 
-For example, if you are connecting a product usage data source, a good summary would be:
+**Connect from anywhere:**
 
+* **Databases & Warehouses**: PostgreSQL, MySQL, Snowflake, BigQuery, Redshift, and more - connect directly to your data infrastructure
+* **Business Services**: Tableau, Salesforce, NetSuite, AWS Cost Explorer, Google Analytics - pull data from the tools you use every day
+
+No data movement required. Bag of words queries your data where it lives, respecting your existing security and access controls. The AI agent understands your schema, relationships, and business context to generate accurate queries and insights.
+
+## Data Source
+
+In addition to basic connection settings, the data source entity will hold which tables are accessible to AI agents, context enrichers (tableau, dbt, etc), conversation starters, access control, and more
+
+### Tables
+
+Manage which tables are available to the AI agent by enabling or disabling tables to control visibility, searching for specific tables quickly, reloading the list if your schema changes, and viewing tables that exist but aren't currently enabled.
+
+![Select Tables](/assets/media/data-sources/tables.png)
+
+<Note>Start with your most important tables. You can always enable more later as needed.</Note>
+
+### Enrich your data souce with Tableau, dbt, AGENTS.md 
+
+Link additional metadata and documentation to enrich the AI's understanding:
+
+**Metadata/Resources**: Connect external resources that provide semantic context:
+
+* **dbt**: Link your dbt project to pull in model descriptions, column documentation, and relationships
+* **Tableau**: Import data models and calculated fields from Tableau workbooks
+* **LookML**: Connect Looker models to leverage existing business logic
+* **Markdown files (AGENTS.md)**: Include custom documentation files from your git repository
+* **Coding files**: python, sql
+
+These integrations allow the AI to use your existing data documentation automatically.
+
+![Connect Metadata Resources](/assets/media/dbt.png)
+
+Integration is via git repository - point Bag of words to your repo and it syncs automatically.
+
+### Access
+
+Under the settings tab, you can control who can use this data source and how they authenticate.
+
+* **Members**: Add or remove team members who can access this data source. Each member can have different permission levels.
+
+* **User Authentication**: Set user auth required, to require each user to enter their own database credentials rather than using shared system credentials. 
+
+## Description & Conversation Starters
+
+**Description**: Explain what this data source contains - the business domain, key entities, and how data is structured. The richer your description, the better the AI understands your data.
+
+**Example**:
 ```
-This data source contains information about the usage of our product. It includes the number of users, the number of active users, and the number of sessions.
-Key tables: users, sessions, products
-Key relationships: users have many sessions, sessions have many products
-Key metrics: active users, total users, total sessions, total products
+This data source is a database for a movie rental business. It tracks movies (films), 
+actors, customers, rentals, payments, and stores. Key tables include:
+
+• film: details about each movie
+• actor: information about actors
+• customer: customer contact and account info
+• rental: records of movie rentals by customers
+• payment: payments made by customers
+• store: store locations and staff
+
+Movies are linked to actors (film_actor), categories (film_category), and inventory 
+(inventory). Customers are linked to rentals and payments. Staff manage stores and 
+transactions.
 ```
 
-### AI Context
----
-In addition to the data source summary, you can also set AI context. This is a set of rules that Bag of words will use to generate the data model and code.
-This is a place where you can be more specific and granular. Content can be sample queries, metrics, tables, relationships, rules, and more.
+![Data Source Overview](/assets/media/data-sources/overview.png)
 
-For example, you can set the following rules:
+**Conversation Starters**: Pre-defined prompts that appear as chips in home page, helping users quickly explore common analyses.
 
-```
-** Key tables and fields **
-- table_a - represents users
-- table_b - represents customers
+**Example starters**:
+* "Top Renting Actors"
+* "Most Popular Film Categories"
+* "Inactive Customers"
+* "Store Performance Comparison"
 
-** Example queries and code **
-- SELECT * FROM table_a WHERE date > '2024-01-01'
-- SELECT * FROM table_b order by date desc limit 10
+Click **Edit** to modify the title or the full prompt starters at any time.
 
-** Data formatting requirements **
-- Date is in EST time.
-- Don't allow more than 5 columns in a query.
 
-** Rules for using the data **
-- Prioritize tables A and B.
-- Use table C only if table A and B don't have the data you need.
-- Always use left joins with table A.
-- Always order by date desc.
-```
+## Supported Data Sources
 
-### Data Source Schema
----
-The data source schema will be automatically added to the user prompt as part of the context. Schema is formatted as a `DDL` query. For example:
-```
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255),
-    email VARCHAR(255),
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
-);
+|  |  |  |
+|  :------- | :-------------------------------- | :-------------------------------- |
+| <span><img src="/assets/data-source-icons/postgresql.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>PostgreSQL</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/snowflake.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Snowflake</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/bigquery.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Google BigQuery</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/netsuite.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>NetSuite</span> | <span style={{marginRight: 80}}>Service</span> |
+| <span><img src="/assets/data-source-icons/mysql.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>MySQL</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/aws_athena.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>AWS Athena</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/mariadb.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>MariaDB</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/salesforce.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Salesforce</span> | <span style={{marginRight: 80}}>Service</span> |
+| <span><img src="/assets/data-source-icons/mssql.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Microsoft SQL Server</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/clickhouse.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>ClickHouse</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/aws_cost.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>AWS Cost Explorer</span> | <span style={{marginRight: 80}}>Service</span> |
+| <span><img src="/assets/data-source-icons/vertica.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Vertica</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/aws_redshift.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>AWS Redshift</span> | <span style={{marginRight: 80}}>Database/Warehouse</span> |
+| <span><img src="/assets/data-source-icons/tableau.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Tableau</span> | <span style={{marginRight: 80}}>Service</span> |
 
-CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
-    user_id INT,
-    order_date TIMESTAMP,
-    total DECIMAL(10, 2),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-```
+<Note>
+Your data source is missing? Create a PR or open an issue in the github repo:
+https://github.com/bagofwords1/bagofwords
+</Note>
+
+## Best Practices
+
+* **Provide rich descriptions**: The more context you give about your data, the better the AI performs
+* **Create helpful conversation starters**: Guide users toward common analyses
+* **Enable relevant tables only**: Don't overwhelm the AI with unused tables
+* **Use descriptive names**: Name your connections clearly (e.g., "Production DB" vs "Dev DB")
+* **Add instructions**: Create data source-specific instructions for calculation logic or business rules
+* **Manage access carefully**: Use member permissions and user authentication for sensitive data

@@ -6,48 +6,57 @@ description: 'Generate, save and publish reports with Bag of words'
 
 ## Overview
 
-Bag of Words offers flexible integration with various Large Language Models (LLMs), allowing you to leverage the power of different AI providers. You can integrate any OpenAI-compatible API, and we provide native integrations for:
+Bag of words allows you to effortlessly bring your own LLM (via provider and API Key), providing seamless integration with any of the main LLM providers, with additional support to any OpenAI-compatible API providers.
 
-*   **Google**
-*   **Azure**
-*   **OpenAI**
-*   **Anthropic**
+*   <img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Google**
+*   <img src="/assets/llm-icons/azure.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Azure**
+*   <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **OpenAI**
+*   <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Anthropic**
 
-This flexibility ensures you can utilize your preferred LLM while benefiting from Bag of Words' features.
+This flexibility ensures you can utilize your preferred LLM while benefiting from Bag of words' features.
+
+<Note>If you're using a custom LLM provider, make sure it supports streaming</Note>
 
 ## Natively Supported Models
 
-| Provider | Model Name | Comment |
-| :------- | :--------- | :------ |
-| <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> OpenAI | GPT-5 | |
-| <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> OpenAI | GPT-4.1 | Default model |
-| <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> OpenAI | GPT-4.1 Mini | |
-| <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> Anthropic | Claude 4 Sonnet | Default model |
-| <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> Anthropic | Claude 4 Opus | |
-| <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> Anthropic | Claude 3.7 Sonnet | |
-| <img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> Google | Gemini 2.5 Pro | Default model |
-| <img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, verticalAlign: 'middle'}} /> Google | Gemini 2.5 Flash | |
+|  |  |  |
+|  :------- | :-------------------------------- | :-------------------------------- |
+| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-5</span> | <span style={{marginRight: 80}}>Recommended</span> |
+| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1</span> | <span style={{marginRight: 80}}>Recommended</span> |
+| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1 Mini</span> | <span style={{marginRight: 80}}></span> |
+| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4.5 Sonnet</span> | <span style={{marginRight: 80}}>Recommended</span> |
+| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4 Sonnet</span> | <span style={{marginRight: 80}}></span> |
+| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /></span> | <span style={{marginRight: 80}}>Claude 4 Opus</span> | <span style={{marginRight: 80}}></span> |
+| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 3.7 Sonnet</span> | <span style={{marginRight: 80}}></span> |
+| <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10 , verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Pro</span> | <span style={{marginRight: 80}}>Recommended</span> |
+| <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Flash</span> | <span style={{marginRight: 80}}></span> |
 
 ## Add an LLM Provider
 
 To add a new LLM provider, follow these steps:
 
-1.  **Select from existing models**: Choose from a list of pre-configured models that Bag of Words natively supports.
+1.  **Select from existing models**: Choose from a list of pre-configured models that Bag of words natively supports.
 2.  **Add custom model**: If your desired LLM is not listed, you can integrate it by providing the necessary API details.
+![Bring your own LLM](/assets/media/llm/llm.png)
 
 ## Set LLM as default
 
 To set a specific LLM as your default:
 
 1.  Navigate to the LLM settings.
-2.  Select your preferred model.
-3.  Mark it as default.
+2.  Go to the desired LLM row, and click the elipsis icon on the right
+3.  Click "Make Default"
 
 ## Select LLM in the prompt box
+
+While default LLM can be configured only by users with the right permissions (admin), each individual can 
+choose their own LLM when creating reports. 
 
 When using the prompt box:
 
 1.  Click on the LLM selection dropdown.
 2.  Choose the LLM you wish to use for that specific prompt.
+
+![Customize prompt LLM](/assets/media/llm/prompt-box.png)
 
 

@@ -35,7 +35,8 @@
           "using-bow/instructions",
           "using-bow/data_source",
           "using-bow/llm",
-          "using-bow/quality"
+          "using-bow/settings",
+          "using-bow/slack"
         ]
       }
     ]
