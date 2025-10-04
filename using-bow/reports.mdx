@@ -16,10 +16,6 @@ There are two main types of prompts:
 * **Query-style**: Direct data requests—get specific metrics, aggregations, or breakdowns
 * **Analysis-style**: Open-ended investigations—explore trends, find root causes, or run deep analysis
 
-<Note>The agent uses your organization's context—schema, metadata, dbt models, and instructions—to understand your data structure and business logic.</Note>
-
-### Example Prompts
-
 <AccordionGroup>
   <Accordion title="Query-Style Prompts" icon="table">
     Direct requests for specific data or metrics.
@@ -33,7 +29,7 @@ There are two main types of prompts:
     * "List all active subscriptions expiring this month"
   </Accordion>
 
-  <Accordion title="Analysis & Root Cause Prompts" icon="magnifying-glass-chart">
+  <Accordion title="Analysis & Root Cause Prompts" icon="search-check">
     Open-ended investigations that require multi-step reasoning.
 
     **Examples:**
@@ -46,6 +42,7 @@ There are two main types of prompts:
   </Accordion>
 </AccordionGroup>
 
+<Note>The agent uses your organization's context—schema, metadata, dbt models, and instructions—to understand your data structure and business logic.</Note>
 ## Viewing Results
 
 The agent returns results in multiple formats:

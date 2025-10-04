@@ -3,10 +3,10 @@ title: Quickstart
 icon: 'rocket'
 ---
 
-This is a quickstart guide for **Bag of words**. Complete the following steps to get started 🚀.
+Get started with Bag of words in minutes. Install, configure, and start chatting with your data.
 
 ## Install with Docker
----
+
 You can install Bag of words with a single docker command. By default, it will use SQLite as the database. 
 You can also configure it to use PostgreSQL by passing `BOW_DATABASE_URL` environment variable.
 
@@ -19,29 +19,76 @@ To use PostgreSQL, you need to set the `BOW_DATABASE_URL` environment variable.
 For example: `BOW_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bagofwords`
 </Info>
 
-## Sign up and create your organization
----
-After setting up the docker container, you will be able to sign up and create your organization. Simply go to the deployment URL (usually `http://localhost:3000`) and sign up.
+## Onboarding
 
-<Warning>
-Signing up without an invitation email will work only for the first (admin) user.
-</Warning>
+After installation, complete the onboarding flow to set up your AI analyst.
 
-## Configure your LLM provider
----
-Bag of words supports multiple LLM providers. You can configure the LLM provider after signing up and creating your organization.
-Go to `http://localhost:3000/settings/models` and click "Integrate Model" button.
+### 1. Welcome
 
-<Info>
-Adding an LLM provider is required to create reports and connect data.
-</Info>
+Start by clicking **Next** to begin the setup process.
 
-## Connect your data
----
-Bag of words supports multiple data sources. You can connect your data after signing up and creating your organization.
-Go to `http://localhost:3000/integrations`, choose the data source you want to connect and follow the instructions.
+![Welcome to Bag of words](/assets/media/onboarding/welcome.png)
 
-## Create your first report
----
-Reports are the core of Bag of words. Completing the previous steps will allow you to create your first report.
-Go to `http://localhost:3000/` and write a prompt to query, analyze and visualize your data.
+### 2. Configure LLM
+
+Connect to any LLM provider and bring your own API key. Choose from OpenAI, Anthropic, Azure OpenAI, or Google.
+
+![Configure LLM](/assets/media/onboarding/llm.png)
+
+### 3. Connect Data Source
+
+Select one of the available data sources: PostgreSQL, Snowflake, BigQuery, MySQL, AWS Athena, Salesforce, and more.
+
+![Connect data source](/assets/media/onboarding/data-source.png)
+
+Enter your connection details (host, port, database, credentials) and test the connection.
+
+### 4. Select Tables
+
+Choose which tables the AI can access and query during conversations. You can select all or specific tables based on your needs.
+
+![Select tables](/assets/media/onboarding/tables.png)
+
+### 5. Add Context
+
+Add custom instructions and enrich context to help the AI make better decisions. You can:
+
+* **Suggest Instructions**: Add business-specific context, glossary, and code guidelines
+* **Enrich Context**: Connect Git repos to load dbt/markdown resources, then toggle items to include them in AI context
+
+![Add context](/assets/media/onboarding/context.png)
+
+### 6. Start Asking Questions
+
+Setup complete! You can now start asking questions in natural language. Create reports, dashboards, and get the data you need.
+
+![AI Analyst ready](/assets/media/onboarding/ready.png)
+
+Use the conversation starters or type your own questions to begin analyzing your data.
+
+## Next Steps
+
+**Learn how to use Bag of words:**
+
+<CardGroup cols={3}>
+  <Card title="Chat with Data" icon="bot" href="/using-bow/reports">
+    Learn how to ask questions and iterate on results
+  </Card>
+  <Card title="Create Dashboards" icon="chart-pie" href="/using-bow/dashboards">
+    Build visual stories with charts and tables
+  </Card>
+  <Card title="Add Instructions" icon="box" href="/using-bow/instructions">
+    Guide your AI with custom business rules
+  </Card>
+</CardGroup>
+
+**Understand how it works:**
+
+<CardGroup cols={2}>
+  <Card title="Agent Architecture" icon="brain" href="/core/agent">
+    Deep dive into the reasoning loop and tools
+  </Card>
+  <Card title="Context Management" icon="layers" href="/core/context">
+    How Bag of words constructs context for every run
+  </Card>
+</CardGroup>
