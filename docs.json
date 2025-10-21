@@ -33,6 +33,7 @@
           "using-bow/reports",
           "using-bow/dashboards",
           "using-bow/instructions",
+          "using-bow/catalog",
           "using-bow/data_source",
           "using-bow/llm",
           "using-bow/settings",
