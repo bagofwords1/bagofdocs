@@ -35,6 +35,7 @@
           "using-bow/instructions",
           "using-bow/catalog",
           "using-bow/data_source",
+          "using-bow/evals",
           "using-bow/llm",
           "using-bow/settings",
           "using-bow/slack"

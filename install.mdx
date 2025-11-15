@@ -128,11 +128,21 @@ You should also set the following in your Google OAuth configurations
 3. Enable People API 
 
 
-## OppenID Connect (OIDC)
+## OpenID Connect (OIDC)
 ```yaml
-
+oidc_providers:
+- name: okta
+  enabled: true
+  issuer: https://***********.okta.com/oauth2/default
+  client_id: ${OKTA_CLIENT_ID}
+  client_secret: ${OKTA_CLIENT_SECRET}
+  scopes: ["openid", "profile", "email"]
+  pkce: true
+  client_auth_method: basic
+  discovery: true
+  uid_claim: sub
 ```
 
-### Okta
+### For Okta
 1. Set a new OIDC application: web 
 2. Set callback URL `https://your-base-bow-url.com/api/auth/call
