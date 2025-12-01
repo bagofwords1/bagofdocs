@@ -117,6 +117,34 @@ Here are practical examples of instructions across different use cases:
     If any small doubt, and user asks about financial related tables,
     be extra cautious and ask for additional info/clarifications
     ```
+    
+    ```
+    Before starting any analysis, scan metadata in Git (dbt docs,
+    markdown, schemas) and only then proceed with table selection.
+    ```
+  </Accordion>
+  <Accordion title="Visualization Standards" icon="bar-chart-3">
+    Guide how to visualize common metrics.
+
+    ```
+    For Sales metrics, default to a bar chart by category or time
+    unless the user requests a different visualization.
+    ```
+    
+    **Category**: Visualization  
+    **Scope**: Dashboards and reports
+  </Accordion>
+  <Accordion title="Dashboard Layout" icon="layout-dashboard">
+    Define dashboard composition and layout conventions.
+
+    ```
+    Place key KPIs at the top.
+    Prefer bar/area charts for trends and breakdowns.
+    Avoid raw tables unless specifically requested.
+    ```
+    
+    **Category**: Dashboard  
+    **Scope**: All dashboards
   </Accordion>
 </AccordionGroup>
 
@@ -137,6 +165,9 @@ Anyone can suggest instructions by clicking **"+ Add Instruction"** on the Instr
 * **General** - all queries (business rules, definitions)
 * **Data Modeling** - building queries and joins (SQL practices)
 * **Code** - code generation (coding standards)
+* **System** - program workflow/orchestration (agent behavior)
+* **Visualization** - chart selection and visualization standards
+* **Dashboard** - layout and UX conventions
 
 New instructions start as **Draft - Pending Approval**. Admins can approve (Published) or reject (Archived) them.
 
