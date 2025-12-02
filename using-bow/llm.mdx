@@ -11,11 +11,10 @@ Bag of words allows you to effortlessly bring your own LLM (via provider and API
 *   <img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Google**
 *   <img src="/assets/llm-icons/azure.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Azure**
 *   <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **OpenAI**
-*   <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Anthropic**
+*   <img src="/assets/llm-icons/aAnthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Anthropic**
+* Custom LLM endpoints like Ollama or other proxy services
 
 This flexibility ensures you can utilize your preferred LLM while benefiting from Bag of words' features.
-
-<Note>If you're using a custom LLM provider, make sure it supports streaming</Note>
 
 ## Natively Supported Models
 
@@ -25,12 +24,19 @@ This flexibility ensures you can utilize your preferred LLM while benefiting fro
 | <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-5</span> | <span style={{marginRight: 80}}>Recommended</span> |
 | <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1</span> | <span style={{marginRight: 80}}>Recommended</span> |
 | <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1 Mini</span> | <span style={{marginRight: 80}}></span> |
+| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4.5 Opus</span> | <span style={{marginRight: 80}}>Recommended</span> |
 | <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4.5 Sonnet</span> | <span style={{marginRight: 80}}>Recommended</span> |
 | <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4 Sonnet</span> | <span style={{marginRight: 80}}></span> |
 | <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /></span> | <span style={{marginRight: 80}}>Claude 4 Opus</span> | <span style={{marginRight: 80}}></span> |
 | <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 3.7 Sonnet</span> | <span style={{marginRight: 80}}></span> |
 | <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10 , verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Pro</span> | <span style={{marginRight: 80}}>Recommended</span> |
 | <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Flash</span> | <span style={{marginRight: 80}}></span> |
+
+<Note>
+You can integrate any custom LLM as long as it supports OpenAI requests and streaming
+
+To use a custom LLM (Ollama, proxy services, etc) - choose the Custom provider and set the base URL (e.g `http://localhost:11434/v1` and an API key (put any character if no API is required))
+</Note>
 
 ## Add an LLM Provider
 
