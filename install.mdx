@@ -18,6 +18,69 @@ To use PostgreSQL, you need to set the `BOW_DATABASE_URL` environment variable.
 For example: `BOW_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bagofwords`
 </Info>
 
+### Update
+- Re-run the same `docker run --pull always ...` command to fetch and start the latest image.
+- Optionally, pull explicitly and restart:
+  ```bash
+  docker pull bagofwords/bagofwords:latest
+  # stop/remove your existing container if needed, then start again
+  # docker stop <container_name> && docker rm <container_name>
+  docker run --pull always -d -p 3000:3000 bagofwords/bagofwords
+  ```
+
+## Install with Docker Compose
+---
+
+Run Bag of words with Docker Compose and Caddy (built-in TLS on port 443). We recommend using the canonical files from the repo to avoid drift:
+
+- `docker-compose.yaml`: https://github.com/bagofwords1/bagofwords/blob/main/docker-compose.yaml
+- `Caddyfile`: https://github.com/bagofwords1/bagofwords/blob/main/Caddyfile
+
+### Steps
+1. Make sure Docker and Docker Compose are installed.
+2. Clone the repo:
+   ```bash
+   git clone https://github.com/bagofwords1/bagofwords
+   cd bagofwords
+   ```
+3. Create a `.env` file (for domain and credentials). Example:
+   ```env
+   # Domain used by Caddy for HTTPS (must resolve to your server's public IP)
+   DOMAIN=yourdomain.com
+
+   # PostgreSQL (use stronger values for production)
+   POSTGRES_USER=bow
+   POSTGRES_PASSWORD=your_secure_pw
+   POSTGRES_DB=bagofwords
+
+   # Optional but recommended: encryption key (Fernet, 44 chars incl. '=')
+   # Generate with OpenSSL: openssl rand -base64 32 | tr '+/' '-_'
+   BOW_ENCRYPTION_KEY=
+   ```
+   Generate `BOW_ENCRYPTION_KEY` with OpenSSL:
+   ```bash
+   openssl rand -base64 32 | tr '+/' '-_'
+   ```
+4. Start services:
+   ```bash
+   docker compose up -d
+   ```
+5. Point your domain to the server’s public IP:
+   - Create an A record for `yourdomain.com` → your instance public IP.
+   - Caddy will automatically obtain/renew the TLS certificate and serve on port 443.
+6. Open `https://yourdomain.com`
+
+<Info>
+Caddy is included by default as a reverse proxy on port 443. If you prefer to run without Caddy, remove the `caddy` service from `docker-compose.yaml` and expose the app directly on port 3000. For local, no-SSL testing, you can also use `docker-compose.dev.yaml`.
+</Info>
+
+### Update
+```bash
+# pull latest images and recreate containers
+docker compose pull
+docker compose up -d
+```
+
 ## Other configurations
 ---
 You can also configure additional settings in the bow-config.yaml file.
@@ -110,6 +173,14 @@ helm upgrade -i --create-namespace \
  --set config.googleClientSecret=<CLIENT_SECRET>
 ``` 
 
+
+### Update
+```bash
+# Restart the Bag of words deployment(s) to pick up the latest image
+# Adjust namespace (-n) and selector if you used different names
+kubectl rollout restart deployment -n bowapp-1 -l app.kubernetes.io/instance=bowapp
+kubectl rollout status deployment -n bowapp-1 -l app.kubernetes.io/instance=bowapp
+```
 
 ## Google OAuth
 
