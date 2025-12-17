@@ -37,6 +37,7 @@
           "using-bow/data_source",
           "using-bow/evals",
           "using-bow/llm",
+          "using-bow/mcp",
           "using-bow/settings",
           "using-bow/slack"
         ]

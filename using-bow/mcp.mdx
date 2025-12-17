@@ -1,0 +1,119 @@
+---
+title: 'MCP Server'
+description: 'Connect Claude, Cursor, or any MCP client to query your data via the Bag of words MCP Server'
+icon: 'plug'
+---
+
+## Overview
+
+Bag of words exposes an MCP (Model Context Protocol) server that allows you to connect external AI tools like Claude Desktop, Cursor, or any MCP-compatible client directly to your data sources. This enables you to query your data using natural language from your favorite AI tools.
+
+With the MCP Server, you can:
+
+* **Query data from Claude Desktop**: Ask questions about your data directly in Claude
+* **Use Cursor for data analysis**: Leverage your IDE's AI capabilities with your connected data sources
+* **Integrate with any MCP client**: Build custom workflows using the standardized MCP protocol
+
+## Enable MCP Server
+
+Administrators can enable or disable the MCP endpoint from **Settings** → **Integrations**.
+
+![MCP Server Integration Toggle](/assets/media/mcp-integrations.png)
+
+Toggle the **BOW MCP Server** switch to enable MCP endpoint for integration with AI assistants like Cursor, Claude, or others.
+
+## Getting Started
+
+### 1. Access the MCP Configuration
+
+Click **MCP** in the left navigation menu to open the MCP Server configuration popup.
+
+![MCP Server Configuration](/assets/media/mcp-server.png)
+
+### 2. Generate an Access Token
+
+Click **Regenerate Token** to create a new access token. This token authenticates your MCP client with Bag of words.
+
+<Warning>
+Keep your access token secure. Anyone with this token can query your data sources through the MCP server.
+</Warning>
+
+### 3. Configure Your MCP Client
+
+Copy the configuration snippet and add it to your MCP client's configuration file. The configuration looks like this:
+
+```json
+{
+  "mcpServers": {
+    "bagofwords": {
+      "url": "https://<YOUR_DOMAIN>/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+Replace `<YOUR_DOMAIN>` with your Bag of words instance URL and `<YOUR_API_KEY>` with your actual access token.
+
+## Client Configuration
+
+### Claude Desktop
+
+Add the configuration to your Claude Desktop settings file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Cursor
+
+Add the configuration to your Cursor MCP settings to enable data querying directly from your IDE.
+
+### Custom MCP Clients
+
+Any client that supports the MCP protocol can connect using the URL and authorization header shown in your configuration panel.
+
+## MCP Reports
+
+Reports created through MCP connections are automatically tracked in your Reports page and marked with an MCP icon for easy identification.
+
+![MCP Reports](/assets/media/mcp-reports.png)
+
+When you open an MCP-generated report, you'll see a banner indicating it was created via MCP. The report displays the generated data and visualizations from the tool calls made by the external AI assistant.
+
+![MCP Report View](/assets/media/mcp-report-view.png)
+
+<Warning>
+**Important**: For MCP-generated reports, the actual LLM completion/prompt content is **not saved**, but all tool usage is **tracked 100%**. 
+
+This means you can see exactly what data was queried and which tools were used, while the conversational context from the external client (Claude, Cursor, etc.) remains private.
+</Warning>
+
+## Managing Tokens
+
+You can manage multiple access tokens from the MCP configuration panel:
+
+* **View active tokens**: See all tokens created for your workspace with their creation dates
+* **Regenerate tokens**: Create new tokens when needed
+* **Revoke tokens**: Remove tokens that are no longer needed for security
+
+## Use Cases
+
+### Data Analysis in Claude
+
+Once connected, you can ask Claude questions about your data:
+
+* "What were our top 10 customers by revenue last month?"
+* "Show me the trend of user signups over the past year"
+* "Which products have the highest return rate?"
+
+### Development Workflows in Cursor
+
+Use the MCP integration while coding to:
+
+* Validate data assumptions while building features
+* Generate test data based on production patterns
+* Debug data-related issues with real-time queries
+* Build data models with full context of the data warehouse
