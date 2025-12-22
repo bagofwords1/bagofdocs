@@ -4,196 +4,269 @@ description: 'Guide your AI agent with custom instructions for better, more accu
 icon: 'box'
 ---
 
-Instructions are **critical** for getting accurate, consistent results from your AI agent. They transform the agent from a generic query tool into a domain expert that understands your specific business context, data quirks, and calculation logic.
+## Contents
 
-Think of instructions as your organization's shared knowledge base. They capture the tribal knowledge that typically lives in people's heads or scattered documentation - business definitions, data relationships, calculation formulas, coding standards, and best practices. Once documented as instructions, this knowledge becomes available to everyone through the AI agent.
+- [What is an Instruction](#what-is-an-instruction)
+- [Examples](#examples)
+- [Analyzing Instructions](#analyzing-instructions)
+- [Approval Workflow](#approval-workflow)
+- [AI-Generated Instructions](#ai-generated-instructions)
+- [Git Integration](#git-integration)
+- [Versioning](#versioning)
 
-**Common scenarios where instructions make a difference:**
+Instructions turn the agent into a domain expert for your data. They capture business definitions, calculation formulas, SQL patterns, and coding standards that aren't in your schema.
 
-* **Ambiguous terms**: "Active user" might mean different things across teams. Instructions define it precisely.
-* **Complex calculations**: Revenue recognition rules, churn formulas, or cohort definitions need exact specifications.
-* **Data quality issues**: Known data gaps, column meanings, or table relationships that aren't obvious.
-* **Business rules**: Filters that should always apply, date ranges to use, or tables to prioritize.
-* **Code standards**: Formatting preferences, library usage, or architectural patterns.
+- **Semantic definitions** - what terms mean in your org
+- **Calculation logic** - formulas, filters, table preferences  
+- **SQL patterns** - joins, type casting, naming conventions
+- **Agent behavior** - what to check first, when to ask for clarification
+- **Visualization** - chart types, dashboard layouts
 
-Without instructions, the agent makes educated guesses - sometimes right, sometimes wrong. With instructions, it follows your organization's exact specifications every time.
+This knowledge typically lives in people's heads or scattered documentation. Instructions make it available to everyone through the agent.
 
-## Instruction Examples
+![Instructions](/assets/media/instructions/instructions-table.png)
 
-Here are practical examples of instructions across different use cases:
+Create instructions manually, let the AI suggest them during conversations, or load from Git (dbt, markdown, LookML). All changes are versioned with rollback. Users and AI can suggest; admins approve before they take effect.
+
+<Tip>Use System category instructions to control agent workflow, e.g., "Search dbt metadata before selecting tables" or "Ask for clarification on financial queries."</Tip>
+
+## What is an Instruction
+
+An instruction has text (the actual content), and configuration that controls when and how it's applied:
+
+![Add Instruction](/assets/media/instructions/add-instructions.png)
+
+| Property | Options |
+| :------- | :------ |
+| **Category** | General (business rules) · Code Gen (SQL patterns) · Visualization · Dashboard · System (AI behavior) |
+| **Load Mode** | Always (every request, limit 5-10) · Intelligent (semantic search) · Disabled |
+| **Scope** | All data sources, specific source, or table/column references |
+| **Status** | Draft · Suggested · Approved · Rejected |
+
+Optional: **Labels** for organization.
+
+## Examples
 
 <AccordionGroup>
-  <Accordion title="Defining Business Terms" icon="book-open">
-    Use instructions to create consistent definitions across your organization.
-
+  <Accordion title="Business Terms" icon="book-open">
     ```
     An "active user" is defined as a user with at least one session 
     in the last 30 days. Use this definition for all activity-based metrics.
     ```
-
-    **Category**: General  
-    **Scope**: All data sources
+    **Category**: General · **Load Mode**: Always
   </Accordion>
 
-  <Accordion title="Prioritizing Data Sources" icon="database">
-    Guide the agent to use the right tables and avoid test or staging data.
-
+  <Accordion title="Table Priority" icon="database">
     ```
     When analyzing customer data, always use the `customers_prod` table 
     instead of `customers_staging`. The staging table contains test data.
     ```
-
-    **Category**: Data Modeling  
-    **Scope**: Production database
+    **Category**: Code Gen · **Load Mode**: Always
   </Accordion>
 
-  <Accordion title="Describing Column Meanings" icon="columns">
-    Explain coded values or non-obvious column semantics.
-
+  <Accordion title="Column Semantics" icon="columns">
     ```
     The `status_code` column in the orders table uses these values:
-    - 1: Pending
-    - 2: Processing  
-    - 3: Shipped
-    - 4: Delivered
-    - 5: Cancelled
-    - 6: Refunded
+    - 1: Pending, 2: Processing, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Refunded
     ```
-
-    **Category**: Data Modeling  
-    **Scope**: Orders table
+    **Category**: Code Gen · **Load Mode**: Intelligent
   </Accordion>
 
-  <Accordion title="Calculation Formulas" icon="calculator">
-    Specify exact formulas for complex business metrics.
-
+  <Accordion title="Calculation Formula" icon="calculator">
     ```
-    To calculate Monthly Recurring Revenue (MRR):
     MRR = SUM(subscription_amount) WHERE billing_frequency = 'monthly'
     + SUM(subscription_amount / 12) WHERE billing_frequency = 'annual'
     + SUM(subscription_amount / 3) WHERE billing_frequency = 'quarterly'
     ```
-
-    **Category**: General  
-    **Scope**: Subscriptions data source
+    **Category**: General · **Load Mode**: Intelligent
   </Accordion>
 
-  <Accordion title="SQL Best Practices" icon="code">
-    Share data modeling techniques and query optimization tips.
-
+  <Accordion title="SQL Patterns" icon="code">
     ```
     When joining tables on *_id fields, always cast integer IDs to strings 
     or vice versa to avoid type mismatch errors. Example:
     JOIN table2 ON table1.user_id::text = table2.user_id
     ```
-
-    **Category**: Data Modeling  
-    **Scope**: All data sources
+    **Category**: Code Gen · **Load Mode**: Always
   </Accordion>
 
-  <Accordion title="Code Standards" icon="file-code">
-    Enforce coding conventions and library preferences.
-
+  <Accordion title="System Behavior" icon="cog">
     ```
-    For all Python data processing scripts:
-    - Use pandas for data manipulation
-    - Follow PEP 8 naming conventions
-    - Include docstrings for all functions
-    - Handle missing values explicitly with .fillna() or .dropna()
+    Always search data source metadata resources (dbt, markdown) 
+    before selecting tables.
     ```
-
-    **Category**: Code  
-    **Scope**: All data sources
+    ```
+    If user asks about financial tables, be extra cautious 
+    and ask for clarifications.
+    ```
+    **Category**: System · **Load Mode**: Always
   </Accordion>
-    <Accordion title="System Instructions" icon="cog">
-    Control agent behavior and tool orchestration
 
+  <Accordion title="Visualization" icon="bar-chart-3">
     ```
-    Always search extensively data source connected
-    metadata resources (dbt, markdown) before selecting tables
+    For Sales metrics, default to bar chart by category or time
+    unless user requests otherwise.
     ```
-
-    ```
-    If any small doubt, and user asks about financial related tables,
-    be extra cautious and ask for additional info/clarifications
-    ```
-    
-    ```
-    Before starting any analysis, scan metadata in Git (dbt docs,
-    markdown, schemas) and only then proceed with table selection.
-    ```
+    **Category**: Visualization · **Load Mode**: Intelligent
   </Accordion>
-  <Accordion title="Visualization Standards" icon="bar-chart-3">
-    Guide how to visualize common metrics.
 
-    ```
-    For Sales metrics, default to a bar chart by category or time
-    unless the user requests a different visualization.
-    ```
-    
-    **Category**: Visualization  
-    **Scope**: Dashboards and reports
-  </Accordion>
   <Accordion title="Dashboard Layout" icon="layout-dashboard">
-    Define dashboard composition and layout conventions.
-
     ```
-    Place key KPIs at the top.
-    Prefer bar/area charts for trends and breakdowns.
+    Place key KPIs at the top. Prefer bar/area charts for trends.
     Avoid raw tables unless specifically requested.
     ```
-    
-    **Category**: Dashboard  
-    **Scope**: All dashboards
+    **Category**: Dashboard · **Load Mode**: Always
+  </Accordion>
+
+  <Accordion title="Markdown from Git" icon="file-text">
+    Sync documentation with YAML frontmatter to control behavior:
+
+    ```markdown
+    ---
+    alwaysApply: true
+    references:
+      - customers
+      - orders
+    ---
+
+    # Customer Lifetime Value
+
+    CLV = SUM(order_total) WHERE customer_id = X AND status = 'completed'
+    Use 12-month lookback window from analysis date.
+    ```
+    **Source**: Git · **Load Mode**: Always (via frontmatter)
+  </Accordion>
+
+  <Accordion title="Reference Docs from Git" icon="book">
+    Large reference docs work best with Intelligent mode:
+
+    ```markdown
+    ---
+    alwaysApply: false
+    references:
+      - transactions
+      - accounts
+    ---
+
+    # Financial Data Dictionary
+
+    ## Transaction Types
+    - CREDIT: Money coming in
+    - DEBIT: Money leaving
+    - TRANSFER: Movement between accounts
+    ```
+    **Source**: Git · **Load Mode**: Intelligent (via frontmatter)
   </Accordion>
 </AccordionGroup>
 
-## Creating Instructions
+## Analyzing Instructions
 
-Anyone can suggest instructions by clicking **"+ Add Instruction"** on the Instructions page. Admins approve or reject suggestions.
+Click **Analyze** on any instruction to identify overlaps, conflicts, and estimate impact on past prompts.
 
-![Customize prompt LLM](/assets/media/instructions/instructions.png)
+![Analyze Instruction](/assets/media/instructions/analyze-instruction.png)
 
-**Instruction Content**: Enter the rule, code snippet, or guidance the agent should follow.
+The analysis shows:
+- **Impact** - percentage of past prompts affected by this instruction
+- **Sample impacted prompts** - examples of queries that would use this instruction
+- **Related** - other instructions that overlap or conflict with this one
 
-**Scope**: Control when the instruction applies
-* All Data Sources - applies globally
-* Specific Data Source - limits to one source (e.g., PostgreSQL)
-* Table References - narrows to specific tables
+Use this to refine instructions and avoid redundancy.
 
-**Category**: Choose when to apply the instruction
-* **General** - all queries (business rules, definitions)
-* **Data Modeling** - building queries and joins (SQL practices)
-* **Code** - code generation (coding standards)
-* **System** - program workflow/orchestration (agent behavior)
-* **Visualization** - chart selection and visualization standards
-* **Dashboard** - layout and UX conventions
+## Approval Workflow
 
-New instructions start as **Draft - Pending Approval**. Admins can approve (Published) or reject (Archived) them.
+Instructions require admin approval before affecting AI behavior.
 
-## Managing Instructions
+| Status | Description |
+| :----- | :---------- |
+| **Draft** | Work in progress - not visible to AI |
+| **Suggested** | Awaiting admin review |
+| **Approved** | Active and affecting AI |
+| **Rejected** | Declined |
 
-The instructions page shows **Published** (active) and **Suggested** (pending) tabs. Filter by creator type or category.
+**Flow**: User/AI suggests → Admin reviews → Approves or Rejects → Approved instructions go live.
 
-**Approval (Admin Only)**: Go to the **Suggested** tab, click an instruction, review it, change **Status** to approve or reject, then click **"Update Instruction"**.
+Admins: Go to **Suggested** tab → Review instruction → Change status → **Update Instruction**.
 
-## AI Auto-Generated Instructions
+## AI-Generated Instructions
 
-During report sessions, when you provide clarifications or corrections, Bag of words will automatically detect these as potential instructions and suggest saving them.
+During conversations, Bag of words detects clarifications you provide and offers to save them as instructions.
 
-**Example**: If you clarify "Treat an active user as a user with at least one session in the last 30 days for all activity-based metrics," the system will offer to save this as a draft instruction for future use.
+Example: You clarify "active user means at least one session in 30 days" → System offers to save this for future use.
 
-This ensures valuable domain knowledge is captured organically during analysis and made available across your organization.
+<Note>Auto-suggesting can be toggled in AI settings.</Note>
 
-<Note>Autosuggesting instructions can be turned off/on in the AI settings page</Note>
+## Git Integration
 
-## Monitoring Instruction Effectiveness
+Load instructions from existing documentation in Git repositories. Connect repos in [Data Sources](/using-bow/data_source).
 
-Admins can track instruction performance through the **Monitoring** dashboard:
+### Supported Sources
 
-* **Coverage Metrics**: See how many queries benefit from instructions
-* **Instruction Usage**: Identify which instructions are used most frequently  
-* **Effectiveness Scores**: Monitor whether instructions reduce errors and corrections
-* **Gaps Analysis**: Discover areas where additional instructions could help
+| Source | Default Load Mode |
+| :----- | :---------------- |
+| Markdown files (.md) | Always |
+| dbt models, metrics, sources | Intelligent |
+| dbt seeds | Intelligent |
+| dbt macros, tests | Disabled |
+| LookML views, models, explores | Intelligent |
 
-Use these insights to continuously improve your instruction library and agent accuracy.
+### Settings
+
+| Setting | Description |
+| :------ | :---------- |
+| **Branch** | Which branch to sync from |
+| **Auto Publish** | Automatically approve synced instructions |
+| **Default Load Mode** | Auto, Always, Intelligent, or Disabled |
+
+### Frontmatter
+
+Control behavior in Markdown files:
+
+```yaml
+---
+alwaysApply: true
+references:
+  - customers
+  - orders
+---
+```
+
+- `alwaysApply: true` → Load mode = Always
+- `alwaysApply: false` → Load mode = Intelligent
+- `references` → Auto-link to tables
+
+### Unlinking from Git
+
+Edit a Git-synced instruction → Save → Confirm "Unlink from Git". The instruction becomes user-owned.
+
+## Versioning
+
+Every change creates a new **build** - an immutable snapshot of all instructions.
+
+- One active build at any time (marked "main")
+- Full audit trail of who changed what and when
+- Agent runs are linked to specific builds for traceability
+
+### Build Sources
+
+| Source | Trigger |
+| :----- | :------ |
+| **User** | Manual edits |
+| **Git** | Repository sync |
+| **AI** | AI-generated suggestions |
+| **Rollback** | Reverting to previous version |
+
+### Version Explorer
+
+Access: Instructions page → Version selector → **Version Explorer**
+
+![Version Explorer](/assets/media/instructions/instructions-version-explorer.png)
+
+| Feature | Description |
+| :------ | :---------- |
+| **Build History** | Browse all builds with timestamps |
+| **Diff View** | See changes between versions |
+| **Rollback** | Restore previous version |
+
+**Diff indicators**: +N (added) · ~N (modified) · −N (removed)
+
+**Rollback**: Select build → Click "Rollback to this version" → New build becomes active.

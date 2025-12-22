@@ -15,7 +15,7 @@ No data movement required. Bag of words queries your data where it lives, respec
 
 ## Data Source
 
-In addition to basic connection settings, the data source entity will hold which tables are accessible to AI agents, context enrichers (tableau, dbt, etc), conversation starters, access control, and more
+In addition to basic connection settings, the data source entity will hold which tables are accessible to AI agents, instructions imported from Git (dbt, Tableau, markdown, etc), conversation starters, access control, and more
 
 ### Tables
 
@@ -25,23 +25,19 @@ Manage which tables are available to the AI agent by enabling or disabling table
 
 <Note>Start with your most important tables. You can always enable more later as needed.</Note>
 
-### Enrich your data souce with Tableau, dbt, AGENTS.md 
+### Instructions
 
-Link additional metadata and documentation to enrich the AI's understanding:
+Manage data source related instructions, and Import instructions from Git repositories to enrich the AI's understanding of your data:
 
-**Metadata/Resources**: Connect external resources that provide semantic context:
-
-* **dbt**: Link your dbt project to pull in model descriptions, column documentation, and relationships
+* **dbt**: Pull in model descriptions, column documentation, and relationships as instructions
 * **Tableau**: Import data models and calculated fields from Tableau workbooks
 * **LookML**: Connect Looker models to leverage existing business logic
-* **Markdown files (AGENTS.md)**: Include custom documentation files from your git repository
+* **Markdown files**: Include custom documentation files (e.g., AGENTS.md) from your git repository
 * **Coding files**: python, sql
 
-These integrations allow the AI to use your existing data documentation automatically.
+Point Bag of words to your repo and it syncs automatically. These become instructions that guide the agent's behavior. See [Instructions](/using-bow/instructions) for details on managing and configuring them.
 
-![Connect Metadata Resources](/assets/media/dbt.png)
-
-Integration is via git repository - point Bag of words to your repo and it syncs automatically.
+![Context](/assets/media/data-sources/context.png)
 
 ### Access
 
