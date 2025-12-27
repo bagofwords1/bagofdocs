@@ -41,6 +41,12 @@
           "using-bow/settings",
           "using-bow/slack"
         ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/git"
+        ]
       }
     ]
   },
