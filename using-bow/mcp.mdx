@@ -14,6 +14,19 @@ With the MCP Server, you can:
 * **Use Cursor for data analysis**: Leverage your IDE's AI capabilities with your connected data sources
 * **Integrate with any MCP client**: Build custom workflows using the standardized MCP protocol
 
+## Available Tools
+
+The Bag of words MCP Server exposes the following tools for AI assistants to interact with your data:
+
+| Tool Name | Description |
+|-----------|-------------|
+| `create_report` | Creates a new analysis session (report). Call this at the start of a conversation to get a report_id for subsequent tool calls. Auto-attaches all active data sources. |
+| `get_context` | Retrieves available data sources, tables, and metadata resources. Useful for understanding what data is available before running queries. Supports optional regex pattern filtering. |
+| `inspect_data` | Quick, ephemeral data inspection for exploration and debugging. Previews data (head/tail), checks column types, and validates assumptions. Results are logged but not saved as persistent visualizations. Returns a sample of 3 rows. |
+| `create_data` | Creates tracked, reproducible data visualizations (chart or table) with Query/Step/Visualization persistence. Results are saved to the report and can be shared/added to dashboards. Tables are auto-discovered from the prompt if not provided. |
+| `list_instructions` | Lists instructions from the current live build. Instructions are organizational knowledge that guide AI behavior. Supports filtering by status, category, and text search. |
+| `create_instruction` | Creates a new instruction that guides AI code generation and data analysis. Auto-versioned with build integration. Admins get instant approval; non-admins go to pending approval. |
+
 ## Enable MCP Server
 
 Administrators can enable or disable the MCP endpoint from **Settings** → **Integrations**.
@@ -117,3 +130,4 @@ Use the MCP integration while coding to:
 * Generate test data based on production patterns
 * Debug data-related issues with real-time queries
 * Build data models with full context of the data warehouse
+
