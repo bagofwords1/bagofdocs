@@ -109,6 +109,19 @@ Before a user can interact with the bot, they must link their Slack account to t
 
 ### Step 2: Chat with the Bot
 
+You can interact with the bot in two ways:
+
+**Option A: Direct Messages**
 1.  Open a DM with the bot in Slack.
-2.  Send your query or command as a message. The bot will reply with "_Thinking..._" to acknowledge receipt.
-3.  Once processed, the bot will send the complete response. Your conversation history is automatically saved as a new report in your application account.
+2.  Send your query or command. The bot will add a 👀 reaction to indicate it's processing.
+3.  The bot will reply in a thread with the response and replace the 👀 with a ✅ when complete.
+4.  Continue the conversation by replying in the thread — follow-up messages will extend the same report.
+
+**Option B: Channel @Mentions**
+1.  In any public channel, @mention the bot followed by your question (e.g., "@BotName what were last month's sales?").
+2.  The bot will add a 👀 reaction and respond in a thread on your message.
+3.  Reply in the thread to continue the conversation.
+
+<Note>
+When using channel mentions, only public data sources are queried since responses are visible to everyone. For access to private data sources, use DMs instead.
+</Note>
