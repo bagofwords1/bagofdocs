@@ -1,21 +1,29 @@
 ---
 title: 'Slack Integration'
-description: 'Let users ask data questions directly via Slack DM'
+description: 'Let users ask data questions directly via Slack DMs and channel mentions'
 icon: 'slack'
 ---
 
 The Slack integration installs a bot into your Slack workspace, allowing users to interact with our platform directly from Slack. To ensure security, **each Slack user must first authenticate and link their account to their application account**. This one-time verification step guarantees that all interactions are secure and correctly associated with the right user and their permissions within the application.
 
-Once authenticated, users can interact with the bot through Direct Messages (DMs). When a user sends a message to the bot, it processes the query, creates a report in the application, and returns the result directly in the DM.
+Once authenticated, users can interact with the bot through Direct Messages (DMs) or by @mentioning the bot in public channels. When a user sends a message to the bot, it processes the query, creates a report in the application, and returns the result in a thread.
 
 ## Capabilities
 
-- **Direct Messaging**: Interact with the bot in a one-on-one conversation within Slack.
+- **Direct Messaging**: Interact with the bot in a one-on-one DM conversation within Slack.
+- **Channel @Mentions**: Mention the bot in any public channel to ask questions visible to the whole channel.
+- **Threaded Conversations**: All bot replies appear in threads. Each new message starts a thread, and follow-up replies continue the same conversation.
+- **Thread = Report Mapping**: Each Slack thread corresponds to a single report. Replies within a thread continue the existing report rather than creating new ones.
+- **Visual Feedback**: The bot uses emoji reactions to indicate status:
+  - 👀 (eyes) — Message received, processing in progress
+  - ✅ (checkmark) — Response complete
 - **Secure User Authentication**: Each user's Slack account is mapped to their application account, ensuring all actions are authorized.
 - **Natural Language Queries**: Ask questions and give commands in plain English.
 - **Automatic Report Generation**: Every conversation initiated via Slack automatically creates a corresponding report in your application account.
-- **Access to Data Sources**: The bot utilizes the active data sources configured in your organization to provide contextual and accurate answers.
-- **Rich Responses**: Receive responses as text, images, or even files directly in your Slack DM.
+- **Context-Aware Data Access**: The bot queries different data sources based on the conversation context:
+  - **Channel mentions**: Only public data sources are queried (responses are visible to everyone in the channel)
+  - **Private DMs**: Both public and private data sources the user has access to are queried
+- **Rich Responses**: Receive responses as text, images, or files directly in Slack.
 
 ---
 
@@ -66,7 +74,9 @@ This step allows your bot to listen for messages sent to it.
     - Example: `https://YOUR-BOW-URL.com/api/settings/integrations/slack/webhook`
 4.  After you enter the URL, Slack will attempt to verify it. A green "Verified" checkmark will appear if successful.
 5.  Scroll down to the **Subscribe to bot events** section.
-6.  Click **Add Bot User Event** and select `message.im`. This allows the bot to receive direct messages.
+6.  Click **Add Bot User Event** and add the following events:
+    - `message.im` — Allows the bot to receive direct messages
+    - `app_mention` — Allows the bot to respond when @mentioned in channels
 7.  Click **Save Changes**.
 
 ### Step 5: Get the Signing Secret
