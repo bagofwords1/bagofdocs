@@ -1,0 +1,182 @@
+---
+title: 'Teams Integration'
+description: 'Let users ask data questions directly via Teams DMs and channel mentions'
+icon: 'teams'
+---
+
+The Teams integration installs a bot into your Microsoft Teams tenant, allowing users to interact with BOW directly from Teams. To ensure security, **each Teams user must first authenticate and link their account to their BOW account**. This one-time verification step guarantees that all interactions are secure and correctly associated with the right user and their permissions within the application.
+
+Once authenticated, users can interact with the bot through Direct Messages (1:1 chats) or by @mentioning the bot in team channels. When a user sends a message to the bot, it processes the query, creates a report in the application, and returns the result.
+
+## Capabilities
+
+- **Direct Messaging**: Interact with the bot in a 1:1 personal chat within Teams.
+- **Channel @Mentions**: Mention the bot in any team channel to ask questions visible to the whole channel.
+- **Threaded Conversations**: Each new @mention in a channel starts a thread, and follow-up replies within that thread continue the same conversation and report.
+- **Thread = Report Mapping**: Each conversation thread corresponds to a single report. Replies within a thread continue the existing report rather than creating new ones.
+- **Secure User Authentication**: Each user's Teams account is mapped to their BOW account via a one-time verification link.
+- **Natural Language Queries**: Ask questions and give commands in plain English.
+- **Automatic Report Generation**: Every conversation initiated via Teams automatically creates a corresponding report in your BOW account.
+- **Context-Aware Data Access**: The bot queries different data sources based on the conversation context:
+  - **Channel mentions**: Only public data sources are queried (responses are visible to everyone in the channel)
+  - **Private DMs**: Both public and private data sources the user has access to are queried
+- **Rich Responses**: Receive responses as text and markdown tables directly in Teams.
+
+---
+
+## How to Integrate
+
+Follow these steps to configure the integration. This process requires:
+- **Admin access to BOW** (to manage integrations)
+- **Access to the Azure Portal** (to register a bot)
+- **Admin access to Microsoft Teams** (to sideload the app)
+
+### Step 1: Register a Bot in Azure
+
+1. Go to the [Azure Portal](https://portal.azure.com).
+2. Search for **Azure Bot** and click **Create**.
+3. Fill in the required fields:
+   - **Bot handle**: A unique name for your bot (e.g., `bow-bot`)
+   - **Subscription**: Select your Azure subscription
+   - **Resource group**: Create new or select existing
+   - **Type of App**: Select **Multi Tenant**
+   - **Creation type**: Select **Create new Microsoft App ID**
+4. Click **Review + Create**, then **Create**.
+5. Once the resource is created, go to the bot resource.
+
+### Step 2: Get the App ID and Client Secret
+
+1. In the Azure Bot resource, go to **Configuration**.
+2. Copy the **Microsoft App ID** — this is your bot's App ID.
+3. Click **Manage Password** (next to the App ID) to go to the App Registration's **Certificates & secrets** page.
+4. Click **New client secret**, give it a description, and click **Add**.
+5. Copy the **Value** of the secret immediately (it won't be shown again). This is your **Client Secret**.
+
+### Step 3: Configure the Messaging Endpoint
+
+1. In the Azure Bot resource, go to **Configuration**.
+2. Set the **Messaging endpoint** to your BOW application's webhook URL:
+   ```
+   https://YOUR-BOW-URL.com/api/settings/integrations/teams/webhook
+   ```
+3. Click **Apply**.
+
+### Step 4: Enable the Teams Channel
+
+1. In the Azure Bot resource, go to **Channels**.
+2. Click on **Microsoft Teams** to enable it.
+3. Accept the terms and click **Apply**.
+
+### Step 5: Connect in BOW
+
+1. In BOW, navigate to **Settings > Integrations**.
+2. Click **Integrate** (or **Settings**) for the Microsoft Teams integration.
+3. A modal will appear. Enter the following:
+   - **App ID**: The Microsoft App ID from Step 2
+   - **Client Secret**: The client secret value from Step 2
+   - **Tenant ID**: Your Microsoft 365 tenant ID (found in [Azure Active Directory > Overview](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview))
+4. Click **Connect**. If successful, the modal will close and the UI will show that Teams is connected.
+
+### Step 6: Create the Teams App Manifest
+
+Create a folder with three files:
+
+**manifest.json**
+```json
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "YOUR-APP-ID-HERE",
+  "packageName": "com.yourcompany.bot",
+  "accentColor": "#4F46E5",
+  "developer": {
+    "name": "Your Company",
+    "websiteUrl": "https://your-domain.com",
+    "privacyUrl": "https://your-domain.com/privacy",
+    "termsOfUseUrl": "https://your-domain.com/terms"
+  },
+  "name": {
+    "short": "BOW Bot",
+    "full": "Bag of Words Bot"
+  },
+  "description": {
+    "short": "Ask questions about your data",
+    "full": "Ask questions about your data via Teams"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "bots": [
+    {
+      "botId": "YOUR-APP-ID-HERE",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["YOUR-BOW-DOMAIN.com"]
+}
+```
+
+Replace `YOUR-APP-ID-HERE` with the Microsoft App ID from Step 2, and `YOUR-BOW-DOMAIN.com` with your BOW instance domain.
+
+**color.png** — A 192x192 full-color icon for your bot.
+
+**outline.png** — A 32x32 transparent outline icon for your bot.
+
+### Step 7: Install the Bot in Teams
+
+1. Zip the three files together:
+   ```bash
+   cd your-manifest-folder
+   zip -r ../bot.zip *
+   ```
+2. Open Microsoft Teams.
+3. Go to **Apps** (in the left sidebar) → **Manage your apps** → **Upload an app**.
+4. Select **Upload a custom app** and choose the `bot.zip` file.
+5. Click **Add** to install the bot.
+
+<Note>
+If you see an error about a duplicate App ID, go to **Apps → Manage your apps**, find the existing app, and click **Update** to upload the new version instead.
+</Note>
+
+---
+
+## How to Use
+
+Once the integration is active, users in your organization can start interacting with the bot.
+
+### Step 1: User Account Verification
+
+Before a user can interact with the bot, they must link their Teams account to their BOW account. This is a one-time process.
+
+1. In Teams, find the bot you installed. You can search for it by name or find it in **Apps**.
+2. Start a 1:1 chat with the bot and send any message (e.g., "Hello").
+3. The bot will respond with a verification card containing a link. Click the **Verify Account** button.
+4. You will be redirected to a verification page in BOW. Log in if needed, and your accounts will be linked. Once verified, you can close the page.
+
+### Step 2: Chat with the Bot
+
+You can interact with the bot in two ways:
+
+**Option A: Direct Messages (1:1 Chat)**
+1. Open a 1:1 chat with the bot in Teams.
+2. Send your query or command.
+3. The bot will reply with a link to the new report, followed by the response with text and data.
+4. Continue the conversation by sending more messages — follow-up messages will extend the same report.
+
+**Option B: Channel @Mentions**
+1. In any team channel, @mention the bot followed by your question (e.g., "@BOW Bot what were last month's sales?").
+2. The bot will respond in a thread on your message.
+3. Reply in the thread (with @mention) to continue the conversation.
+
+<Note>
+In channels, the bot only receives messages where it is @mentioned — this is a Teams platform requirement. In 1:1 chats, no @mention is needed.
+</Note>
+
+<Note>
+When using channel mentions, only public data sources are queried since responses are visible to everyone. For access to private data sources, use DMs instead.
+</Note>
