@@ -39,7 +39,8 @@
           "using-bow/llm",
           "using-bow/mcp",
           "using-bow/settings",
-          "using-bow/slack"
+          "using-bow/slack",
+          "using-bow/teams"
         ]
       },
       {
