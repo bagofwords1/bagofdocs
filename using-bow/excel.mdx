@@ -1,78 +1,56 @@
 ---
 title: 'BOW for Excel'
-description: 'Ask Bag of words questions about your data from inside Excel and drop results straight into cells'
+description: 'Ask Bag of words questions from inside Excel and drop AI-generated results straight into cells'
 icon: 'file-spreadsheet'
 ---
 
 ## Overview
 
-BOW for Excel is a Microsoft Excel add-in that embeds the Bag of words web app inside an Excel taskpane. You can ask BOW questions about your data without leaving the spreadsheet, and paste the results directly into your workbook.
-
-With the Excel add-in, you can:
-
-* **Ask questions inside Excel**: Chat with BOW from a taskpane without switching windows
-* **Use the selected range as context**: BOW sees the cells you have selected so it can answer questions about them
-* **Paste results into cells**: When BOW returns a table, drop it into the workbook at your cursor with one click
+Bag of words ships a built-in Excel add-in that runs entirely from your own instance. Users can ask BOW questions about their data from inside an Excel taskpane and paste AI-generated results directly into the spreadsheet — with headers, formatting, and borders applied automatically.
 
 The add-in works in Excel for Windows, Excel for Mac, and Excel on the web.
 
-## Before You Start
+## How It Works
 
-You'll need:
+Your BOW instance serves the add-in from two endpoints:
 
-* A Bag of words account
-* Microsoft 365 with Excel 2016 or later on desktop, or Excel on the web
-* The BOW add-in manifest: [`https://plugin.bagofwords.com/manifest.xml`](https://plugin.bagofwords.com/manifest.xml)
+| Endpoint | Description |
+|----------|-------------|
+| `/excel/manifest.xml` | The Office Add-in manifest, dynamically configured with your instance's URL |
+| `/excel/taskpane.html` | The add-in UI that loads BOW inside Excel's task pane |
 
-BOW for Excel ships as a sideloaded manifest rather than an App Store listing, so installation is a manual step. Save `manifest.xml` locally first: open the URL above, then right-click → **Save As** and pick a location you can browse to from Excel.
+Icon assets are served from `/icons/excel/`. Because the manifest is generated per-instance, each BOW deployment hosts its own add-in — there's no central plugin catalog to register with.
 
-<Warning>
-Some organizations restrict sideloading Office Add-ins through Microsoft 365 admin policies. If the steps below fail, check with your IT admin before troubleshooting further.
-</Warning>
+## Setup
 
-## Install the Add-in
+### 1. Download the Manifest
 
-The exact steps vary slightly by platform. Pick yours below. Microsoft's canonical instructions are in the {/* TODO: link to Microsoft sideload docs (https://learn.microsoft.com/office/dev/add-ins/testing/) */} Office Add-ins sideloading guide.
+Go to **Settings** → **Integrations** → **Excel Add-in** and click **Download manifest.xml**.
 
-### Excel on the Web
+{/* TODO: add screenshot of Settings → Integrations → Excel Add-in dialog */}
 
-1. Open any workbook in Excel on the web.
-2. Go to **Insert** → **Add-ins** → **More Add-ins**.
-3. In the Office Add-ins dialog, select **Upload My Add-in**.
-4. Browse to your saved `manifest.xml` and click **Upload**.
+### 2. Upload It in Excel
 
-### Excel for Windows
+Open Excel (desktop or web), go to **Home** → **Add-ins** → **More Add-ins**, then click **Upload My Add-in** and pick the `manifest.xml` you just downloaded.
 
-1. Open Excel and a workbook.
-2. Go to **Insert** → **Get Add-ins** (or **Add-ins** → **Get Add-ins**).
-3. In the Office Add-ins dialog, switch to the **My Add-ins** tab.
-4. Click **Manage My Add-ins** → **Upload My Add-in**.
-5. Browse to your saved `manifest.xml` and click **Upload**.
+### 3. Open BOW from the Ribbon
 
-### Excel for Mac
+A **BOW** button appears in the **Home** tab. Click it to open the taskpane and sign in with your normal BOW credentials.
 
-Sideloading on Mac uses a shared folder catalog (the `Wef` folder) rather than an in-app upload dialog. The canonical steps are documented by Microsoft — follow the official Mac sideloading guide and point it at your saved `manifest.xml`.
+## Tenant-wide Deployment
 
-{/* TODO: link to Microsoft's "Sideload Office Add-ins on Mac" page and mirror the current Wef folder steps */}
+For organization-wide rollout, your Microsoft 365 admin can upload the manifest via **Admin Center** → **Settings** → **Integrated apps** — no per-user sideloading needed. Every user in the tenant gets the BOW button in their Excel ribbon automatically.
 
-## Open the Add-in
+## What the Add-in Does
 
-After sideloading, a new **BOW** button appears in the Excel ribbon. Click it to open the taskpane, which loads the Bag of words web app inside Excel.
+* **Opens BOW in Excel's side panel** — the full web app, embedded in the taskpane
+* **Sends the current cell selection to BOW** for context-aware analysis
+* **Pastes AI-generated results into the spreadsheet** with headers, formatting, and borders applied automatically
 
-On first open, sign in with your normal BOW credentials. The add-in remembers your session between Excel launches.
+<Note>
+Users can override the BOW URL via the settings gear in the taskpane if they need to point the add-in at a different instance.
+</Note>
 
-{/* TODO: add screenshot of the BOW ribbon button and taskpane on first launch */}
+## Configuration
 
-## Using It
-
-Select a range in your worksheet before asking a question — BOW uses the selection as context for the answer. Type your question in the taskpane the same way you would in the web app.
-
-When BOW returns a table, an **Add to Spreadsheet** button appears on the result. Click it to paste the table at your current cursor position. You can keep iterating in the taskpane and drop additional results wherever you need them.
-
-## Troubleshooting
-
-**The taskpane doesn't load.** Click the gear icon in the top-right of the taskpane to reconfigure the BOW URL. Self-hosted instances need to point the add-in at your own BOW domain before it can connect.
-
-**Sideloading is blocked.** This is almost always a Microsoft 365 admin policy rather than a bug in the add-in. Talk to your IT admin about allowing sideloaded Office Add-ins, or ask them to deploy the manifest centrally.
-
-**The BOW button doesn't appear in the ribbon.** Close and reopen Excel after uploading the manifest. On Excel for the web, refresh the browser tab.
+The add-in reads `base_url` from your BOW config (`bow-config.yaml`) to generate all URLs in the manifest. No additional configuration is needed — deploy and go.
