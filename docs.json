@@ -38,6 +38,7 @@
           "using-bow/evals",
           "using-bow/llm",
           "using-bow/mcp",
+          "using-bow/excel",
           "using-bow/settings",
           "using-bow/slack",
           "using-bow/teams"
