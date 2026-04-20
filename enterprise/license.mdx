@@ -1,0 +1,39 @@
+---
+title: 'License Key'
+description: 'Activate Enterprise Edition by configuring your license key'
+icon: 'key-round'
+---
+
+Bag of words Enterprise Edition (EE) is activated with a license key. Without a key, the platform runs in Community Edition.
+
+## Set the license key
+
+Provide the key via the `BOW_LICENSE_KEY` environment variable:
+
+```bash
+export BOW_LICENSE_KEY="bow_lic_..."
+```
+
+Then reference it in `bow-config.yaml`:
+
+```yaml
+license:
+  key: ${BOW_LICENSE_KEY}
+```
+
+<Note>The `license` block is commented out by default in `bow-config.yaml`. Uncomment it and restart the backend to pick up the key.</Note>
+
+## Verify activation
+
+After restarting, open **Settings → License** in the app. A valid key shows:
+
+* Tier (`team` or `enterprise`)
+* Organization name
+* License ID
+* Expiration date
+
+If the key is invalid or expired, the app falls back to Community Edition.
+
+## Getting a license
+
+Contact [hi@bagofwords.com](mailto:hi@bagofwords.com) to request a license key.

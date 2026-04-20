@@ -49,6 +49,12 @@
         "pages": [
           "guides/git"
         ]
+      },
+      {
+        "group": "Enterprise Edition",
+        "pages": [
+          "enterprise/license"
+        ]
       }
     ]
   },
