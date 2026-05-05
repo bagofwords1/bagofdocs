@@ -1,0 +1,433 @@
+---
+title: 'Embed Bow Chat'
+description: 'Use the Bag of Words API to add a Bow-powered chat panel to your own product'
+icon: 'code-2'
+---
+
+Use the Bag of Words API to add a Bow-powered chat or completion panel to your own product. Your UI creates or reuses a report, streams a completion with `fetch`, and renders Server-Sent Events as they arrive.
+
+This guide is for internal tools, trusted admin panels, and backend-proxied production apps.
+
+---
+
+## What You Need
+
+- A Bag of Words base URL — e.g. `http://localhost:3000` or `https://bow.example.com`
+- A `bow_...` API key created in Bag of Words Settings → API Keys
+- Optional data source or agent IDs to attach to the report
+- A browser or backend that can call the Bow API
+
+<Note>
+Do **not** include `/api` in the user-facing base URL. Build the API base internally:
+
+```ts
+const bowUrl = inputBowUrl.replace(/\/+$/, "").replace(/\/api$/i, "");
+const apiBase = `${bowUrl}/api`;
+```
+</Note>
+
+---
+
+## Recommended Architecture
+
+For a **private internal app**, the browser can call Bow directly with an API key.
+
+For a **public app**, proxy requests through your own backend:
+
+```
+Browser UI → Your backend → Bag of Words API
+```
+
+Your backend should store the Bow API key, enforce your app's authorization rules, and stream the Bow SSE response back to the browser. Do not expose long-lived Bow API keys in public client-side code.
+
+---
+
+## Minimum Streaming Flow
+
+1. Create a report with the data sources your chat should use.
+2. `POST` a streaming completion to that report.
+3. Parse SSE frames from the response body.
+4. Render assistant text, reasoning, tool progress, and errors from the events.
+
+<Note>
+Reports are the scope for data sources. Attach data sources when creating or updating the report — not in the completion prompt mentions.
+</Note>
+
+---
+
+## Create a Report
+
+Create a report when the user starts a new chat session or when you need a temporary scratch report.
+
+```http
+POST /api/reports
+Authorization: Bearer bow_...
+Content-Type: application/json
+
+{
+  "title": "Customer Support Chat",
+  "data_sources": ["agent-or-data-source-id"]
+}
+```
+
+```ts
+async function createReport(apiBase: string, apiKey: string, dataSourceIds: string[]) {
+  const response = await fetch(`${apiBase}/reports`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      title: "Embedded Bow Chat",
+      data_sources: dataSourceIds,
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Create report failed: ${response.status}`);
+  return response.json() as Promise<{ id: string }>;
+}
+```
+
+---
+
+## Stream a Completion
+
+Use `fetch`, not `EventSource`, because the completion stream is a `POST` request with custom headers.
+
+```http
+POST /api/reports/{report_id}/completions
+Authorization: Bearer bow_...
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "prompt": {
+    "content": "Show me the top customers this month",
+    "mentions": [],
+    "mode": "chat"
+  },
+  "stream": true
+}
+```
+
+```ts
+async function streamCompletion(params: {
+  apiBase: string;
+  apiKey: string;
+  reportId: string;
+  prompt: string;
+  signal?: AbortSignal;
+  onEvent: (event: BowSseEvent) => void;
+}) {
+  const response = await fetch(
+    `${params.apiBase}/reports/${encodeURIComponent(params.reportId)}/completions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        prompt: { content: params.prompt, mentions: [], mode: "chat" },
+        stream: true,
+      }),
+      signal: params.signal,
+    },
+  );
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Completion failed: ${response.status} ${detail}`);
+  }
+
+  if (!response.body) throw new Error("Streaming response body is unavailable.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parser = createSseParser(params.onEvent);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parser.feed(decoder.decode(value, { stream: true }));
+  }
+
+  parser.feed(decoder.decode());
+  parser.flush();
+}
+```
+
+---
+
+## SSE Format
+
+Bow sends standard Server-Sent Events:
+
+```
+event: completion.started
+data: {"event":"completion.started","data":{"system_completion_id":"..."}}
+
+event: block.delta.token
+data: {"event":"block.delta.token","data":{"block_id":"...","field":"content","token":"Hello"}}
+
+data: [DONE]
+```
+
+A blank line ends an event. Multiple `data:` lines belong to the same event and should be joined with `\n`.
+
+The `data:` payload is an envelope — parse it like this:
+
+```ts
+const parsed = JSON.parse(dataString);
+const payload = parsed.data ?? parsed;
+```
+
+`data: [DONE]` means the stream is complete.
+
+---
+
+## Tiny SSE Parser
+
+```ts
+type BowSseEvent = {
+  event: string;
+  payload: unknown;
+  raw: string;
+  receivedAt: string;
+  done?: boolean;
+  malformed?: boolean;
+};
+
+function createSseParser(onEvent: (event: BowSseEvent) => void) {
+  let buffer = "";
+  let eventName = "message";
+  let dataLines: string[] = [];
+  let rawLines: string[] = [];
+
+  function dispatch() {
+    if (rawLines.length === 0 && dataLines.length === 0) return;
+
+    const dataString = dataLines.join("\n");
+    const raw = `${rawLines.join("\n")}\n\n`;
+    const receivedAt = new Date().toISOString();
+
+    if (dataString === "[DONE]") {
+      onEvent({ event: "[DONE]", payload: "[DONE]", raw, receivedAt, done: true });
+    } else {
+      try {
+        const parsed = JSON.parse(dataString);
+        onEvent({ event: eventName, payload: parsed.data ?? parsed, raw, receivedAt });
+      } catch (error) {
+        onEvent({
+          event: eventName,
+          payload: { error: String(error), data: dataString },
+          raw,
+          receivedAt,
+          malformed: true,
+        });
+      }
+    }
+
+    eventName = "message";
+    dataLines = [];
+    rawLines = [];
+  }
+
+  return {
+    feed(chunk: string) {
+      buffer += chunk;
+
+      while (true) {
+        const newlineIndex = buffer.search(/\r\n|\n|\r/);
+        if (newlineIndex === -1) break;
+
+        const line = buffer.slice(0, newlineIndex);
+        const newline = buffer.slice(newlineIndex).match(/^\r\n|\n|\r/)?.[0] ?? "\n";
+        buffer = buffer.slice(newlineIndex + newline.length);
+
+        if (line === "") { dispatch(); continue; }
+
+        rawLines.push(line);
+        if (line.startsWith(":")) continue;
+
+        const colonIndex = line.indexOf(":");
+        const field = colonIndex === -1 ? line : line.slice(0, colonIndex);
+        const value = colonIndex === -1 ? "" : line.slice(colonIndex + 1).replace(/^ /, "");
+
+        if (field === "event") eventName = value || "message";
+        if (field === "data") dataLines.push(value);
+      }
+    },
+    flush() {
+      if (buffer) { rawLines.push(buffer); buffer = ""; }
+      dispatch();
+    },
+  };
+}
+```
+
+---
+
+## Event Reference
+
+Handle unknown events gracefully — the API may add events over time.
+
+| Event | Meaning | UI suggestion |
+|-------|---------|---------------|
+| `completion.started` | The completion run has started | Mark the chat as streaming and store the completion ID |
+| `block.upsert` | A report block was created or updated | Insert or update the matching assistant, reasoning, or tool block |
+| `block.delta.token` | A token-level text delta arrived | Append `payload.token` to the target block field |
+| `block.delta.text` | A full text replacement arrived | Replace the target block field with `payload.text` |
+| `decision.partial` | The model emitted an intermediate reasoning/action decision | Show provisional reasoning or the planned tool/action |
+| `decision.final` | The model finalized a decision or answer | Mark the decision block complete and render final text |
+| `tool.started` | A tool call started | Show a compact running tool row |
+| `tool.progress` | A tool call reported progress | Update the tool row summary or progress details |
+| `tool.finished` | A tool call finished | Mark the tool row success/error and expose result JSON behind a disclosure |
+| `completion.finished` | The completion run finished | Mark the chat success unless the payload reports an error |
+| `completion.error` | Bow reported a completion-level error | Stop streaming and show the error message |
+| `llm.error` | The LLM provider or model call failed | Stop streaming and show the error message |
+| `[DONE]` | The SSE stream ended | Close the stream and enable input again |
+
+---
+
+## Rendering a Chat UI
+
+Keep the UI reducer small:
+
+- Store `status`: `idle`, `streaming`, `success`, or `error`
+- Store blocks by `id`
+- Append `block.delta.token` for assistant text
+- Replace text on `block.delta.text`
+- Show reasoning inside a collapsible disclosure
+- Show tools as compact rows with name, status, and summary
+- Keep raw JSON behind a disclosure for tool payloads
+- Keep the raw SSE log available in a debug tab
+
+```ts
+function applyBowEvent(state: ChatState, event: BowSseEvent) {
+  const payload = event.payload as Record<string, any>;
+
+  switch (event.event) {
+    case "completion.started":
+      state.status = "streaming";
+      state.systemCompletionId = payload.system_completion_id;
+      break;
+
+    case "block.delta.token": {
+      const blockId = payload.block_id ?? "streaming";
+      const block = state.blocks[blockId] ??= { content: "" };
+      if (payload.field === "content") block.content += payload.token ?? "";
+      if (payload.field === "reasoning") block.reasoning = `${block.reasoning ?? ""}${payload.token ?? ""}`;
+      break;
+    }
+
+    case "tool.started":
+    case "tool.progress":
+    case "tool.finished":
+      state.tools[payload.tool_call_id ?? payload.tool_name ?? "tool"] = payload;
+      break;
+
+    case "completion.error":
+    case "llm.error":
+      state.status = "error";
+      state.error = payload.message ?? payload.error ?? JSON.stringify(payload);
+      break;
+
+    case "completion.finished":
+    case "[DONE]":
+      if (state.status !== "error") state.status = "success";
+      break;
+  }
+}
+```
+
+---
+
+## Optional API Requests
+
+**Validate an API key:**
+
+```http
+GET /api/users/whoami
+Authorization: Bearer bow_...
+```
+
+**Load data sources or agents for a picker:**
+
+```http
+GET /api/mentions/available?categories=data_sources
+Authorization: Bearer bow_...
+```
+
+**Update a report when the user changes selected data sources:**
+
+```http
+PUT /api/reports/{report_id}
+Authorization: Bearer bow_...
+Content-Type: application/json
+
+{
+  "data_sources": ["agent-or-data-source-id"]
+}
+```
+
+---
+
+## Error Handling
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Invalid request or no default LLM model configured |
+| `401` | Missing or invalid API key |
+| `403` | The key does not have permission for this resource |
+| `404` | Report not found |
+| Network / CORS | The browser could not reach Bow or the server does not allow the origin |
+| Abort | User stopped the stream — treat as controlled cancellation, not a crash |
+| Malformed SSE | Keep the raw frame and show a debug-friendly parse error |
+
+---
+
+## Copy-Paste cURL
+
+```bash
+BOW_URL='https://bow.example.com'
+BOW_API_KEY='<paste-api-key>'
+API_BASE="$BOW_URL/api"
+
+REPORT_ID="$(curl -sS -X POST "$API_BASE/reports" \
+  -H "Authorization: Bearer $BOW_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-raw '{
+    "title": "Embedded Bow Chat",
+    "data_sources": []
+  }' | jq -r '.id')"
+
+curl -N -X POST "$API_BASE/reports/$REPORT_ID/completions" \
+  -H "Authorization: Bearer $BOW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  --data-raw '{
+    "prompt": {
+      "content": "Show me a summary of this report",
+      "mentions": [],
+      "mode": "chat"
+    },
+    "stream": true
+  }'
+```
+
+---
+
+## Production Checklist
+
+- Proxy public integrations through your backend
+- Keep Bow API keys server-side for public apps
+- Use `AbortController` for the Stop button
+- Persist report IDs if a chat should resume later
+- Attach data sources through report creation or update
+- Keep `mentions: []` unless your integration intentionally supports Bow prompt mentions
+- Log raw SSE frames for support and debugging
+- Render unknown future events without crashing

@@ -47,7 +47,8 @@
       {
         "group": "Guides",
         "pages": [
-          "guides/git"
+          "guides/git",
+          "guides/embed"
         ]
       },
       {
