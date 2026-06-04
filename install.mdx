@@ -367,3 +367,51 @@ oidc_providers:
 ### For Okta
 1. Set a new OIDC application: web
 2. Set callback URL `https://your-base-bow-url.com/api/auth/okta/callback`
+
+### For Microsoft Entra ID (Azure AD)
+
+```yaml
+oidc_providers:
+- name: entra
+  enabled: true
+  issuer: https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0
+  client_id: ${BOW_ENTRA_CLIENT_ID}
+  client_secret: ${BOW_ENTRA_CLIENT_SECRET}
+  scopes: ["openid", "profile", "email", "api://${BOW_ENTRA_CLIENT_ID}/access_as_user"]
+  pkce: true
+  client_auth_method: post
+  discovery: true
+  uid_claim: sub
+  sync_groups: true
+  group_claim: "groups"
+  resolve_group_names: true
+```
+
+1. In the Azure portal, register a new application under **Microsoft Entra ID → App registrations**.
+2. Set the redirect URI (type: Web) to `https://your-base-bow-url.com/api/auth/entra/callback`.
+3. Copy the **Directory (tenant) ID** into `${ENTRA_TENANT_ID}` and the **Application (client) ID** into `${BOW_ENTRA_CLIENT_ID}`.
+4. Under **Certificates & secrets**, create a client secret and set it as `${BOW_ENTRA_CLIENT_SECRET}`.
+5. Use `client_auth_method: post` — Entra ID expects credentials in the request body rather than the `Authorization` header.
+
+**Group sync**
+
+When `sync_groups: true`, group memberships from the `groups` claim are synced to Bag of Words on each login. To make Entra ID emit the claim, edit the app's **Token configuration → Add groups claim** and select the group types you want.
+
+- `group_claim` — the token claim that carries group membership (default `groups`).
+- `resolve_group_names: true` — by default Entra ID emits group **object IDs**, not display names. Enabling this resolves the IDs to human-readable names via Microsoft Graph (requires the app to have the `GroupMember.Read.All` or `Directory.Read.All` permission granted).
+
+## LDAP / Active Directory
+
+For environments that authenticate against an on-premises directory, enable the LDAP provider:
+
+```yaml
+ldap:
+  enabled: true
+  url: ldaps://ad.company.com:636
+  bind_dn: cn=service-account,ou=Services,dc=company,dc=com
+  bind_password: ${BOW_LDAP_BIND_PASSWORD}
+```
+
+- `url` — the directory endpoint. Use `ldaps://` (port 636) for TLS; avoid plain `ldap://` (port 389) outside a trusted network.
+- `bind_dn` — the distinguished name of a read-only service account used to look up users.
+- `bind_password` — the service account password, supplied via the `${BOW_LDAP_BIND_PASSWORD}` environment variable rather than committed to the config.
