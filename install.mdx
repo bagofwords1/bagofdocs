@@ -415,3 +415,40 @@ ldap:
 - `url` — the directory endpoint. Use `ldaps://` (port 636) for TLS; avoid plain `ldap://` (port 389) outside a trusted network.
 - `bind_dn` — the distinguished name of a read-only service account used to look up users.
 - `bind_password` — the service account password, supplied via the `${BOW_LDAP_BIND_PASSWORD}` environment variable rather than committed to the config.
+
+## SMTP Settings
+
+Configure an outbound mail server to enable email features — dashboard and conversation share notifications, scheduled report and prompt results (with optional PDF attachments), password-reset and email-verification links, and the AI `send_email` tool.
+
+Define the `smtp_settings` block in `bow-config.yaml`:
+
+```yaml
+smtp_settings:
+  host: "smtp.resend.com"
+  port: 587
+  username: "resend"
+  password: ${BOW_SMTP_PASSWORD}
+  from_name: "Bag of words"
+  from_email: "hi@bagofwords.com"
+  use_tls: true
+  use_ssl: false
+  use_credentials: true
+  validate_certs: true
+```
+
+| Key | Default | Env var | Notes |
+| --- | --- | --- | --- |
+| `host` | `smtp.resend.com` | `BOW_SMTP_HOST` | SMTP server |
+| `port` | `587` | `BOW_SMTP_PORT` | |
+| `username` | — | `BOW_SMTP_USERNAME` | |
+| `password` | — | `BOW_SMTP_PASSWORD` | Sensitive — supply via env var |
+| `from_name` | `Bag of words` | `BOW_SMTP_FROM_NAME` | Display name on outgoing mail |
+| `from_email` | `hi@bagofwords.com` | `BOW_SMTP_FROM_EMAIL` | From address |
+| `use_tls` | `true` | `BOW_SMTP_USE_TLS` | STARTTLS |
+| `use_ssl` | `false` | `BOW_SMTP_USE_SSL` | SSL at connect |
+| `use_credentials` | `true` | `BOW_SMTP_USE_CREDENTIALS` | Set `false` for anonymous relays |
+| `validate_certs` | `true` | `BOW_SMTP_VALIDATE_CERTS` | |
+
+<Info>
+Email is enabled only when credentials are present (or `use_credentials: false` for anonymous relays). If no mail client can be built at startup, email features are silently inert — outgoing notifications are skipped and the `send_email` tool stays disabled.
+</Info>
