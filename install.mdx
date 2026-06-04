@@ -375,9 +375,9 @@ oidc_providers:
 - name: entra
   enabled: true
   issuer: https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0
-  client_id: ${BOW_ENTRA_CLIENT_ID}
+  client_id: YOUR_CLIENT_ID
   client_secret: ${BOW_ENTRA_CLIENT_SECRET}
-  scopes: ["openid", "profile", "email", "api://${BOW_ENTRA_CLIENT_ID}/access_as_user"]
+  scopes: ["openid", "profile", "email", "api://YOUR_CLIENT_ID/access_as_user"]
   pkce: true
   client_auth_method: post
   discovery: true
