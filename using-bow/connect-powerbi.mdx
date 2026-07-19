@@ -1,0 +1,171 @@
+---
+title: "Connect Power BI"
+description: "Connect Power BI semantic models to Bag of words and query them with DAX"
+icon: "chart-column"
+sidebarTitle: "Connect Power BI"
+---
+
+Bag of words connects to the **Power BI REST API** to auto-discover the workspaces, semantic models (datasets), tables, and reports an identity can access, and to run **DAX** queries against them. This page covers everything you set up on the Microsoft side (app registration, tenant settings, workspace membership, permissions) and how to enter it in Bag of words.
+
+<Note>
+  The Power BI connector is part of the **Enterprise Edition**. Per-user (delegated) authentication in particular requires an Enterprise license.
+</Note>
+
+## How it works
+
+Bag of words authenticates to Power BI as an **Azure AD (Microsoft Entra ID) application**, then:
+
+1. Lists the **workspaces** the identity belongs to (`GET /v1.0/myorg/groups`).
+2. Lists the **semantic models** (datasets) and **reports** in each workspace.
+3. Reads each model's **tables and columns** so the AI agent knows the schema. Discovery uses the **read-only Admin (Scanner) API** when available, and falls back to a DAX `COLUMNSTATISTICS()` probe per model otherwise.
+4. Runs **DAX** queries at request time (`POST .../executeQueries`).
+
+Each Power BI table is exposed to the agent as a schema table named `Dataset/Table` (for example `Sales Model/Customers`).
+
+## Authentication modes
+
+Power BI supports two authentication modes. You can use either, or both.
+
+<CardGroup cols={2}>
+  <Card title="Service Principal" icon="robot">
+    A single shared application identity discovers and queries Power BI for everyone. Simplest to operate. Best when all users may see the same models.
+  </Card>
+
+  <Card title="Sign in with Microsoft (per-user)" icon="user-lock">
+    Each user signs in with their own Microsoft account (OAuth / on-behalf-of). Discovery and queries run with that user's own permissions, so each person sees only what they are allowed to. Requires Enterprise.
+  </Card>
+</CardGroup>
+
+<Note>
+  With per-user authentication, a semantic model is selectable for a user as long as **their own** account can see it — even if the shared service principal cannot. Usage and instructions are still tracked at the organization level per model.
+</Note>
+
+## Step 1 — Register an Azure AD application
+
+In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations** → **New registration**.
+
+<Steps>
+  <Step title="Create the app registration">
+    Give it a name (e.g. `Bag of words - Power BI`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+  </Step>
+  <Step title="Copy the Tenant ID and Client ID">
+    From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**. You will paste these into Bag of words.
+  </Step>
+  <Step title="Create a client secret">
+    Go to **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately (it is only shown once). This is the **Client Secret** field in Bag of words.
+  </Step>
+  <Step title="Add API permissions">
+    Under **API permissions** → **Add a permission** → **Power BI Service**, add the delegated **Tenant.Read.All** (or the read scopes your policy allows). For per-user sign-in, keep the delegated **profile**, **email**, and **openid** scopes. Grant admin consent for the directory.
+  </Step>
+  <Step title="(Per-user only) Add the redirect URI">
+    For **Sign in with Microsoft**, add a **Web** redirect URI under **Authentication**:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Replace `<your-bow-host>` with your Bag of words base URL. Enable **offline\_access** so the token can be refreshed.
+  </Step>
+</Steps>
+
+## Step 2 — Enable the Power BI tenant settings
+
+These live in the **Power BI / Fabric Admin portal** → **Tenant settings** (a Fabric/Power BI administrator must change them). Applying each to a dedicated **security group** and adding your app to that group is the recommended pattern.
+
+| Tenant setting | Why it matters |
+| :-- | :-- |
+| **Service principals can use Fabric / Power BI APIs** | Required for the service principal to call the Power BI REST API at all. Without it, discovery and queries fail. |
+| **Service principals can access read-only admin APIs** | Lets Bag of words read model schemas via the Admin (Scanner) API — the most reliable discovery path, and the only one that reads schema without per-model query permission. |
+| **Enhanced admin API responses with detailed metadata** | Makes the Scanner API return table/column schema (datasetSchema). Strongly recommended, especially for **DirectLake** and Fabric default semantic models. |
+
+<Warning>
+  If the read-only admin APIs are **not** enabled, Bag of words falls back to a per-model DAX probe. That probe requires **Build** permission on each model and does not work for some **DirectLake** models — which is the most common reason a model appears in Power BI but is missing from the schema list. Enabling the two admin settings above resolves this for most tenants.
+</Warning>
+
+<Note>
+  After enabling **Enhanced admin API responses**, models that have not been refreshed since the setting was turned on may still return no schema until their next refresh. Refresh such models once.
+</Note>
+
+## Step 3 — Grant workspace and dataset access
+
+Discovery only sees workspaces where the identity holds a workspace **role**. Sharing a single report or dataset directly is **not** enough for it to be discovered.
+
+<Steps>
+  <Step title="Add the identity as a workspace Member or Contributor">
+    In each Power BI workspace → **Manage access** → **Add people or groups**, add the service principal (or the security group containing it), and any per-user accounts, as **Member** or **Contributor**.
+
+    <Warning>
+      **Viewer is not enough.** A Viewer can open reports but cannot be discovered or run `executeQueries`. Use **Member** or **Contributor**.
+    </Warning>
+  </Step>
+  <Step title="Grant Build permission on the semantic models">
+    To run DAX queries (and to use the DAX discovery fallback), the identity needs **Build** permission on each semantic model. Workspace Member/Contributor typically confers this; otherwise grant Build explicitly on the model.
+  </Step>
+  <Step title="(Row-level security) Map the identity into an RLS role">
+    If a model uses row-level security, the querying identity must be mapped to an RLS role, or queries return no rows. For a service principal, assign it to the appropriate role on the model's security settings.
+  </Step>
+</Steps>
+
+## Step 4 — Add the connection in Bag of words
+
+In Bag of words, go to **Data Sources → Add data source → Power BI** and fill in the form.
+
+| Field | Required | Description |
+| :-- | :-- | :-- |
+| **Tenant ID** | Yes | Azure AD Directory (tenant) ID from the app's Overview page. |
+| **Client ID** | Yes | Application (client) ID of the app registration. |
+| **Client Secret** | Yes | The client secret value you copied in Step 1. |
+| **OAuth Client ID** | No | App Registration client ID used for **user sign-in** (per-user auth). Leave blank to reuse the Client ID above. |
+| **OAuth Client Secret** | No | Secret for the user-sign-in app. Leave blank to reuse the Client Secret above. |
+| **Workspaces** | No | Comma-separated workspace name(s) or ID(s) to limit discovery. Leave empty to discover **all** accessible workspaces. |
+
+<Steps>
+  <Step title="Choose the authentication">
+    Pick **Service Principal (Azure AD)** for a shared identity, or **Sign in with Microsoft** for per-user (delegated) access.
+  </Step>
+  <Step title="Test the connection">
+    Click **Test Connection**. Bag of words authenticates, lists workspaces, and probes a semantic model to verify query access. A model that is empty or not queryable does not fail the test — it reports that query access was verified.
+  </Step>
+  <Step title="Require user authentication (optional)">
+    To force every user to sign in with their own Microsoft account instead of using the shared service principal, enable **Require user authentication** under the data source's access settings. Each user then clicks **Connect** to sign in before they can query.
+  </Step>
+  <Step title="Select tables and save">
+    After the connection indexes, choose which tables the AI agent may use, then save. See [Data Sources](/using-bow/data_source) for managing tables, instructions, and access.
+  </Step>
+</Steps>
+
+## Querying with DAX
+
+Once connected, the AI agent writes and runs **DAX** against your semantic models automatically. Tables are addressed as `Dataset/Table`, and relationships defined in the model are available for joins. You do not need to configure anything further to start asking questions.
+
+## Troubleshooting: a model is missing from the schema
+
+If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of words, work through these in order:
+
+<AccordionGroup>
+  <Accordion title="The identity is not a Member/Contributor of the workspace">
+    Discovery only sees workspaces where the identity has a role. Add the service principal (or the user) as **Member** or **Contributor** — Viewer and direct report-sharing are not sufficient. Content in **My Workspace** is not discovered.
+  </Accordion>
+
+  <Accordion title="The model cannot be introspected (DirectLake / no Build / RLS)">
+    Without the read-only admin APIs, schema comes from a DAX probe that needs **Build** permission and does not work for some **DirectLake** models. Enable **Service principals can access read-only admin APIs** \+ **Enhanced admin API responses with detailed metadata** in the tenant settings, and grant **Build** on the model. The connection's indexing report lists models that were found but could not be read, with the reason.
+  </Accordion>
+
+  <Accordion title="The model was not refreshed after enabling enhanced metadata">
+    The Scanner API returns no schema for models not refreshed since detailed-metadata scanning was enabled. Refresh the model once and re-index the connection.
+  </Accordion>
+
+  <Accordion title="A per-user model isn't showing for a signed-in user">
+    With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them.
+  </Accordion>
+
+  <Accordion title="The Workspaces filter is excluding it">
+    If you set the **Workspaces** field, only those workspaces are discovered. Clear it to discover everything, or add the workspace's name/ID.
+  </Accordion>
+</AccordionGroup>
+
+## Reference
+
+- **Service principal scope**: `https://analysis.windows.net/powerbi/api/.default`
+- **Per-user (delegated) scope**: `https://analysis.windows.net/powerbi/api/.default offline_access`
+- **OAuth redirect URI**: `https://<your-bow-host>/api/connections/oauth/callback`
