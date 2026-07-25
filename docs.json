@@ -40,9 +40,18 @@
           "using-bow/llm",
           "using-bow/mcp",
           "using-bow/excel",
-          "using-bow/settings",
-          "using-bow/slack",
-          "using-bow/teams"
+          "using-bow/settings"
+        ]
+      },
+      {
+        "group": "Channels",
+        "pages": [
+          "channels/overview",
+          "channels/slack",
+          "channels/teams",
+          "channels/google-chat",
+          "channels/whatsapp",
+          "channels/email"
         ]
       },
       {
@@ -83,5 +92,17 @@
       "x": "https://x.com/bagofwords_com",
       "github": "https://github.com/bagofwords1"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/using-bow/slack",
+      "destination": "/channels/slack",
+      "permanent": true
+    },
+    {
+      "source": "/using-bow/teams",
+      "destination": "/channels/teams",
+      "permanent": true
+    }
+  ]
 }

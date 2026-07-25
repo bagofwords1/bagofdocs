@@ -1,0 +1,60 @@
+---
+title: "Channels Overview"
+description: "Bring the Bag of words analyst to where your team works — Slack, Teams, Google Chat, WhatsApp, and Email"
+icon: "comments"
+---
+
+Channels connect the Bag of words analyst to the messaging tools your team already uses. Once a channel is integrated, users can ask data questions in plain language — from a Slack DM, a Teams channel, a Google Chat space, a WhatsApp message, or an email — and get answers with real data, without opening the BOW app.
+
+<CardGroup cols={2}>
+  <Card title="Slack" icon="slack" href="/channels/slack">
+    Socket Mode by default — no public URL needed. Includes the Slack Agent experience.
+  </Card>
+
+  <Card title="Microsoft Teams" icon="comment" href="/channels/teams">
+    Azure Bot–based integration for 1:1 chats and channel @mentions.
+  </Card>
+
+  <Card title="Google Chat" icon="google" href="/channels/google-chat">
+    Pub/Sub-based — outbound-only, enterprise-friendly, no public URL needed.
+  </Card>
+
+  <Card title="WhatsApp" icon="whatsapp" href="/channels/whatsapp">
+    Meta WhatsApp Business Cloud API integration.
+  </Card>
+
+  <Card title="Email" icon="envelope" href="/channels/email">
+    Give the analyst its own mailbox — send answers and (optionally) receive questions.
+  </Card>
+
+  <Card title="MCP" icon="plug" href="/using-bow/mcp">
+    Connect Claude, Cursor, or any MCP client to your data via the BOW MCP server.
+  </Card>
+</CardGroup>
+
+## How channels work
+
+All chat channels share the same core model:
+
+- **Account linking** — every platform user maps to a BOW account, so all queries run with that user's permissions. On platforms that vouch for the user's email (Slack, Teams, Google Chat), accounts are **auto-linked by email** when it matches an existing BOW user (this can be disabled per integration). Otherwise, the bot sends a one-time verification link on first contact.
+- **Thread = conversation** — each thread maps to a single BOW report. Replies in a thread continue the same conversation and context; a new message starts a new one. Every conversation is saved as a report in BOW, with a link posted back into the chat.
+- **Permission-aware data access** — in public channels, only public agents (data sources) are queried, since answers are visible to everyone. In DMs, the user's private agents are available too.
+- **Status feedback** — the bot signals progress while it works (for example 👀 → ✅ reactions on Slack, or a "Working on it…" message on Google Chat).
+- **Per-agent channel availability** — each agent (data source) can be enabled or disabled per channel from its settings, so you control which data is reachable from which surface.
+
+## Connectivity at a glance
+
+Channels differ in how events reach your BOW server — which matters if your deployment sits behind a firewall with no public URL.
+
+| Channel | How events arrive | Public URL required? |
+| --- | --- | --- |
+| Slack (Socket Mode, default) | Outbound WebSocket to Slack | No |
+| Slack (HTTP webhook) | Slack posts to your webhook | Yes |
+| Google Chat | Outbound Pub/Sub pull from Google Cloud | No |
+| Microsoft Teams | Azure Bot posts to your webhook | Yes |
+| WhatsApp | Meta posts to your webhook | Yes |
+| Email | Outbound SMTP/IMAP to your mail provider | No |
+
+<Note>
+  All chat channels are configured by an admin under **Settings → Integrations** in BOW.
+</Note>

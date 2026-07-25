@@ -1,0 +1,69 @@
+---
+title: "WhatsApp"
+description: "Let users ask data questions over WhatsApp via the Meta WhatsApp Business Cloud API"
+icon: "whatsapp"
+---
+
+The WhatsApp integration connects BOW to a WhatsApp Business phone number through Meta's **WhatsApp Business Cloud API**. Users message your business number and get analyst answers right in WhatsApp.
+
+<Note>
+  Meta delivers incoming messages to BOW over HTTPS webhooks, so your BOW server must be reachable at a **public URL**. If your deployment can't expose one, consider [Slack Socket Mode](/channels/slack) or [Google Chat](/channels/google-chat), which connect outbound-only.
+</Note>
+
+## Capabilities
+
+- **Direct messaging** — users chat 1:1 with your business number.
+- **Conversation continuity** — consecutive messages from the same user continue the same BOW report until the conversation goes stale (configurable).
+- **Rich responses** — text answers with data, plus links to the full report in BOW.
+
+---
+
+## Prerequisites
+
+- A **Meta Business Portfolio** and a **Meta developer app** with the **WhatsApp** product added ([developers.facebook.com](https://developers.facebook.com))
+- A **WhatsApp Business Account (WABA)** with a registered phone number
+- Admin access to BOW, and a publicly reachable BOW URL
+
+## How to integrate
+
+### Step 1: Collect your WhatsApp credentials
+
+From your Meta app's **WhatsApp → API Setup** page, collect:
+
+1. **Access token** — for production use, create a **System User** in Meta Business Settings and generate a permanent token with the `whatsapp_business_messaging` and `whatsapp_business_management` permissions. (The temporary token on the API Setup page expires in 24 hours — fine for testing only.)
+2. **Phone number ID** — the ID of the business phone number (not the number itself).
+3. **WhatsApp Business Account ID (WABA ID)**.
+
+### Step 2: Get the App Secret and choose a Verify Token
+
+1. **App Secret**: in your Meta app, go to **App Settings → Basic** and copy the **App Secret**. BOW uses it to verify webhook signatures (`X-Hub-Signature-256`).
+2. **Verify Token**: invent any random string (e.g., a UUID). You'll enter the same value in both BOW and the Meta webhook configuration.
+
+### Step 3: Connect in BOW
+
+1. In BOW, go to **Settings → Integrations** and open the **WhatsApp** integration.
+2. Enter the **Access Token**, **Phone Number ID**, **WABA ID**, **App Secret**, and your chosen **Verify Token**.
+3. Click **Connect**. BOW validates the token against the phone number before saving.
+
+### Step 4: Configure the webhook in Meta
+
+1. In your Meta app, go to **WhatsApp → Configuration → Webhook** and click **Edit**.
+2. Set the **Callback URL** to:
+   ```text
+   https://YOUR-BOW-URL.com/api/settings/integrations/whatsapp/webhook
+   ```
+3. Enter the same **Verify Token** you used in Step 3 and click **Verify and save** — Meta calls your BOW server to confirm.
+4. Under **Webhook fields**, subscribe to **`messages`**.
+
+---
+
+## How to use
+
+1. Users send a WhatsApp message to your business number.
+2. On first contact, the bot links the WhatsApp number to a BOW account (via a verification link if it can't be matched automatically).
+3. The bot replies with the answer and a link to the full report in BOW.
+4. Follow-up messages continue the same conversation until it goes stale — the staleness window (default: hours) is configurable in the integration settings.
+
+<Note>
+  WhatsApp enforces a **24-hour customer service window**: the bot can only send free-form replies within 24 hours of the user's last message. If the window has closed, the user just needs to send a new message to reopen it.
+</Note>
