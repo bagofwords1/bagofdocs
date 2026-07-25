@@ -1,0 +1,104 @@
+---
+title: "Tableau"
+description: "Connect Tableau published data sources and let the agent query them through VizQL"
+icon: "chart-column"
+---
+
+Bag of words connects to **Tableau Server** or **Tableau Cloud**, discovers the published data sources on a site, and queries them through the **VizQL Data Service** (Headless BI). Field-level descriptions, roles, and calculated-field formulas come from the **Metadata API**, so the agent knows what each field means before it asks a question.
+
+<Note>
+  The Tableau connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+Bag of words signs in to the site with a Personal Access Token and receives a session token, then:
+
+1. Lists the **published data sources** on the site (paginated REST call), optionally narrowed to one project.
+2. For each data source, reads its fields from **VizQL `read-metadata`** and enriches them from the **Metadata API** (`/api/metadata/graphql`) — descriptions, field roles, and calculated-field formulas.
+3. Runs queries through **VizQL `query-datasource`**.
+
+Each published data source becomes one schema entry named `Project/Data source` (for example `Finance/Superstore`).
+
+<Note>
+  Tableau is **not** queried with SQL. The agent builds VizQL requests — a list of fields with aggregation functions plus filters (`SET`, `TOP`, `QUANTITATIVE`, `DATE`) — and Tableau evaluates them against the published data source, applying the model's joins and calculations.
+</Note>
+
+Re-indexing is incremental: data sources that are already in the catalog are rebuilt from the stored definition, and only new ones pay for a fresh metadata round-trip. Renames and project moves still propagate, because the listing is always re-read.
+
+## Before you start
+
+- The site's server URL and its **site name** (the `contentUrl` that appears in the browser address bar after `/site/`). The Default site has no site name.
+- A **Personal Access Token** created by a user with access to the data sources you want to expose.
+- The **Metadata API** enabled on the server. Tableau Cloud has it on; on Tableau Server a server administrator must enable metadata services, otherwise field descriptions and formulas come back empty.
+- **VizQL Data Service** (Headless BI) available for the site — this is what executes queries.
+- Network access from Bag of words to the Tableau server over HTTPS.
+
+## Step 1 — Create a Personal Access Token
+
+In Tableau, open the user menu → **My Account Settings** → **Personal Access Tokens** → **Create Token**.
+
+<Steps>
+  <Step title="Name the token">
+    The **token name** is what you enter as `pat_name` in Bag of words.
+  </Step>
+  <Step title="Copy the secret">
+    Copy the **token secret** immediately — Tableau shows it once. This is `pat_token`.
+
+    <Warning>
+      A Personal Access Token expires if it goes unused for the period set by your server administrator, and it inherits the permissions of the user who created it. Use a service account rather than a personal login for a shared connection.
+    </Warning>
+  </Step>
+  <Step title="Check the user's content permissions">
+    The token can only see what its owner can see. Give that account at least **Connect/View** on the projects whose published data sources you want the agent to reach.
+  </Step>
+</Steps>
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Tableau**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `server_url` | Yes | — | Base URL of the Tableau server, e.g. `https://10ax.online.tableau.com` or `https://tableau.example.com`. |
+| `site_name` | No | — | Site `contentUrl`. Leave blank for the Default site. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate. Disable only for self-signed test servers. |
+| `timeout_sec` | No | `30` | HTTP timeout for sign-in, metadata, and query calls. Raise it for slow on-prem servers or heavy data sources. |
+| `default_project_id` | No | — | Restrict discovery to a single project ID. Leave blank to discover every published data source on the site. |
+| `api_version` | No | `3.21` | Tableau REST API version. Change only for older on-prem Tableau Server that does not accept the default. |
+
+**Test Connection** signs in, probes the VizQL health endpoint, and tries a query against the first data source it finds. A VizQL query endpoint that answers `404` does not fail the test — it is reported as a feature or permission gap while sign-in is confirmed working.
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Personal Access Token** | `system` and `user` | `pat_name`, `pat_token` |
+
+Supply both fields together — the token name alone cannot sign in.
+
+Because the mode is available at both scopes, you can configure **one shared token** for the whole workspace (`system`), or have **each user supply their own token** (`user`) so Tableau applies that person's own content permissions and row-level security. Per-user credentials on a connector like this require Enterprise — see [Authentication](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Sign-in fails with an HTTP error">
+    Check `site_name` first: it must be the site's `contentUrl`, not its display name, and must be blank for the Default site. Then confirm the token has not expired or been revoked. On older on-prem servers, lower `api_version` — a server that predates the requested REST API version rejects the sign-in call.
+  </Accordion>
+
+  <Accordion title="A data source has no fields">
+    Neither VizQL `read-metadata` nor the Metadata API returned anything for it. Confirm the Metadata API is enabled on the server and that VizQL Data Service is available for the site, and that the token's owner has permission on that data source.
+  </Accordion>
+
+  <Accordion title="Fields appear, but with no descriptions or formulas">
+    Types come from VizQL and descriptions, roles, and calculated-field formulas come from the Metadata API. If only the descriptive half is missing, the Metadata API is unavailable or the token's owner cannot read that content through it.
+  </Accordion>
+
+  <Accordion title="Discovery only shows part of the site">
+    If `default_project_id` is set, only that project is discovered — clear it to see the whole site. Otherwise the token's owner simply cannot see the rest of the content.
+  </Accordion>
+
+  <Accordion title="Queries time out on large data sources">
+    Raise `timeout_sec`. VizQL evaluates the aggregation on the Tableau side, so a heavy data source can exceed the 30-second default.
+  </Accordion>
+</AccordionGroup>

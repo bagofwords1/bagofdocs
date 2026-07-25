@@ -1,0 +1,119 @@
+---
+title: "Google Drive"
+description: "Let each user connect their own Google Drive so the agent can read their Sheets, Excel, CSV and documents"
+icon: "google"
+---
+
+The **Google Drive** connector gives the agent read access to a user's Drive — Google Sheets, Excel, CSV and documents all become available to search and read. Every user connects their own Google account, and the agent works against that account's files.
+
+<Note>
+  The Google Drive connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+This is a **per-user** connection: `catalog_ownership` is `per_user`, so there is no shared, admin-curated catalog. Each user's own Drive *is* their catalog, and no two users' catalogs overlap unless their Drives do. That is why the connector has **no config fields** — there is nothing for an admin to scope. The admin's only job is registering the OAuth client; the users do the rest by signing in.
+
+Once a user has connected, Bag of words reads their Drive with the Drive API (`https://www.googleapis.com/drive/v3`) and Google-native spreadsheets with the Sheets API (`https://sheets.googleapis.com/v4`). `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted. Access is read-only — the connector requests read-only scopes and cannot modify Drive.
+
+See [User context and per-user data](/data-sources/user-context) for how per-user connections behave in a conversation.
+
+## Before you start
+
+- A **Google Cloud project** you can administer.
+- The **Google Drive API** and **Google Sheets API** enabled in that project.
+- Permission to configure the project's **OAuth consent screen**.
+- Your Bag of words base URL, for the redirect URI.
+
+## Step 1 — Create a Google OAuth client
+
+<Steps>
+  <Step title="Configure the OAuth consent screen">
+    In the [Google Cloud console](https://console.cloud.google.com) → **APIs & Services** → **OAuth consent screen**. For a Google Workspace organization, choose **Internal** so only your own users can consent.
+  </Step>
+  <Step title="Enable the APIs">
+    Under **APIs & Services** → **Library**, enable the **Google Drive API** and the **Google Sheets API**.
+  </Step>
+  <Step title="Create the credentials">
+    **APIs & Services** → **Credentials** → **Create credentials** → **OAuth client ID**. Choose application type **Web application**.
+
+    <Warning>
+      It must be a **Web application** client. Desktop, Android/iOS, and service-account credentials do not work with the authorization-code flow Bag of words uses.
+    </Warning>
+  </Step>
+  <Step title="Add the redirect URI">
+    Under **Authorized redirect URIs**, add:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Replace `<your-bow-host>` with your Bag of words base URL.
+  </Step>
+  <Step title="Copy the client ID and secret">
+    Copy the **Client ID** and **Client secret** — these go into Bag of words.
+  </Step>
+</Steps>
+
+### Scopes requested at sign-in
+
+```text
+openid email profile
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/spreadsheets.readonly
+```
+
+If your consent screen lists scopes explicitly, add these. Both Drive scopes are read-only.
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Google Drive**. There are **no config fields** — you only supply the OAuth client.
+
+## Authentication modes
+
+### Google OAuth Client — `oauth_app`
+
+Scopes: **system** and **user**. This is the admin-side registration of the Google Cloud OAuth client.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `oauth_client_id` | Yes | — | Google Cloud OAuth 2.0 Client ID, **Web application** type. |
+| `oauth_client_secret` | Yes | — | The matching client secret. |
+| `workspace_domain` | No | — | Google Workspace domain to restrict sign-in to, e.g. `company.com`. Sets the `hd` hint on the authorize URL so users land on the right account. |
+
+### Sign in with Google — `oauth`
+
+Scope: **user** only, no fields. Each user clicks **Connect**, consents in Google, and the resulting token is what the connector uses for that person. Nothing is shared between users.
+
+See [Authentication and access](/data-sources/authentication).
+
+## Alternative: the Google Drive MCP preset
+
+Bag of words also ships a **Google Drive (MCP Preview)** preset that reaches Drive through Google's preview MCP server (`https://drivemcp.googleapis.com/mcp/v1`) rather than this native connector. It also needs a Google OAuth client, and it gives the agent Google's own Drive tools instead of the Bag of words file catalog. Add it from **Data Sources → Add data source → MCP** and pick the Google Drive preset. See [MCP servers](/data-sources/mcp).
+
+Use the native connector when you want Drive files in the standard file catalog with Bag of words parsing and search; use the MCP preset when you specifically want Google's tool surface.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="redirect_uri_mismatch on sign-in">
+    The **Authorized redirect URIs** list on the OAuth client must contain `https://<your-bow-host>/api/connections/oauth/callback` exactly, matching your Bag of words base URL.
+  </Accordion>
+
+  <Accordion title="Sign-in works but the connector reports no access token">
+    The connection is missing `oauth_client_id` / `oauth_client_secret`. Both must be set on the connection before any user can sign in.
+  </Accordion>
+
+  <Accordion title="Users land on the wrong Google account">
+    Set `workspace_domain` to your Workspace domain so the authorize URL carries the `hd` hint.
+  </Accordion>
+
+  <Accordion title="Drive files appear but Sheets fail to read">
+    The **Google Sheets API** is not enabled in the Cloud project, or the `spreadsheets.readonly` scope was not consented. Native Google spreadsheets are read via the Sheets API, not the Drive API.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — the Microsoft equivalent.
+- [Gmail and Outlook Mail](/data-sources/connectors/mail) — Gmail uses the same kind of Google OAuth client.

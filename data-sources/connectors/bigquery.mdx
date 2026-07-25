@@ -1,0 +1,145 @@
+---
+title: "Google BigQuery"
+description: "Connect BigQuery datasets so the agent can read their schemas and run SQL, with per-query cost caps"
+icon: "cloud"
+---
+
+Bag of words connects to **Google BigQuery** with a GCP service account, reads the tables and columns in the datasets you point it at (including table and column descriptions), and runs standard SQL query jobs. Each user can also sign in with their own Google account, so queries run under their own BigQuery permissions.
+
+## How it works
+
+Bag of words uses the BigQuery client library against one `project_id`. During indexing it reads `INFORMATION_SCHEMA.COLUMNS` and `INFORMATION_SCHEMA.TABLE_OPTIONS` in each dataset, so table and column **descriptions** you have set in BigQuery are picked up and given to the agent. If that enriched read fails on your configuration, it falls back to a plain table/column listing.
+
+Tables are exposed to the agent as `dataset.table`. Queries run as BigQuery query jobs, with the cost controls below applied to every job.
+
+## Before you start
+
+- A **Google Cloud project** with BigQuery enabled and at least one dataset.
+- Permission to create a **service account** and a key for it in that project (`roles/iam.serviceAccountKeyAdmin`, or ask a project admin).
+- For per-user sign-in only: permission to create an **OAuth 2.0 client** under **APIs & Services → Credentials**, and a configured OAuth consent screen.
+- Network access from the Bag of words host to `bigquery.googleapis.com`.
+
+## Step 1 — Create the service account
+
+This identity is the shared credential — it indexes the datasets and, unless you require per-user sign-in, runs everyone's queries.
+
+<Steps>
+  <Step title="Create the service account">
+    In the [Google Cloud Console](https://console.cloud.google.com) → **IAM & Admin → Service Accounts → Create service account**. Name it something like `bow-bigquery`.
+  </Step>
+
+  <Step title="Grant it BigQuery roles">
+    Grant, at project level or on the specific datasets:
+
+    - **BigQuery Data Viewer** (`roles/bigquery.dataViewer`) — read table data and metadata.
+    - **BigQuery Job User** (`roles/bigquery.jobUser`) — create the query jobs.
+
+    Bag of words only issues reads, so a viewer-level data role is sufficient and recommended.
+  </Step>
+
+  <Step title="Create a JSON key">
+    On the service account → **Keys → Add key → Create new key → JSON**. The file downloads once.
+
+    <Warning>
+      The JSON key is a long-lived credential for the whole service account. Store it in your secret manager, paste it into Bag of words, and delete the downloaded file.
+    </Warning>
+  </Step>
+</Steps>
+
+## Step 2 — Create an OAuth client (per-user sign-in only)
+
+Skip this step if everyone will share the service account.
+
+For **Sign in with Google**, Bag of words needs a Google Cloud **OAuth 2.0 client**, separate from the service account.
+
+<Steps>
+  <Step title="Create the OAuth 2.0 client ID">
+    In the Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**. Choose **Web application** as the type.
+  </Step>
+
+  <Step title="Add the redirect URI">
+    Under **Authorized redirect URIs**, add:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Replace `<your-bow-host>` with your Bag of words base URL.
+  </Step>
+
+  <Step title="Copy the client ID and secret">
+    These go into the `oauth_client_id` and `oauth_client_secret` fields on the connection. Without both, per-user sign-in cannot start.
+  </Step>
+
+  <Step title="Check the consent screen scope">
+    Bag of words requests the read-only BigQuery scope, `https://www.googleapis.com/auth/bigquery.readonly`, plus offline access so the token can be refreshed. Make sure that scope is allowed on your OAuth consent screen. If the app is in **Testing** status, add each user as a test user, or publish it internally.
+  </Step>
+</Steps>
+
+## Step 3 — Add the connection in Bag of words
+
+Go to **Data Sources → Add data source → Google BigQuery**.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `project_id` | Yes | — | GCP project that owns the datasets and is billed for the queries. |
+| `dataset` | Yes | — | Dataset to index. Accepts a **comma-separated list** of datasets. |
+| `maximum_bytes_billed` | No | — | Per-query cap on bytes billed. A query that would scan more fails instead of running. Leave blank to disable the cap. |
+| `use_query_cache` | No | `false` | Allow BigQuery to return cached results when the same query has run before. Off by default. |
+
+<Tip>
+  **Cost controls.** `maximum_bytes_billed` is the safety net worth setting first — it turns a runaway scan into a failed query rather than a bill. A value in the tens of gigabytes is a reasonable starting point for exploratory use. Turning on `use_query_cache` makes repeated identical queries free and instant, at the cost of possibly serving slightly stale results; leave it off if freshness matters more than cost.
+</Tip>
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Service Account JSON** (`service_account`) | Shared **or** per-user | `credentials_json`, plus optional `oauth_client_id` / `oauth_client_secret` |
+| **Sign in with Google** (`oauth`) | Per-user only | None — the user signs in interactively |
+
+### Service Account JSON
+
+Paste the contents of the downloaded key file into `credentials_json`. This is the identity used for schema indexing, and for queries whenever no per-user credential applies.
+
+The `oauth_client_id` and `oauth_client_secret` fields live alongside it: they are not used by the service account itself, they are the OAuth client from Step 2 that per-user sign-in needs. Fill them in on the same connection if you plan to enable per-user access.
+
+### Sign in with Google
+
+Each user clicks **Connect** on the data source and completes a Google sign-in. Their token carries the read-only BigQuery scope, so discovery and queries run with **their own** BigQuery permissions — dataset-level access, row-level security, and audit logs all resolve to that person rather than the shared service account.
+
+To force this, enable **Require user authentication** on the data source. Indexing and schema refresh, which have no user in context, continue to run as the service account.
+
+<Note>
+  Per-user authentication on a database connector requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Provided BigQuery credentials are neither valid JSON content nor a readable server file path">
+    The `credentials_json` field did not parse as JSON. Paste the **entire** contents of the key file, including the outer braces, and check nothing was truncated. A server-side file path is also accepted, but only if the file is readable by the Bag of words process.
+  </Accordion>
+
+  <Accordion title="Access Denied: User does not have bigquery.jobs.create permission">
+    The service account has a data role but not **BigQuery Job User**. Reads still need a query job. Grant `roles/bigquery.jobUser` on the project named in `project_id`.
+  </Accordion>
+
+  <Accordion title="Query exceeded limit for bytes billed">
+    The query would have scanned more than `maximum_bytes_billed`. Either raise the cap, or narrow the question — partition and clustering filters are the usual fix. This is the cap doing its job.
+  </Accordion>
+
+  <Accordion title="Per-user sign-in never starts">
+    `oauth_client_id` and `oauth_client_secret` must both be set on the connection; sign-in fails immediately if either is missing. Also confirm the redirect URI registered on the OAuth client exactly matches `https://<your-bow-host>/api/connections/oauth/callback`.
+  </Accordion>
+
+  <Accordion title="Some datasets are missing">
+    Only the datasets listed in the `dataset` field are indexed. Add them as a comma-separated list, and confirm the identity in use has read access to each — with per-user sign-in, a dataset the service account can see may still be invisible to an individual, and vice versa.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Connecting data sources](/data-sources/connecting)
+- [Authentication](/data-sources/authentication)
+- [SQL databases](/data-sources/connectors/databases)

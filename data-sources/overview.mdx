@@ -1,0 +1,136 @@
+---
+title: "Data Sources Overview"
+description: "Every connector Bag of words supports, and the three kinds of connections you can make"
+icon: "database"
+---
+
+A **data source** is how Bag of words reaches your data. You point it at a database, a file share, or an application, tell it which tables or folders matter, and the agent queries it in place — no data movement, no copies. Each data source also carries the context that makes answers good: descriptions, instructions, conversation starters, and access rules.
+
+<Note>
+  In the product, a data source is also called an **agent** — the connection plus everything the AI knows about it. See [Connecting a data source](/data-sources/connecting) for the full setup flow.
+</Note>
+
+## Three kinds of connections
+
+<CardGroup cols={3}>
+  <Card title="Data" icon="database">
+    Databases, warehouses, BI and semantic layers, observability platforms, and business applications. The agent sees **tables** and writes queries against them.
+  </Card>
+  <Card title="Files" icon="folder">
+    File shares, object storage, and document libraries. The agent sees **files**, searches them, and reads their contents.
+  </Card>
+  <Card title="Integrations and tools" icon="plug">
+    MCP servers and custom REST APIs. The agent sees **tools** it can call, each governed by an approval policy.
+  </Card>
+</CardGroup>
+
+The distinction matters in three practical ways:
+
+- **What the agent sees.** Table-shaped sources produce SQL; file-shaped sources produce search and reads; tool-shaped sources produce tool calls that can require confirmation before they run.
+- **Who owns the catalog.** Most connections have one shared catalog an admin curates. Personal sources — OneDrive, Google Drive, a mailbox — have no shared catalog at all: each user's own account *is* the catalog.
+- **What per-user authentication costs.** Per-user sign-in is included for file and tool connections. On database-style connections it requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+## Data connectors
+
+Databases, warehouses, BI tools, observability platforms, and business applications.
+
+| | Connector | Kind | Edition |
+|:--|:--|:--|:--|
+| <img src="/assets/data-source-icons/druid.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Apache Druid](/data-sources/connectors/databases) | Database / warehouse | Beta |
+| <img src="/assets/data-source-icons/pinot.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Apache Pinot](/data-sources/connectors/databases) | Database / warehouse | Beta |
+| <img src="/assets/data-source-icons/aws_athena.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [AWS Athena](/data-sources/connectors/databases) | Database / warehouse | Beta |
+| <img src="/assets/data-source-icons/aws_cost.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [AWS Cost Explorer](/data-sources/connectors/observability) | Observability | Beta |
+| <img src="/assets/data-source-icons/aws_redshift.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [AWS Redshift](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/azure_data_explorer.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Azure Data Explorer](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/clickhouse.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [ClickHouse](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/databricks_sql.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Databricks SQL](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/duckdb.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [DuckDB](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/elasticsearch.svg" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Elasticsearch](/data-sources/connectors/observability) | Observability | Beta |
+| <img src="/assets/data-source-icons/bigquery.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Google BigQuery](/data-sources/connectors/bigquery) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/infor_olap.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Infor OLAP](/data-sources/connectors/infor-olap) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/jaeger.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Jaeger](/data-sources/connectors/observability) | Observability | Beta |
+| <img src="/assets/data-source-icons/mariadb.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Mariadb](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/analysis_services.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Microsoft Analysis Services](/data-sources/connectors/analysis-services) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/ms_fabric.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Microsoft Fabric](/data-sources/connectors/microsoft-fabric) | BI / semantic layer |  |
+| <img src="/assets/data-source-icons/mssql.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Microsoft SQL Server](/data-sources/connectors/sql-server) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/mongodb.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [MongoDB](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/mysql.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [MySQL](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/netsuite.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [NetSuite](/data-sources/connectors/business-apps) | Business application |  |
+| <img src="/assets/data-source-icons/opensearch.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [OpenSearch](/data-sources/connectors/observability) | Observability | Beta |
+| <img src="/assets/data-source-icons/oracle_bi.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Oracle BI](/data-sources/connectors/oracle-bi) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/oracledb.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Oracle Database](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/postgresql.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [PostgreSQL](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/posthog.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [PostHog](/data-sources/connectors/business-apps) | Business application | Beta |
+| <img src="/assets/data-source-icons/powerbi.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Power BI](/data-sources/connectors/power-bi) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/powerbi_report_server.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Power BI Report Server](/data-sources/connectors/power-bi-report-server) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/qlik_sense.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Qlik Sense](/data-sources/connectors/qlik-sense) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/salesforce.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Salesforce](/data-sources/connectors/business-apps) | Business application |  |
+| <img src="/assets/data-source-icons/businessobjects.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SAP BusinessObjects](/data-sources/connectors/sap) | BI / semantic layer |  |
+| <img src="/assets/data-source-icons/sap_bw.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SAP BW (XMLA)](/data-sources/connectors/sap) | BI / semantic layer |  |
+| <img src="/assets/data-source-icons/sap_datasphere.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SAP Datasphere](/data-sources/connectors/sap) | BI / semantic layer |  |
+| <img src="/assets/data-source-icons/sap_hana.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SAP HANA](/data-sources/connectors/sap) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/servicenow.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [ServiceNow](/data-sources/connectors/business-apps) | Business application | Beta |
+| <img src="/assets/data-source-icons/sisense.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Sisense](/data-sources/connectors/sisense) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/snowflake.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Snowflake](/data-sources/connectors/snowflake) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/spark_connect.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Spark](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/splunk.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Splunk](/data-sources/connectors/observability) | Observability | Enterprise · Beta |
+| <img src="/assets/data-source-icons/sqlite.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SQLite](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/sybase.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Sybase SQL Anywhere](/data-sources/connectors/databases) | Database / warehouse | Enterprise |
+| <img src="/assets/data-source-icons/tableau.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Tableau](/data-sources/connectors/tableau) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/teradata.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Teradata Vantage](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/timbr.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Timbr AI](/data-sources/connectors/timbr) | BI / semantic layer | Enterprise |
+| <img src="/assets/data-source-icons/trino.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Trino](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/vertica.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Vertica](/data-sources/connectors/databases) | Database / warehouse |  |
+| <img src="/assets/data-source-icons/zabbix.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Zabbix](/data-sources/connectors/observability) | Observability | Enterprise |
+
+## File connectors
+
+File shares, object storage, and document libraries.
+
+| | Connector | Kind | Edition |
+|:--|:--|:--|:--|
+| <img src="/assets/data-source-icons/s3.svg" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Amazon S3](/data-sources/connectors/s3) | Database / warehouse | Beta |
+| <img src="/assets/data-source-icons/csv.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [CSV](/data-sources/connectors/file-formats) | Files |  |
+| <img src="/assets/data-source-icons/network_dir.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Files and Directories](/data-sources/connectors/files-and-directories) | Files |  |
+| <img src="/assets/data-source-icons/google_drive.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Google Drive](/data-sources/connectors/google-drive) | Files | Enterprise |
+| <img src="/assets/data-source-icons/onedrive.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [OneDrive](/data-sources/connectors/sharepoint-onedrive) | Files | Enterprise |
+| <img src="/assets/data-source-icons/qvd.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Qlik (QVD)](/data-sources/connectors/file-formats) | Files | Enterprise |
+| <img src="/assets/data-source-icons/sharepoint.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [SharePoint](/data-sources/connectors/sharepoint-onedrive) | Files | Enterprise |
+
+## Integrations and tools
+
+MCP servers, custom REST APIs, and mailbox connectors. Tool connections are governed by per-tool approval policies — see [MCP connections](/data-sources/mcp).
+
+| | Connector | Kind | Edition |
+|:--|:--|:--|:--|
+|  | [Custom API](/data-sources/custom-api) | Tools | Beta |
+| <img src="/assets/data-source-icons/gmail_mail.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Gmail](/data-sources/connectors/mail) | Business application | Enterprise |
+| <img src="/assets/data-source-icons/mcp.png" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [MCP Server](/data-sources/mcp) | Tools | Beta |
+| <img src="/assets/data-source-icons/outlook_mail.svg" alt="" width="18" height="18" style={{display:"inline-block",verticalAlign:"middle",margin:0}} /> | [Outlook Mail](/data-sources/connectors/mail) | Business application | Enterprise |
+
+Bag of words also ships **MCP presets** — one-click tiles for Monday, Notion, Linear, Atlassian, GitHub, Sentry, Google Drive, and X. They all create a standard MCP connection with the server URL and OAuth settings pre-filled.
+
+## Editions
+
+Connectors marked **Enterprise** require a license key ([how to activate](/enterprise/license)). Without one, they appear in the catalog with a lock. Connectors marked **Beta** work but may change; treat their field names as less stable than the rest.
+
+<Note>
+  Missing a connector? Open an issue or a PR at [github.com/bagofwords1/bagofwords](https://github.com/bagofwords1/bagofwords).
+</Note>
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Connecting a data source" icon="circle-plus" href="/data-sources/connecting">
+    The setup flow: connect, choose tables, add context, and control access.
+  </Card>
+  <Card title="Authentication and access" icon="lock" href="/data-sources/authentication">
+    Shared vs per-user credentials, OAuth, Kerberos SSO, and what needs Enterprise.
+  </Card>
+  <Card title="MCP connections" icon="plug" href="/data-sources/mcp">
+    Connect any MCP server and govern its tools.
+  </Card>
+  <Card title="User context forwarding" icon="user-check" href="/data-sources/user-context">
+    Pass the caller's identity to an MCP server on every call.
+  </Card>
+</CardGroup>

@@ -1,0 +1,79 @@
+---
+title: "Oracle BI"
+description: "Connect Oracle BI subject areas and query them with Logical SQL"
+icon: "database"
+---
+
+Bag of words connects to **Oracle Business Intelligence** — OBIEE 11g/12c, Oracle Analytics Server, and Oracle Analytics Cloud — through the BI Web Services SOAP API. It discovers the subject areas the credential can see, reads their presentation tables and columns, and runs **Logical SQL** against the BI Server, so every query goes through your semantic model rather than around it.
+
+<Note>
+  The Oracle BI connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+All three products ship the same v12 web services at `/analytics-ws/saw.dll`, so one connector covers them:
+
+1. Bag of words logs on (`nQSessionService.logon`) and holds a session ID.
+2. It lists subject areas (`MetadataService.getSubjectAreas`) and describes each one with its presentation tables and columns (`MetadataService.describeSubjectArea`).
+3. Queries run as Logical SQL (`XmlViewService.executeXMLQuery`), and the returned rowset is typed from its inline schema — numbers, dates, and booleans come back as real types, with Oracle's user-facing column captions applied.
+
+Each presentation table becomes a schema entry named `SubjectArea/PresentationTable`, for example `A - Sample Sales/Products`.
+
+<Note>
+  Logical SQL is not database SQL. Columns are referenced as `"Presentation Table"."Column"` and the `FROM` clause names the **subject area**, not a table. Joins are implicit — the BI Server resolves them from the semantic model — and row limits use `FETCH FIRST N ROWS ONLY` rather than `LIMIT`.
+</Note>
+
+## Before you start
+
+- The base URL of the instance: the analytics URL for OBIEE/OAS, or the OAC instance URL.
+- The **BI Web Services** SOAP endpoint (`/analytics-ws/saw.dll`) reachable from Bag of words over HTTP(S) — some deployments front the portal with a proxy that does not expose it.
+- An account that can log on and has been granted the subject areas you want to expose. For OAC the username is the account's email; for OBIEE/OAS it is the domain user.
+- A **deployed semantic model** (an RPD, or a Semantic Model on OAC). An instance with nothing deployed connects successfully but exposes no subject areas.
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Oracle BI**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Base URL of the Oracle BI instance, e.g. `https://analytics.example.com` or the OAC instance URL. Do not include `/analytics-ws` — the SOAP path is appended for you. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate when calling the SOAP endpoint. Disable only for self-signed test servers. |
+| `timeout_sec` | No | `60` | HTTP timeout for SOAP calls. Raise it when large Logical SQL queries run long on the BI Server. |
+
+**Test Connection** logs on and counts the subject areas. If the instance has none, the test still succeeds but says so explicitly — that means the credential works and there is nothing deployed for it to see.
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password** | `system` and `user` | `username` (required), `password` (required) |
+
+- `username` — the Oracle BI / OAC user. Use the email address for OAC, the domain user for OBIEE and OAS.
+- `password` — that user's password.
+
+Because the mode is available at both scopes, you can configure **one shared service account** for the workspace (`system`), or have **each user supply their own Oracle BI credential** (`user`) so the BI Server applies that person's own subject-area grants and data filters. Per-user credentials on a connector like this require Enterprise — see [Authentication](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Logon fails or returns no session">
+    The SOAP call reached the server but the credential was rejected. Check the username form for your product (email on OAC, domain user on OBIEE/OAS) and that the account is not locked. A SOAP fault is surfaced with Oracle's own message and error code.
+  </Accordion>
+
+  <Accordion title="Cannot reach the SOAP endpoint">
+    Confirm `host` is the base URL only — the connector appends `/analytics-ws/saw.dll` itself, so a host that already includes it will not resolve. Also confirm that any reverse proxy in front of the instance forwards `/analytics-ws`.
+  </Accordion>
+
+  <Accordion title="Connected, but zero subject areas">
+    Either no semantic model is deployed on the instance, or the account has not been granted any subject area. Deploy the RPD / Semantic Model, then grant the account access and re-index.
+  </Accordion>
+
+  <Accordion title="A subject area is listed but has no tables">
+    The BI Server echoes a subject area name back even when it cannot describe it, so entries that come back with no business model and no tables are dropped from the catalog. Grant the account access to that subject area's presentation tables.
+  </Accordion>
+
+  <Accordion title="A query fails with an Oracle error code">
+    Oracle returns query errors inside the rowset rather than as a fault; Bag of words surfaces the text and code as the query error. The usual causes are an unquoted identifier containing spaces, a column referenced with its subject area prefix instead of its presentation table, or an explicit `JOIN` clause — the semantic model resolves joins itself.
+  </Accordion>
+</AccordionGroup>

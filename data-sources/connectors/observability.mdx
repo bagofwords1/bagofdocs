@@ -1,0 +1,229 @@
+---
+title: "Observability and monitoring"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+icon: "activity"
+---
+
+These connectors let the agent investigate operational data — logs, search indices, distributed traces, monitoring metrics, and cloud spend — alongside your business data. None of them speak SQL natively, so Bag of words maps each platform onto a catalog the agent can reason about and issues queries in the platform's own language.
+
+| Connector | What the catalog looks like | Query surface | Edition |
+| :-- | :-- | :-- | :-- |
+| [Splunk](#splunk) | One table per `index::sourcetype` | SPL | Enterprise, Beta |
+| [Elasticsearch](#elasticsearch) | One object per index or index pattern | Query DSL, SQL, ES&#124;QL | Beta |
+| [OpenSearch](#opensearch) | One object per index or index pattern | Query DSL, SQL | Beta |
+| [Jaeger](#jaeger) | Fixed tables: services, operations, spans, dependencies | Parameterized trace search | Beta |
+| [Zabbix](#zabbix) | Fixed tables: hosts, items, triggers, problems, events, history, trends | JSON-RPC query specs | Enterprise |
+| [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
+
+---
+
+## Splunk
+
+<Note>
+  The Splunk connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+Bag of words talks to the Splunk REST API on the management port (`https://<host>:8089`). There is no SQL endpoint — queries are **SPL** run as oneshot search jobs.
+
+Tables are `index::sourcetype` pairs, enumerated with one cheap `tstats` call that reads tsidx metadata rather than raw events, so discovery cost does not grow with the number of sourcetypes. Columns cost a real search, so fields are sampled only for the top sourcetypes by volume; the rest stay thin and the agent samples their fields on demand.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Splunk host, e.g. `splunk.acme.com`, or a full management URL such as `https://splunk.acme.com:8089`. |
+| `port` | No | `8089` | REST/management port. Ignored when `host` is a full URL. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certificates. |
+| `discovery_window_days` | No | `7` | Default lookback applied to schema discovery and to searches that omit a time range. |
+| `max_sampled_sourcetypes` | No | `50` | How many sourcetypes, ranked by event volume, get their fields sampled during indexing. Keeps reindexing cheap. |
+
+### Authentication modes
+
+Both modes support **system** and **user** scope.
+
+**Authentication Token — `token`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_token` | Yes | A Splunk authentication token (**Settings → Tokens**). Recommended, and the way to connect to Splunk Cloud. |
+
+**Username / Password — `userpass`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A Splunk user with search access to the target indexes. |
+| `password` | Yes | That user's password. |
+
+---
+
+## Elasticsearch
+
+<Note>
+  The Elasticsearch connector is in **beta**.
+</Note>
+
+Indices, aliases and data streams map to catalog objects, and the index **mapping** is the schema — discovery is a single bulk `GET /_mapping`, with no document sampling. Daily or rolling time-series indices (`logs-app-2026.07.10`, `…07.09`, …) are collapsed into one `logs-app-*` object holding the union of their fields, so the catalog stays a handful of patterns instead of one entry per day.
+
+Queries use the native query DSL wrapped in a JSON envelope, with `POST /_sql` and ES&#124;QL (`POST /_query`, Elasticsearch 8.11+) available as escape hatches.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Host, e.g. `localhost`, or a full URL such as `https://es.example.com:9200`. |
+| `port` | No | `9200` | REST port. Ignored when `host` is a full URL. |
+| `secure` | No | `true` | Connect over HTTPS. Elasticsearch 8.x uses TLS by default. Ignored when `host` is a full URL. |
+| `verify_certs` | No | `true` | Disable only for clusters using self-signed demo certificates. |
+| `index_pattern` | No | — | Comma-separated index names or globs to expose, e.g. `logs-*,metrics-*`. Default: all non-system indices. |
+
+### Authentication modes
+
+**API Key — `apikey`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_key` | Yes | An Elasticsearch API key. Paste either the encoded key or the raw `id:api_key` pair (**Stack Management → API keys**). Recommended for 8.x. |
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `user` | Yes | Username for HTTP basic auth, e.g. `elastic` or a role user with read access. |
+| `password` | Yes | That user's password. |
+
+**No Authentication — `none`** (scope: system, no fields). For clusters with security disabled or gated purely at the network layer.
+
+---
+
+## OpenSearch
+
+<Note>
+  The OpenSearch connector is in **beta**.
+</Note>
+
+OpenSearch behaves like Elasticsearch: indices map to catalog objects, the mapping is the schema (one `GET /_mapping`, no document sampling), and time-series indices collapse into patterns. Queries are the native query DSL, with an SQL escape hatch via the bundled plugin (`/_plugins/_sql`).
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Host, e.g. `localhost`, or a full URL such as `https://search.example.com:9200`. |
+| `port` | No | `9200` | REST port. Ignored when `host` is a full URL. |
+| `secure` | No | `false` | Connect over HTTPS. Ignored when `host` is a full URL. |
+| `verify_certs` | No | `true` | Disable only for clusters using self-signed demo certificates. |
+| `index_pattern` | No | — | Comma-separated index names or globs to expose, e.g. `logs-*,orders`. Default: all non-system indices. |
+
+### Authentication modes
+
+**Username / Password — `userpass`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `user` | Yes | Username for HTTP basic auth (the OpenSearch security plugin). |
+| `password` | Yes | That user's password. |
+
+**No Authentication — `none`** (scope: system, no fields). For clusters with security disabled or network-gated.
+
+---
+
+## Jaeger
+
+<Note>
+  The Jaeger connector is in **beta**.
+</Note>
+
+Jaeger has no query language — it is a parameterized trace search — so instead of discovering tables Bag of words presents a fixed catalog that mirrors the Query API: `services`, `operations`, `spans` and `dependencies`. Span rows are flattened to identity, topology, timing and status columns, plus the span's own tags.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `base_url` | Yes | — | Jaeger Query URL including scheme and port, e.g. `http://jaeger:16686`. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certs on internal hosts. |
+| `default_lookback` | No | `1h` | Search window used when a query omits one, e.g. `1h`, `6h`, `2d`. |
+| `default_limit` | No | `20` | Default maximum number of traces returned by a span search. |
+
+### Authentication modes
+
+**No Auth (network-gated) — `none`** (the default; scope: system, no fields). Jaeger Query typically has no auth of its own.
+
+**Username / Password (Basic) — `basic`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | For HTTP basic auth — typically a reverse proxy in front of Jaeger Query. |
+| `password` | Yes | That user's password. |
+
+**Bearer Token — `bearer`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | Sent as `Authorization: Bearer <token>`. Used when Jaeger Query sits behind an auth proxy or gateway. |
+
+---
+
+## Zabbix
+
+<Note>
+  The Zabbix connector is part of the **Enterprise Edition**.
+</Note>
+
+Bag of words talks to the Zabbix JSON-RPC 2.0 API (the `/api_jsonrpc.php` endpoint is appended to your frontend URL automatically). Queries are JSON specs that map one-to-one onto Zabbix API methods — `host.get`, `item.get`, `problem.get`, `history.get`, and so on.
+
+The catalog is a fixed set of virtual tables — hosts, items, triggers, problems, events, history, trends — because Zabbix's data model is stable. The `items` table is enriched from a live `item.get` so the agent sees the value types actually present.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | Your Zabbix frontend URL, e.g. `https://zabbix.acme.com`. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certificates. |
+| `history_window_days` | No | `7` | Default lookback applied when querying metric history or trends without an explicit time range. |
+
+### Authentication modes
+
+Both modes support **system** and **user** scope.
+
+**API Token — `token`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_token` | Yes | A Zabbix API token (**Users → API tokens**). Recommended for Zabbix 5.4+, and the way to connect in SSO environments. |
+
+**Username / Password — `userpass`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A Zabbix user with read access to the monitored hosts. Used on older installs without API tokens. |
+| `password` | Yes | That user's password. |
+
+<Note>
+  Zabbix's SAML/OIDC SSO governs the **frontend** only — the API never accepts an external identity provider's token. An SSO user should mint a personal API token in the UI and use the token mode.
+</Note>
+
+---
+
+## AWS Cost Explorer
+
+<Note>
+  The AWS Cost Explorer connector is in **beta**.
+</Note>
+
+Bag of words queries the AWS **Cost Explorer** API (`ce`) so the agent can analyze spend and usage over time — by service, account, tag, or any other Cost Explorer dimension.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `region_name` | Yes | — | AWS region used for the Cost Explorer client, e.g. `us-east-1`. |
+
+### Authentication
+
+**AWS Keys — `key`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key id. |
+| `secret_key` | Yes | AWS secret access key. |
+
+The credential needs permission to call the Cost Explorer read APIs (`ce:GetCostAndUsage` and related). Because the mode is also available at user scope, individual users can supply their own keys instead of sharing the admin's — per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).

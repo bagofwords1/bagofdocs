@@ -1,0 +1,124 @@
+---
+title: "SQL databases"
+description: "Reference for the database and query-engine connectors that need only network access and a login"
+icon: "database"
+---
+
+This is a reference page for the connectors that need no external app registration, tenant setting, or admin consent — just **network access from the Bag of words host** and a **login with read permission**. Add them under **Data Sources → Add data source**, fill in the fields below, test the connection, and pick the tables the agent may use.
+
+Connectors with real external setup have their own pages: [Snowflake](/data-sources/connectors/snowflake), [Google BigQuery](/data-sources/connectors/bigquery), and [Microsoft SQL Server](/data-sources/connectors/sql-server).
+
+<Note>
+  Most of these support both a **shared** credential (one login for the whole workspace) and **per-user** credentials (each person authenticates as themselves). Per-user authentication on a database connector requires an Enterprise license — see [Authentication](/data-sources/authentication). Where a mode is shared-only, it is marked below.
+</Note>
+
+## All connectors
+
+| Connector | Config fields | Auth modes | Notes |
+| :-- | :-- | :-- | :-- |
+| **PostgreSQL** `postgresql` | `host`, `port` (5432), `database`, `schema` | Username / Password | `schema` is optional and takes a comma-separated list. |
+| **MySQL** `mysql` | `host`, `port`, `database` | Username / Password | `user` and `password` may both be blank for anonymous access. |
+| **MariaDB** `mariadb` | `host`, `port`, `database` | Username / Password | Same shape as MySQL. |
+| **Oracle Database** `oracledb` | `host`, `port` (1521), `service_name`, `schema`, `use_tcps` (false), `verify_ssl` (true) | Username / Password | Connect by **service name**, not SID. |
+| **SQLite** `sqlite` | `database` | No auth *(shared only)* | `database` is an absolute path on the Bag of words host. |
+| **DuckDB** `duckdb` | `uris` | No auth *(shared)*, AWS Keys *(shared)*, GCP Service Account, Azure Connection String *(shared)* | Queries files in object storage as views. See below. |
+| **ClickHouse** `clickhouse` | `host`, `port` (8123), `database`, `secure` (true) | Username / Password | `database` is optional and takes a comma-separated list; blank means all databases. |
+| **Trino** `trino` | `host`, `port` (8080), `catalog`, `schema`, `protocol` (`http`) | Username / Password | `catalog` and `schema` are both required. See below. |
+| **Vertica** `vertica` | `host`, `port` (5433), `database`, `schema` (`public`) | Username / Password | |
+| **Teradata Vantage** `teradata` | `host`, `port` (1025), `database`, `logmech` (`TD2`) | Username / Password | `database` is the namespace (≈ schema) and takes a comma-separated list. See below. |
+| **Apache Druid** `druid` <sup>beta</sup> | `host`, `port` (8082), `secure` (false), `path` (`/druid/v2/sql/`), `schema` | Username / Password, API Token (Bearer), API Token (Basic) | Queried through the Broker or Router SQL API. See below. |
+| **Apache Pinot** `pinot` <sup>beta</sup> | `host`, `port` (8099), `secure` (true), `path` (`/query/sql`), `controller`, `query_options` | Username / Password | Queried through the Broker SQL API. See below. |
+| **MongoDB** `mongodb` | `host`, `port` (27017), `database`, `auth_source` (`admin`), `tls` (false), `use_srv` (false) | Username / Password | Document-shaped, not tabular. See below. |
+| **Sybase SQL Anywhere** `sybase` <sup>EE</sup> | `host`, `port` (2638), `database` | Username / Password | Connected over TDS via FreeTDS. |
+| **Spark** `spark_connect` | `host`, `port` (15002), `use_ssl` (false), `catalog`, `database`, `require_partition_filter` (false) | No auth *(shared)*, Bearer Token | Spark Connect (`sc://`). See below. |
+| **Databricks SQL** `databricks_sql` | `server_hostname`, `http_path`, `catalog`, `schema` | Personal Access Token | `schema` takes a comma-separated list; blank discovers all schemas in the catalog. |
+| **Azure Data Explorer** `azure_data_explorer` | `cluster_url`, `database` | Service Principal (AAD App) | Kusto. Auth fields are `client_id`, `client_secret`, `tenant_id`. |
+| **AWS Redshift** `aws_redshift` | `host`, `port` (5439), `database`, `schema` (`public`), `region`, `cluster_identifier`, `ssl_mode` (`require`), `timeout` (30) | Username / Password, AWS Keys (IAM), Assume Role (ARN) | See below. |
+| **AWS Athena** `aws_athena` <sup>beta</sup> | `region`, `database`, `workgroup` (`primary`), `s3_output_location`, `data_source` (`AwsDataCatalog`) | AWS Default (IAM Role / Instance Profile), AWS Access Keys | See below. |
+
+<sup>beta</sup> Beta connector — the shape of the integration may still change.
+<sup>EE</sup> Part of the **Enterprise Edition**.
+
+## Notes on specific connectors
+
+### DuckDB
+
+DuckDB is not a server connection. `uris` holds either the path to a local `.duckdb` file, or **one URI pattern per line** pointing at parquet or CSV files, which Bag of words registers as views and queries in-process. Wildcards are supported:
+
+```text
+s3://analytics-lake/events/*.parquet
+az://container/exports/2024/*/*.csv
+/data/reference/dim_customer.parquet
+```
+
+Pick the auth mode matching the backing store, not DuckDB itself:
+
+| Mode | Fields | Scope |
+| :-- | :-- | :-- |
+| No Auth (public/local) | — | Shared |
+| AWS Keys | `access_key`, `secret_key`, `region`, `session_token` | Shared |
+| GCP Service Account | `service_account_json` | Shared or per-user |
+| Azure Connection String | `connection_string` (SAS or account key) | Shared |
+
+`session_token` is only for temporary AWS credentials. Local paths and `file:/` URIs work with no auth at all.
+
+### Trino
+
+`catalog` and `schema` are both required — a Trino connection is scoped to a single catalog/schema pair, so create one data source per pair you want the agent to reach. Set `protocol` to `https` for a TLS-terminated coordinator; the `password` field is only needed in that case.
+
+### Teradata
+
+`logmech` selects the logon mechanism: `TD2` for native Teradata users, or `LDAP`, `KRB5`, or `TDNEGO` for directory-based logon, which is common on-prem. `host` is the TPA or COP name of the system.
+
+### Apache Druid
+
+Set `secure` to true for HTTPS, and adjust `port` for what you are pointing at — `8082` for a Broker, `8888` for a Router. `schema` defaults to `druid`; system schemas are always excluded from indexing.
+
+Two token modes exist and they are not interchangeable:
+
+- **API Token (Bearer)** sends `Authorization: Bearer <token>`.
+- **API Token (Basic)** sends the `basic_token` value verbatim as `Authorization: Basic <token>`, with **no base64 encoding**. Use this one for Imply Polaris `pok_…` API keys.
+
+### Apache Pinot
+
+Points at the Broker SQL endpoint. `controller` is an optional controller base URL (for example `http://controller-host:9000`), used for richer metadata. `query_options` passes a Pinot `queryOptions` string through on every query — `useMultistageEngine=true` is the common one.
+
+### MongoDB
+
+The only document-shaped connector here: the agent sees collections and inferred document structure rather than tables and columns, and writes MongoDB queries rather than SQL.
+
+For **Atlas**, set `use_srv` to true — the connection then uses `mongodb+srv://`, `port` is ignored, `auth_source` is ignored, and TLS is automatic. For a self-hosted deployment, leave `use_srv` off and set `tls` and `auth_source` yourself. `user` and `password` may both be blank for an unauthenticated deployment.
+
+### Spark
+
+Runs Spark SQL against a remote cluster over **Spark Connect** (`sc://`). Compute stays on the cluster — Bag of words sends SQL and receives results, with no in-process engine on the Bag of words server.
+
+Leave `catalog` blank to use the session default, and `database` blank to discover all databases (it also takes a comma-separated list). `require_partition_filter` is a guardrail worth turning on for large lakehouse tables: queries that would scan a partitioned table without filtering on a partition column are rejected via `EXPLAIN` before they run.
+
+The **No auth** mode assumes the Spark Connect endpoint is network-gated — behind a VPN or Tailscale, for example. Otherwise use a Bearer Token.
+
+### AWS Redshift
+
+Three auth modes, all of which still require a `user`:
+
+| Mode | Fields | What it does |
+| :-- | :-- | :-- |
+| Username / Password | `user`, `password` | Ordinary Redshift database login. |
+| AWS Keys (IAM) | `user`, `access_key`, `secret_key` | Authenticates with IAM credentials rather than a database password. |
+| Assume Role (ARN) | `user`, `role_arn` | Assumes the named role and connects with the resulting temporary credentials, refreshed automatically before expiry. |
+
+`region` is needed for both IAM modes. `cluster_identifier` identifies the cluster for IAM-based credential issuance. Leave `ssl_mode` at `require` unless you have a reason not to.
+
+### AWS Athena
+
+Athena is serverless: there is no host or port, only a `region` and a Glue `database`. `data_source` is the Athena catalog name and stays `AwsDataCatalog` for the standard Glue Data Catalog.
+
+`s3_output_location` is where Athena writes query results. Leave it blank **only if** your `workgroup` has a default output location configured; otherwise set it to an S3 URI the identity can write to, since Athena cannot return results without one.
+
+The default auth mode, **AWS Default (IAM Role / Instance Profile)**, takes no fields at all — it uses the ambient AWS credentials of the Bag of words host, which is the right choice when it runs on EC2, ECS, or EKS with an attached role. Otherwise use **AWS Access Keys**, which takes `access_key`, `secret_key`, and `role_arn`.
+
+## Related
+
+- [Data sources overview](/data-sources/overview)
+- [Connecting data sources](/data-sources/connecting)
+- [Authentication](/data-sources/authentication)

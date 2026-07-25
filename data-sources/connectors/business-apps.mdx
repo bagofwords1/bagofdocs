@@ -1,0 +1,182 @@
+---
+title: "Business applications"
+description: "Connect Salesforce, NetSuite, ServiceNow and PostHog so the agent can query them as tables"
+icon: "boxes"
+---
+
+These connectors reach SaaS applications through their own APIs and present them to the agent as **tables**. The agent writes queries in each platform's native language — SOQL for Salesforce, SuiteQL for NetSuite, a Table API query spec for ServiceNow, HogQL for PostHog — and Bag of words handles discovery, paging and row limits.
+
+| Connector | Query surface | Auth | Edition |
+| :-- | :-- | :-- | :-- |
+| [Salesforce](#salesforce) | SOQL over the REST API | Connected App (JWT bearer), or username/password | |
+| [NetSuite](#netsuite) | SuiteQL over the REST API | Token-Based Authentication | |
+| [ServiceNow](#servicenow) | Table API query specs | Username/password, or per-user OAuth | Beta |
+| [PostHog](#posthog) | HogQL | Personal API key | Beta |
+
+---
+
+## Salesforce
+
+Bag of words enumerates the org's queryable objects — standard and custom `__c` — filtering out system and plumbing objects (sharing rows, field history, change events, Chatter feeds). Reference fields become foreign keys. Discovery is capped at 500 objects, with common CRM objects (Account, Contact, Lead, Opportunity, Case, and so on) prioritized so they always survive the cap. A single query returns at most 10,000 rows.
+
+### Before you start (JWT bearer)
+
+The recommended path is a **Connected App** using the OAuth 2.0 JWT bearer flow: a certificate signs a short-lived assertion that is exchanged for an access token. No interactive login, no stored password.
+
+<Steps>
+  <Step title="Generate a key pair">
+    Create an RSA private key and a matching X.509 certificate. Keep the private key (PEM) — you will paste it into Bag of words.
+  </Step>
+  <Step title="Create the Connected App">
+    In Salesforce **Setup → App Manager → New Connected App**, enable OAuth settings, tick **Use digital signatures**, and upload the certificate.
+  </Step>
+  <Step title="Copy the Consumer Key">
+    From the Connected App's detail page, copy the **Consumer Key** — this is the OAuth `client_id`.
+  </Step>
+  <Step title="Pre-authorize the service account user">
+    Set the Connected App's OAuth policy to **Admin approved users are pre-authorized**, then grant the profile or permission set of the Salesforce user Bag of words will authenticate as.
+
+    <Warning>
+      The JWT flow fails if the app is not admin pre-authorized for that specific user. This is the most common cause of an authentication error on first connect.
+    </Warning>
+  </Step>
+</Steps>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `sandbox` | No | `false` | Authenticate against `test.salesforce.com`. |
+| `domain` | No | `login` | Login domain: `login` (production), `test` (sandbox), or a My Domain subdomain. |
+| `objects` | No | — | Comma-separated objects to index, e.g. `Account,Contact,MyObj__c`. Blank auto-discovers. |
+
+### Authentication modes
+
+Both modes are **system**-scope — one shared credential for the whole connection.
+
+**Connected App (JWT Bearer) — `jwt`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `consumer_key` | Yes | The Connected App's Consumer Key (OAuth `client_id`). |
+| `private_key` | Yes | RSA private key in PEM form, matching the certificate uploaded to the Connected App. |
+| `username` | Yes | The Salesforce username to authenticate as — the JWT subject. Must be pre-authorized for the app. |
+
+**Username / Password — `userpass`** (legacy SOAP login)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | Salesforce username. |
+| `password` | Yes | Salesforce password. |
+| `security_token` | Yes | The user's security token, appended to the password by the login API. Reset it from **Settings → My Personal Information → Reset My Security Token**. |
+
+---
+
+## NetSuite
+
+Bag of words queries NetSuite with **SuiteQL** over the REST API (`https://<account>.suitetalk.api.netsuite.com/services/rest/query/v1/suiteql`), signing each request with OAuth 1.0a HMAC-SHA256 — NetSuite's Token-Based Authentication (TBA). Results are paged automatically.
+
+### Before you start
+
+<Steps>
+  <Step title="Enable the features">
+    In NetSuite **Setup → Company → Enable Features → SuiteCloud**, enable **REST Web Services** and **Token-Based Authentication**.
+  </Step>
+  <Step title="Create an integration record">
+    **Setup → Integration → Manage Integrations → New**. Enable **Token-Based Authentication**. On save, NetSuite shows the **Consumer Key** and **Consumer Secret** once — copy both.
+  </Step>
+  <Step title="Create an access token">
+    **Setup → Users/Roles → Access Tokens → New**, choosing the integration record, the user, and a role with permission to run SuiteQL against the records you want. NetSuite shows the **Token ID** and **Token Secret** once — copy both.
+  </Step>
+</Steps>
+
+<Warning>
+  The consumer secret and token secret are displayed exactly once. If you lose them you must create a new integration record or access token.
+</Warning>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `table_filter` | No | — | Comma-separated table names to include in schema discovery. Blank discovers all tables. |
+
+### Authentication
+
+**Token-Based Auth — `token`** (system scope, the only mode)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `account_id` | Yes | NetSuite account id, e.g. `1234567` or `1234567_SB1`. Used for both the REST host and the OAuth realm. |
+| `consumer_key` | Yes | From the integration record. |
+| `consumer_secret` | Yes | From the integration record. |
+| `token_id` | Yes | From the access token. |
+| `token_secret` | Yes | From the access token. |
+
+---
+
+## ServiceNow
+
+<Note>
+  The ServiceNow connector is in **beta**.
+</Note>
+
+Bag of words queries the ServiceNow **Table API** (`/api/now/table/{table}`). Schema discovery reads ServiceNow's own metadata tables in bulk — `sys_db_object` for tables and inheritance, `sys_dictionary` for fields — so a full snapshot takes a handful of requests rather than one per table. Reference fields become foreign keys.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `instance_url` | Yes | — | Your instance URL, e.g. `https://acme.service-now.com`. |
+| `tables` | No | — | Comma-separated tables to expose. Blank uses a curated set of common ITSM tables (incident, change_request, problem, task, and so on). |
+| `discover_all` | No | `false` | Discover all business tables, including custom `u_`/`x_` tables, instead of the curated set. |
+| `display_values` | No | `true` | Return human-readable display values for reference and choice fields. |
+
+### Authentication modes
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A ServiceNow user with read access to the target tables. |
+| `password` | Yes | That user's password. |
+| `oauth_client_id` | No | Client ID of an OAuth app registered in the instance (**System OAuth → Application Registry**). Setting it enables per-user sign-in. |
+| `oauth_client_secret` | No | Client secret of that OAuth app. Leave blank if the app is registered as a public client — it then authenticates with PKCE only. |
+
+**Sign in with ServiceNow — `oauth`** (scope: user, no fields). Each user signs in against the instance's own endpoints (`/oauth_auth.do`, `/oauth_token.do`) with the `useraccount` scope, so queries run with that person's own ServiceNow permissions. This requires the `oauth_client_id` above to be configured on the connection.
+
+<Note>
+  Per-user authentication on a database-style connection requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
+</Note>
+
+Register the OAuth app's redirect URI in ServiceNow as:
+
+```text
+https://<your-bow-host>/api/connections/oauth/callback
+```
+
+---
+
+## PostHog
+
+<Note>
+  The PostHog connector is in **beta**.
+</Note>
+
+Bag of words queries PostHog with **HogQL** against a fixed catalog that mirrors PostHog's data model — `events`, `persons`, sessions, and related tables — rather than introspecting the instance.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | No | `https://us.posthog.com` | Instance URL: `https://us.posthog.com`, `https://eu.posthog.com`, or your self-hosted address. |
+| `project_id` | Yes | — | PostHog Project ID, found in the project's settings. |
+
+### Authentication
+
+**Personal API Key — `api_key`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_key` | Yes | A PostHog **Personal API Key** with the `query:read` and `project:read` scopes. Create it under your PostHog user settings. |
+
+Because this mode is available at user scope as well as system scope, each user can supply their own personal API key instead of sharing the admin's. Per-user credentials on a database-style connection require an Enterprise license — see [Authentication and access](/data-sources/authentication).

@@ -1,0 +1,98 @@
+---
+title: "User Context Forwarding"
+description: "Pass the caller's identity to an MCP server on every tool call, without the model being able to change it"
+icon: "user-check"
+---
+
+Internal services usually need to know *who* is asking. When Bag of words calls an MCP tool on a user's behalf, **user context forwarding** attaches that person's identity to the request — as HTTP headers, as tool arguments, or both.
+
+This is what lets a shared MCP connection stay permission-aware: one connection, one set of server credentials, but every call carries the real caller's identity so the server can apply its own rules and write meaningful audit records.
+
+<Note>
+  Available on [MCP connections](/data-sources/mcp). Configured under **Advanced → User context forwarding** on the connection form. No Enterprise license required.
+</Note>
+
+## Two ways to forward
+
+**Headers** — the identity travels in HTTP headers, invisible to the model:
+
+```text
+X-User-Email: dana@acme.com
+X-Employee-Id: elbit_nt\45812
+```
+
+**Tool arguments** — the identity is merged into a named argument on every tool call, for servers that expect it in the payload rather than the transport:
+
+```json
+{ "custom_metadata": { "user_email": "dana@acme.com", "role": "analyst" } }
+```
+
+## Available sources
+
+Each forwarded field draws its value from one of these — and only these:
+
+| Source | Value |
+|---|---|
+| `user.email` | The caller's email address |
+| `user.name` | Their display name |
+| `user.id` | Their Bag of words user id |
+| `membership.role` | Their role in the organization |
+| `membership.attr:<key>` | A directory attribute, e.g. `membership.attr:employeeId` |
+| `static:<text>` | A fixed string, with `{...}` placeholders for any of the above |
+
+The `static:` form is how you build composite values a service expects:
+
+```text
+static:elbit_nt\{membership.attr:employeeId}
+```
+
+<Note>
+  Placeholders use single braces — `{membership.attr:employeeId}`, not `{{ }}`.
+</Note>
+
+## Where directory attributes come from
+
+`membership.attr:<key>` reads from the profile attributes synced from your identity provider when the user signs in. Entra ID profile sync supports: `jobTitle`, `department`, `companyName`, `officeLocation`, `employeeId`, `employeeType`, `employeeHireDate`, `employeeOrgData`, `mobilePhone`, `city`, `state`, `country`, `usageLocation`, and `preferredLanguage`.
+
+Enable and pick which attributes to sync under **Settings → Identity**. Only synced attributes are available for forwarding — the connection form autocompletes from the list you configured.
+
+<Tip>
+  The same attributes are also given to the planner as user profile context, so the agent can reason about who it is helping — not just forward it.
+</Tip>
+
+## Locked vs AI fields
+
+Each forwarded field is one of two modes:
+
+- **Locked** (default) — the value is set by the server and the field is **removed from the tool schema the model sees**. The model cannot read it, guess it, or override it. This is the correct choice for anything security-relevant, because the model cannot spoof a field it doesn't know exists.
+- **AI** — the field stays visible to the model, which may fill it; Bag of words supplies the value only when the model leaves it empty.
+
+<Warning>
+  If a server trusts a forwarded field for authorization, keep it locked. An AI field is a hint, not a guarantee.
+</Warning>
+
+## When a value is missing
+
+Not every user has every attribute. Each field chooses what happens then:
+
+| On missing | Behavior |
+|---|---|
+| `empty` (default) | Send an empty value |
+| `omit` | Drop the field from the request |
+| `block` | Refuse the tool call |
+
+Use `block` for fields a service genuinely requires — the agent stops with `Missing required user context: <names>` instead of making a call that would fail or, worse, be treated as someone else.
+
+Empty headers are always omitted rather than sent blank.
+
+## How it behaves at call time
+
+Injection happens **before** the user is asked to confirm a tool call, so what a person approves is exactly what goes on the wire. Locked fields are stripped from the schema during tool discovery as well as execution, so they never appear to the model at any stage.
+
+## Setting it up
+
+1. Open the MCP connection and expand **Advanced → User context forwarding**.
+2. Add a header or metadata field.
+3. Pick the source (user email, name, id, role, a directory attribute, or a static value).
+4. Choose **Locked** or **AI**, and the missing-value behavior.
+5. Save, then test with a real user account — not just an admin — to confirm the server sees what it expects.

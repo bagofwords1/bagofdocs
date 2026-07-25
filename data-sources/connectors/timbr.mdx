@@ -1,0 +1,115 @@
+---
+title: "Timbr AI"
+description: "Connect a Timbr ontology and query concepts, relationships, and measures with SQL"
+icon: "table"
+---
+
+Bag of words connects to a **Timbr** server, discovers the concepts, properties, relationships, and measures of an ontology, and queries them with SQL through the Timbr query API. Because Timbr is an ontology-based semantic layer, the agent gets business-level entities and pre-defined measures rather than raw physical tables.
+
+<Note>
+  The Timbr AI connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+All traffic goes to the Timbr REST API at `<host>/timbr/api`, authenticated with an API key sent in the `x-api-key` header. Every query — including the ones used for discovery — is a `POST` to the API's `query/` endpoint against the ontology you configured.
+
+Discovery is **permission-aware**:
+
+1. Bag of words reads `timbr.sys_permissions` to find the schemas the key can `QUERY`.
+2. For concepts it picks the richest accessible schema, preferring `dtimbr` over `etimbr` over `timbr`. If the permissions table lists no schema-level grants, it probes each schema directly instead and uses the first that answers.
+3. Concepts come from `timbr.sys_concepts`; each one is described with `DESCRIBE concept` to build its columns.
+4. If `vtimbr` is accessible, views are discovered from `timbr.sys_views` and their columns parsed from each view's definition.
+
+Concepts and views are merged into one table list, each named with its schema prefix — `dtimbr.Customer`, `vtimbr.SalesSummary`. Within a concept:
+
+- Properties whose name starts with `measure.` become **measures** (`role=measure`).
+- Properties using bracket notation become **relationships**, exposed to the agent as foreign keys to the target concept.
+- The internal columns `entity_id`, `entity_type`, and `entity_label` are hidden from the schema.
+
+The `thing` root concept is excluded from discovery.
+
+## Before you start
+
+- A reachable Timbr server URL. The API base `/timbr/api` is appended automatically, so configure the server root.
+- The exact **ontology (knowledge graph) name** — the connection test fails, listing the available ontologies, if the name does not match.
+- A **Timbr API key** with `QUERY` permission on the schemas you want indexed: at least one of `dtimbr` / `etimbr` / `timbr` for concepts, and `vtimbr` if you want views. Relationship traversal is only available in `dtimbr`, so grant it when you want the agent to follow relationships instead of writing joins.
+- If the Timbr server uses a certificate signed by an internal CA the backend host does not trust, turn off **Verify SSL**.
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Timbr AI** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Timbr server URL, e.g. `https://mytimbr.example.com`. The `/timbr/api` base path is added automatically. |
+| `ontology` | Yes | — | Name of the Timbr knowledge graph / ontology to connect to. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate when connecting. |
+
+**Test Connection** lists the server's ontologies and checks that yours is among them, so a typo in the ontology name is caught before you save.
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **API Key** | System and per-user | `api_key` — Timbr API key, sent as the `x-api-key` header |
+
+This is the only mode. Used at **system** scope, one admin-supplied key indexes and queries for everyone. Used **per-user**, each person supplies their own Timbr key, so Timbr's own permissions decide which schemas and concepts that person can see and query — and discovery for that user reflects it, because schema selection is driven by the key's `QUERY` grants.
+
+<Note>
+  Per-user authentication on database-style connectors requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Querying
+
+The agent writes SQL against the ontology, using the schema prefix shown for each table and backticks around schema and table names:
+
+```sql
+SELECT category, SUM(`measure.total_sales`) AS total_sales
+FROM `dtimbr`.`Product`
+GROUP BY category
+ORDER BY total_sales DESC
+LIMIT 100
+```
+
+A few behaviors are worth knowing when you review what the agent produced:
+
+- **Measures are preferred over manual aggregation.** If the ontology defines `measure.total_sales`, the agent uses it rather than summing a base column.
+- **Views come first.** When a `vtimbr` view already covers the needed columns, the agent uses it — views are pre-optimized flat projections.
+- **Relationships beat joins.** In `dtimbr`, related concepts are reached with bracket syntax rather than explicit joins, and the traversal can be multi-hop:
+
+  ```sql
+  SELECT name, `has_orders[Order].order_date` AS order_date
+  FROM `dtimbr`.`Customer`
+  LIMIT 100
+  ```
+
+- Table names are case-sensitive, schemas are never mixed within one query, and every query carries a `LIMIT`.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="'Connected to Timbr but ontology X not found'">
+    The host and API key are fine; the ontology name does not match. The error lists the ontologies the key can see — copy one of those exactly.
+  </Accordion>
+
+  <Accordion title="'Connected to Timbr but no ontologies found'">
+    The API key resolved but has access to nothing. Check the key's permissions in Timbr.
+  </Accordion>
+
+  <Accordion title="'Cannot reach Timbr server at …'">
+    A network-level failure. Check that the backend host can reach the server URL, that the port is open, and — for an internal CA — whether **Verify SSL** needs to be off.
+  </Accordion>
+
+  <Accordion title="Connected, but no tables are discovered">
+    The key has no `QUERY` permission on any concept schema (`dtimbr`, `etimbr`, `timbr`) and none on `vtimbr`. Grant at least one concept schema; without it the ontology indexes as empty even though the connection succeeds.
+  </Accordion>
+
+  <Accordion title="Concepts appear but have no columns">
+    The `DESCRIBE concept` call for that concept returned nothing or failed. The concept is still listed so it is visible in the catalog — check the key's permission on that specific concept in Timbr.
+  </Accordion>
+
+  <Accordion title="Relationships are missing from the schema">
+    Relationship properties only exist in the `dtimbr` schema. If the key can only reach `etimbr` or `timbr`, concepts and measures index normally but no foreign keys appear, and the agent will fall back to explicit joins.
+  </Accordion>
+</AccordionGroup>

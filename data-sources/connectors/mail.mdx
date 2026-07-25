@@ -1,0 +1,161 @@
+---
+title: "Gmail and Outlook Mail"
+description: "Let the agent search and read a user's own mailbox as a data source"
+icon: "mail"
+---
+
+The **Gmail** and **Outlook Mail** connectors let the agent search and read messages in a user's own mailbox. Each user connects their own account; the agent then answers questions from what is in that inbox — a contract sent last quarter, the thread where a number was agreed, the vendor's latest invoice.
+
+<Note>
+  Both connectors are part of the **Enterprise Edition**.
+</Note>
+
+<Warning>
+  These connectors are **not** the [Email channel](/channels/email). The Email channel gives the Bag of words analyst *its own* mailbox so it can send answers and receive questions — one shared address, configured once by an admin. These connectors do the opposite: they let the agent read *your* mailbox as data. The two are configured separately and can be used together or independently.
+</Warning>
+
+## How it works
+
+Both connectors are **per-user** (`catalog_ownership: per_user`) and **read-only**. There is no shared catalog and no admin-side message list — a mailbox is searched and read live, per user, at question time. That is why neither connector has any config fields.
+
+The agent gets mail-shaped tools rather than file tools:
+
+| Tool | What it does |
+| :-- | :-- |
+| `list_emails` | The most recent messages — subject, sender, received time. |
+| `search_email` | A keyword search across the mailbox. |
+| `read_email` | One message rendered as plain text: subject, from, to, date, then the body (HTML bodies are converted to text). |
+
+| | Gmail | Outlook Mail |
+| :-- | :-- | :-- |
+| API | Gmail API v1 (`https://gmail.googleapis.com/gmail/v1`) | Microsoft Graph (`https://graph.microsoft.com/v1.0`, `/me/messages`) |
+| Admin credential | Google Cloud OAuth client (`oauth_app`) | Entra ID app registration (`service_principal`) |
+| Per-user sign-in | Sign in with Google (`oauth`) | Sign in with Microsoft (`oauth`) |
+| Config fields | None | None |
+
+Only reading and searching are supported. Neither connector can send, draft, label, or delete mail.
+
+See [User context and per-user data](/data-sources/user-context) for how per-user connections behave in a conversation.
+
+## Gmail
+
+### Before you start
+
+- A **Google Cloud project** you can administer, with the **Gmail API** enabled.
+- Access to the project's **OAuth consent screen** (choose **Internal** for a Workspace organization).
+- Your Bag of words base URL, for the redirect URI.
+
+### Step 1 — Create a Google OAuth client
+
+<Steps>
+  <Step title="Enable the Gmail API">
+    Google Cloud console → **APIs & Services** → **Library** → enable the **Gmail API**.
+  </Step>
+  <Step title="Create the OAuth client">
+    **APIs & Services** → **Credentials** → **Create credentials** → **OAuth client ID**, application type **Web application**.
+  </Step>
+  <Step title="Add the redirect URI">
+    Under **Authorized redirect URIs**:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+  </Step>
+</Steps>
+
+Scopes requested at sign-in:
+
+```text
+openid email profile https://www.googleapis.com/auth/gmail.readonly
+```
+
+### Authentication modes
+
+**Google OAuth Client — `oauth_app`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `oauth_client_id` | Yes | Google Cloud OAuth 2.0 Client ID, **Web application** type. |
+| `oauth_client_secret` | Yes | The matching client secret. |
+| `workspace_domain` | No | Google Workspace domain to restrict sign-in to, e.g. `company.com`. Sets the `hd` hint on the authorize URL. |
+
+**Sign in with Google — `oauth`** (scope: user, no fields). Each user clicks **Connect** and consents; the agent reads only that user's mailbox.
+
+## Outlook Mail
+
+### Before you start
+
+- A **Microsoft Entra ID app registration** with a client secret.
+- An administrator who can **grant admin consent** for the Graph permissions.
+- Your Bag of words base URL, for the redirect URI.
+
+### Step 1 — Register an Entra ID application
+
+<Steps>
+  <Step title="Create the app registration">
+    Azure Portal → **Microsoft Entra ID** → **App registrations** → **New registration**. Copy the **Directory (tenant) ID** and **Application (client) ID** from the Overview page.
+  </Step>
+  <Step title="Create a client secret">
+    **Certificates & secrets** → **New client secret**. Copy the value immediately.
+  </Step>
+  <Step title="Add the Graph permissions">
+    **API permissions** → **Microsoft Graph** → delegated **`Mail.Read`**, **`User.Read`**, **`openid`**, **`profile`**, **`offline_access`**. Then click **Grant admin consent**.
+  </Step>
+  <Step title="Add the redirect URI">
+    **Authentication** → **Add a platform** → **Web**:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  If you already registered an app for [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive), you can reuse it — just add the `Mail.Read` delegated permission and grant consent again.
+</Note>
+
+### Authentication modes
+
+**Entra ID App (Service Principal) — `service_principal`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Directory (tenant) ID. |
+| `client_id` | Yes | Application (client) ID of the app registration. |
+| `client_secret` | Yes | The client secret value. |
+| `oauth_client_id` | No | A separate app registration client ID for user sign-in. Falls back to `client_id`. |
+| `oauth_client_secret` | No | Secret for that separate app. Falls back to `client_secret`. |
+
+**Sign in with Microsoft — `oauth`** (scope: user, no fields). Each user completes the Microsoft authorization-code flow; Graph then serves `/me/messages` for that user only.
+
+See [Authentication and access](/data-sources/authentication).
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mail**. Enter the admin credential above and save — there is nothing else to configure. Each user then clicks **Connect** on the connection to sign in with their own account before the agent can search their mail.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The agent says it has no access token">
+    The user has not completed **Connect**. These connectors have no shared credential to fall back on — a mailbox is only reachable after its owner signs in.
+  </Accordion>
+
+  <Accordion title="redirect_uri_mismatch / reply URL mismatch">
+    Both providers must have `https://<your-bow-host>/api/connections/oauth/callback` registered exactly, matching your Bag of words base URL.
+  </Accordion>
+
+  <Accordion title="Outlook sign-in succeeds but searching returns nothing">
+    `Mail.Read` was not granted or not admin-consented. Check **API permissions** on the app registration.
+  </Accordion>
+
+  <Accordion title="Users must sign in again every hour">
+    `offline_access` (Microsoft) is missing from the granted permissions, so no refresh token is issued.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Email channel](/channels/email) — give the analyst its own mailbox to send and receive answers. A different feature from these connectors.
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — same Entra app registration.
+- [Google Drive](/data-sources/connectors/google-drive) — same kind of Google OAuth client.

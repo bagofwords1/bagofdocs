@@ -1,0 +1,92 @@
+---
+title: "Files and Directories"
+description: "Expose a local folder or a mounted network share (SMB/NFS) to the agent as a searchable file catalog"
+icon: "folder"
+---
+
+The **Files and Directories** connector points Bag of words at a directory on the backend host — a local folder, or an SMB/NFS share the operating system has already mounted. The agent lists the directory, searches filenames and file contents, reads files, and (optionally) writes new ones. It reads inside PDF, Word, PowerPoint, Excel and CSV, so a question can be answered from documents, not just tables.
+
+## How it works
+
+Bag of words treats the directory as a **file catalog**, not a database. The agent gets filesystem primitives:
+
+| Tool | Filesystem equivalent |
+| :-- | :-- |
+| `list_files` | `ls` / `find` |
+| `search_files` | `grep -ril` — matches filenames and, for readable formats, content |
+| `grep_files` | `grep -n` — matching lines with context |
+| `read_file` | `cat`, with tabular files parsed into DataFrames |
+| `write_file` | `cp` / `put` — only when the connection is **writable** |
+
+Everything is confined to `root_path`. A file id is its POSIX path relative to the root, and any id that escapes the root — `..`, an absolute path, a symlink pointing outside — is rejected. If you set `include_globs`, files outside those patterns are not merely hidden from listings: reading them is **denied**.
+
+`.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables. `.pdf`, `.docx` and `.pptx` have their text extracted. Plain-text formats (`.txt`, `.md`, `.json`, `.html`, `.log`, `.yaml`, `.xml`, `.py`, `.sql`) are read as text. Anything else is matched by name only.
+
+## Before you start
+
+- The directory must exist **on the Bag of words backend host** and be readable by the process that runs it. Bag of words does not mount anything itself.
+- For a network share, mount it with the OS first (`/etc/fstab`, `mount -t cifs`, `mount -t nfs`, an autofs map, or a container volume). There are **no credential fields** on this connector — the share's authentication is handled entirely by the mount.
+- If Bag of words runs in a container, the mount must be visible **inside** the container (bind-mount or volume), not just on the host.
+- For a writable connection, the backend process needs write permission on the mount.
+
+<Warning>
+  If the share is mounted read-only at the OS level, leave `writable` off. Turning it on does not grant write access — writes will fail at the filesystem.
+</Warning>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Files and Directories** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `root_path` | Yes | — | Absolute path to the directory, e.g. `/mnt/contracts`. All reads, searches and writes are confined here. |
+| `include_globs` | No | — | Comma- or newline-separated glob patterns relative to the root, e.g. `reports/**/*.csv`, `**/*.pdf`, `files/**`. When set, only matching files are visible **and** readable. `**` crosses subfolders, `*` matches one segment. |
+| `recursive` | No | `true` | Walk subfolders when listing and searching. |
+| `writable` | No | `false` | Allow the agent to create or overwrite files (the `write_file` tool). Leave off for a read-only connection. |
+| `max_file_mb` | No | `100` | Skip files larger than this when reading, so a huge file cannot be loaded into memory. |
+| `index_mode` | No | `content` | How much is cached from the directory — see below. |
+| `max_catalog_objects` | No | `10000` | Hard cap on how many files are ever enumerated. A larger tree is truncated; narrow `include_globs` instead of raising this. |
+
+<Note>
+  `allowed_extensions` and `index_content` are **deprecated**. They still work on existing connections, but use `include_globs` with a pattern like `**/*.pdf` instead of `allowed_extensions`, and `index_mode` instead of `index_content`.
+</Note>
+
+### Indexing modes
+
+`index_mode` controls how much Bag of words caches. Reads are always live regardless of the mode.
+
+| Mode | What is cached | Use when |
+| :-- | :-- | :-- |
+| `none` | Nothing. The agent lists and reads live every time. | The directory is huge or changes constantly and you want maximum freshness. |
+| `metadata` | The file list (name, size, modified time). No content. | You want fast listing but do not need topic search across file contents. |
+| `content` | The file list **plus** keywords extracted from PDF, Word, PowerPoint, Excel and CSV. | The default. Lets the agent find files by topic, not just by name. |
+
+## Authentication
+
+This connector has a single mode, **No Authentication** (`none`), scoped to the system. Access is whatever the backend host's OS grants on the mount — there is nothing to enter in Bag of words. To give different teams different slices of a share, create several connections with different `root_path` or `include_globs` values and set access rules per connection. See [Authentication and access](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The connection tests fine but no files appear">
+    Check `include_globs`. Patterns are matched **relative to `root_path`**, so `/mnt/contracts/reports/*.pdf` will never match — write `reports/*.pdf`. Also confirm `recursive` is on if the files live in subfolders.
+  </Accordion>
+
+  <Accordion title="Only part of the directory is catalogued">
+    The tree exceeded `max_catalog_objects` and was truncated. Narrow the connection with `include_globs` or a deeper `root_path` rather than raising the cap.
+  </Accordion>
+
+  <Accordion title="A file is listed but cannot be read">
+    Either it is larger than `max_file_mb`, or it is outside `include_globs` (in which case access is denied by design), or the backend process lacks read permission on it.
+  </Accordion>
+
+  <Accordion title="Writes fail on a writable connection">
+    `writable` only removes the product-side block. The mount and the backend process's OS permissions must also allow writing.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Amazon S3](/data-sources/connectors/s3) — the same file catalog, over object storage.
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — document libraries over Microsoft Graph.
+- [CSV and QVD](/data-sources/connectors/file-formats) — when you want files exposed as SQL **tables** instead of documents.

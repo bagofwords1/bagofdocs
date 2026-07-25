@@ -1,0 +1,101 @@
+---
+title: "Qlik Sense"
+description: "Connect a Qlik Cloud tenant and let the agent query its apps with hypercubes"
+icon: "activity"
+---
+
+Bag of words connects to a **Qlik Cloud** tenant, discovers the apps a credential can see, and runs queries against them through the **Qlik Engine API (QIX)** — the same hypercube engine the Qlik front end uses. Dimensions, measures, and selections behave exactly as they do inside Qlik, including the associative model.
+
+<Note>
+  The Qlik Sense connector is part of the **Enterprise Edition**.
+</Note>
+
+<Warning>
+  This connector supports **Qlik Cloud only** (`https://<tenant>.<region>.qlikcloud.com`). On-premises **Qlik Sense Enterprise on Windows (QSEoW)** is not supported.
+</Warning>
+
+## How it works
+
+1. Apps are enumerated over REST (`/api/v1/items?resourceType=app`), following pagination and filtered by space when you configure one.
+2. For each app, the model is read from `/api/v1/apps/{appId}/data/metadata`. If that returns nothing, Bag of words falls back to opening the app over a **WebSocket** and calling QIX `GetTablesAndKeys`.
+3. Queries run as QIX hypercubes over a WebSocket to `wss://<tenant>/app/<appId>`.
+
+Each table inside an app becomes a schema entry named `Space/App/Table` (or `App/Table` when the app is not in a space). Fields tagged `$key` by Qlik become primary keys, and the tables that share a key are linked as relationships, so the agent understands how an app's tables associate.
+
+<Note>
+  Qlik is queried with **hypercubes, not SQL**. The agent sends a list of dimension field names plus measures written as Qlik expressions (`Sum([Net Sales])`, `Count(distinct [OrderID])`), and filters are applied as **Qlik selections** — they narrow the associative state and propagate across every related table, which is not how a SQL `WHERE` behaves.
+</Note>
+
+If an app cannot be crawled, it still appears in the catalog as an inactive entry whose description carries the error, so a single broken app never aborts discovery of the rest of the tenant.
+
+## Before you start
+
+- Your Qlik Cloud **tenant base URL**, for example `https://acme.us.qlikcloud.com`.
+- Permission on the tenant to generate an API key, or to create an OAuth client in the Management Console.
+- The credential needs the **`apps.read`** scope and access to the spaces holding the apps you want to expose. A credential with no app visibility connects successfully but discovers nothing.
+- Outbound network access from Bag of words to the tenant over **HTTPS and WebSocket (`wss://`)**. Queries fail if only plain HTTPS is allowed through.
+
+## Step 1 — Create a credential
+
+<Tabs>
+  <Tab title="API key">
+    On the tenant, go to **Settings → API keys** and generate a key. Copy the value immediately — it is shown once. This is the fastest path: a single rotatable secret.
+  </Tab>
+  <Tab title="OAuth 2.0 (client credentials)">
+    In the **Management Console**, create an OAuth client of the machine-to-machine kind and copy its **client ID** and **client secret**. Bag of words exchanges them for short-lived access tokens and refreshes them before expiry, which suits deployments with secret-rotation policies.
+  </Tab>
+</Tabs>
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Qlik Sense**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `base_url` | Yes | — | Qlik Cloud tenant base URL, e.g. `https://tenant.us.qlikcloud.com`. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate on both the REST and WebSocket endpoints. |
+| `space_filter` | No | — | Comma-separated space IDs or names. If empty, every visible space is crawled. |
+
+**Test Connection** validates the credential against `/api/v1/users/me` and then asks for a single app to confirm the key can list content. It reports the identity it connected as, and tells you when the tenant has no apps visible to that credential.
+
+## Authentication modes
+
+Both modes are available at the `system` scope (one shared credential for the workspace) and the `user` scope (each person supplies their own, so Qlik applies that person's own space and app access). Per-user credentials on a connector like this require Enterprise — see [Authentication](/data-sources/authentication).
+
+### API Key
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `api_key` | Yes | — | Qlik Cloud API key, used as a bearer token. Generate it at **Settings → API keys** on the tenant. |
+
+### OAuth 2.0 (Client Credentials)
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `client_id` | Yes | — | OAuth client ID from the Qlik Cloud Management Console. |
+| `client_secret` | Yes | — | The client secret that pairs with the client ID. |
+| `scope` | No | `user_default` | Scope requested at token exchange. The default covers the standard Qlik Cloud APIs. |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connected, but no apps were found">
+    The credential is valid but sees nothing. Grant it the **`apps.read`** scope and add it to the spaces that hold your apps. If `space_filter` is set, check that the IDs or names in it match real spaces — anything else is filtered out silently.
+  </Accordion>
+
+  <Accordion title="Authentication fails">
+    For an API key, confirm it has not been revoked and that `base_url` is the tenant URL, including the region segment. For OAuth, confirm the client ID and secret pair is still active in the Management Console; the token exchange happens against `<base_url>/oauth/token`.
+  </Accordion>
+
+  <Accordion title="Discovery works but queries fail">
+    Discovery can succeed over plain REST while queries need the **WebSocket** endpoint. Check that a proxy or firewall between Bag of words and the tenant allows `wss://` connections.
+  </Accordion>
+
+  <Accordion title="An app appears in the catalog marked inactive with an error">
+    That app failed to crawl over both REST metadata and QIX. The reason is in the entry's description — usually a permission gap on that specific app, or an app whose model could not be opened.
+  </Accordion>
+
+  <Accordion title="A measure returns nothing">
+    Measures are Qlik expressions, and field names are **case-sensitive** and must match the schema exactly. Names with spaces need square brackets, as in `Sum([Net Sales])`.
+  </Accordion>
+</AccordionGroup>
