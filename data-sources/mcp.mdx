@@ -1,0 +1,101 @@
+---
+title: "MCP Connections"
+description: "Connect any MCP server, then govern which tools the agent may call and when"
+icon: "plug"
+---
+
+An **MCP connection** points Bag of words at a Model Context Protocol server. The server's tools become tools the agent can call during a conversation — creating a Monday item, searching Notion, opening a GitHub issue, querying an internal service.
+
+<Note>
+  This is the opposite direction from [the Bag of words MCP server](/using-bow/mcp), which lets Claude or Cursor query *your* data. Here, BOW is the client and the external server provides the tools.
+</Note>
+
+<Note>
+  MCP connections are **beta**. Field names may change.
+</Note>
+
+## Presets vs custom servers
+
+Bag of words ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, Google Drive, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+
+For anything else, add a **custom MCP server** and supply the details yourself.
+
+## Connection fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `server_url` | Yes | — | The MCP endpoint URL |
+| `transport` | No | `sse` | `sse` or `streamable_http` — must match what the server speaks |
+| `headers` | No | `{}` | Static headers sent on every request |
+| `header_injection` | No | `[]` | Per-user identity headers — see [User context forwarding](/data-sources/user-context) |
+| `metadata_injection` | No | `{}` | Per-user identity passed as tool arguments — see [User context forwarding](/data-sources/user-context) |
+
+## Authentication
+
+| Mode | Scope | Fields |
+|---|---|---|
+| None | Shared | — |
+| Bearer token | Shared or per-user | `token` |
+| API key | Shared or per-user | `api_key`, `api_key_header` (default `X-API-Key`) |
+| OAuth app | Shared or per-user | `authorize_url`, `token_url`, `client_id`, `client_secret`, `scopes`, `audience`, `token_endpoint_auth_method` |
+| OAuth (dynamic registration) | Per-user | — (discovered from the server) |
+
+**Dynamic client registration** is the easiest path when a server supports it: BOW discovers the server's OAuth metadata and registers itself automatically, so you supply no client ID or secret at all. Each user then signs in with their own account.
+
+<Note>
+  Dynamic registration is restricted to an allowlist of known hosts (the preset servers plus their auth domains). A custom server at an arbitrary URL must use an OAuth app, bearer token, or API key instead. This is a deliberate guard against server-side request forgery.
+</Note>
+
+Choosing an OAuth mode makes the connection [per-user](/data-sources/authentication) automatically — each person signs in individually, and the agent calls tools as them. Per-user auth on MCP connections does **not** require an Enterprise license.
+
+<Tip>
+  When testing an OAuth-based server before anyone has signed in, a `401` or `403` from the server counts as healthy — it proves the endpoint is reachable and challenging for credentials.
+</Tip>
+
+## Tool discovery
+
+When you save the connection, Bag of words asks the server for its tools and stores each one with its name, description, and input schema. Re-run discovery any time from the connection's tools view — after the server ships new tools, for example.
+
+Discovery never silently empties your tool list: if a refresh returns nothing (usually a transient outage), the existing tools and their policies are left untouched.
+
+Servers that expose MCP **resources** as well as tools get those surfaced too, so the agent can list and read them.
+
+## Tool policies
+
+Every tool carries a policy that decides what happens when the agent wants to call it:
+
+| Policy | Behavior |
+|---|---|
+| `allow` | Runs immediately |
+| `ask` | The user must confirm before it runs |
+| `deny` | Never runs |
+| `auto` | A model judges each call and decides whether confirmation is needed |
+
+Read-only tools generally default to `allow`. Anything that writes should be `ask` or `deny`.
+
+Policies are resolved in three layers, most specific first:
+
+1. **The user's own preference** for that tool
+2. **The agent-level override** — the same tool can be `allow` on one data source and `ask` on another
+3. **The connection default** set by the admin
+
+with one hard rule: **an admin `deny` is absolute** and cannot be relaxed by an agent override or a user preference. Users can only make their own experience *stricter* than the admin's setting, never looser.
+
+Admins set connection defaults and agent overrides; any user with access can set their own preference for a tool they use.
+
+<Note>
+  MCP tools can be turned off organization-wide with a single setting under **Settings → AI**. When disabled, no MCP tool runs regardless of policies.
+</Note>
+
+## Per-user identity
+
+Many internal MCP servers need to know *who* is asking — to apply their own permissions or to write audit records. Bag of words can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
+
+## Adding a connection
+
+1. Go to **Settings → Data Sources**, add a connection, and pick an MCP preset or **MCP Server**.
+2. Enter the `server_url` and choose the transport.
+3. Choose an authentication mode and fill in its fields.
+4. **Test**, then save. Tools are discovered on save.
+5. Review the discovered tools and set each one's policy before exposing the connection to users.
+6. Attach the connection to an agent so people can use it in chat.

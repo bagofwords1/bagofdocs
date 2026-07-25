@@ -1,0 +1,277 @@
+---
+title: "Microsoft SQL Server"
+description: "Connect on-prem or cloud SQL Server, with a SQL login, service-account Kerberos, or per-user Kerberos SSO"
+icon: "server"
+---
+
+Bag of words connects to **Microsoft SQL Server** over ODBC, reads the tables, views, and columns in the schemas you point it at, and runs read-only T-SQL. Beyond the usual SQL login it supports **Kerberos (Windows Integrated)** authentication as the app's service account, and **Kerberos SSO**, where every query runs under the signed-in user's own Active Directory identity through constrained delegation.
+
+The connector's registry type is the uppercase string `MSSQL`. You will see it under **Microsoft SQL Server** in the data source picker.
+
+## How it works
+
+Bag of words connects with the **Microsoft ODBC Driver for SQL Server** (version 18 by default, 17 available for older servers), reads table and column metadata from the database's catalog views, and issues `SELECT` statements at query time. If the enriched metadata read fails on your server it falls back to a basic table and column listing.
+
+Scope the connection with `database` and, optionally, `schema` — which accepts a comma-separated list, so one connection can cover several schemas.
+
+Authentication happens in one of three shapes:
+
+| Auth mode | Registry key | Scope | Identity SQL Server sees |
+| :-- | :-- | :-- | :-- |
+| Username / Password | `userpass` | Shared **or** per-user | A SQL login |
+| Kerberos (Windows Integrated) | `kerberos` | Shared only | The app's AD **service account** |
+| Kerberos SSO (per-user delegation) | `kerberos_delegated` | Per-user only | **The signed-in user's** AD identity |
+
+<Note>
+  Per-user authentication on a database connector requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Microsoft SQL Server**.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Server hostname. Under either Kerberos mode this **must be the FQDN** — see the warning below. |
+| `port` | No | `1433` | TCP port. |
+| `database` | Yes | — | Database to connect to. |
+| `schema` | No | — | Schema to index, or a comma-separated list. Leave blank to index everything visible. |
+| `odbc_driver` | No | `18` | ODBC driver major version — `17` or `18` only. Use `17` for SQL Server 2008 compatibility. |
+| `encrypt` | No | `true` | Encrypt the connection. Disable only for a SQL Server 2008-era instance with no TLS support. |
+| `additional_params` | No | — | Extra ODBC keywords passed through as-is, for example `ApplicationIntent=ReadOnly`. |
+
+<Warning>
+  `additional_params` cannot weaken the connection. Security-relevant keywords are owned by Bag of words and any attempt to set them here is silently ignored: `Driver`, `Server`, `Database`, `UID`, `PWD`, `Encrypt`, `TrustServerCertificate`, `Trusted_Connection`, `Authentication`, `Integrated Security`, and `APP`. Use it for behavioral hints like read-intent routing, not to change how the connection authenticates or encrypts.
+</Warning>
+
+<Warning>
+  Under either Kerberos mode the ODBC driver derives the target service principal name as `MSSQLSvc/<host>:<port>` from what you type in `host`, and this **cannot be overridden**. Connect by the exact FQDN the SPN is registered for — an IP address or an unregistered CNAME produces `Cannot generate SSPI context`.
+</Warning>
+
+---
+
+## Option A — SQL login (`userpass`)
+
+The default. Nothing to configure outside the product.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `user` | No | SQL login name. Leave blank for anonymous database access. |
+| `password` | No | The login's password. Leave blank for anonymous access or an empty password. |
+
+This mode can be used as one shared credential for the whole workspace, or per-user, where each person saves their own SQL login. Grant the login read-only rights — `db_datareader` on the target database, or explicit `GRANT SELECT` on the approved schemas.
+
+---
+
+## Option B — Kerberos (Windows Integrated)
+
+All queries authenticate as **one Active Directory service account**. Bag of words still enforces its own access control on top; SQL Server sees a single Windows login.
+
+This mode requires setup by both your AD/DBA team and whoever operates the Bag of words host.
+
+### Before you start
+
+- An AD **service account** for the app, for example `svc-bow@CORP.EXAMPLE.COM`, with AES key types enabled ("This account supports Kerberos AES 128/256 bit encryption").
+- SQL Server's own SPN registered — `setspn -L <sql service account>` should list `MSSQLSvc/<fqdn>:1433`. This is usually automatic.
+- The ability to mount files and set environment variables on the Bag of words host.
+- NTP or chrony running on the host. Kerberos fails above **5 minutes** of clock skew.
+
+### Step 1 — Create the keytab (AD team)
+
+On a domain controller or admin workstation:
+
+```text
+ktpass /princ svc-bow@CORP.EXAMPLE.COM /mapuser svc-bow /pass * ^
+       /crypto AES256-SHA1 /ptype KRB5_NT_PRINCIPAL /out svc-bow.keytab
+```
+
+### Step 2 — Create the SQL Server login (DBA)
+
+```sql
+CREATE LOGIN [CORP\svc-bow] FROM WINDOWS;
+-- then, in the target database, the minimum the app needs:
+--   ALTER ROLE db_datareader ADD MEMBER [CORP\svc-bow];
+-- or explicit GRANT SELECT on the approved schemas (recommended)
+```
+
+Bag of words only ever issues `SELECT`, so read-only rights are sufficient.
+
+### Step 3 — Configure Kerberos on the Bag of words host
+
+The Docker image already ships `krb5-user`, `libgssapi-krb5-2`, and `msodbcsql18`. You mount two files and set one environment variable.
+
+```yaml
+# docker-compose override (or the Kubernetes equivalent)
+services:
+  bagofwords:
+    volumes:
+      - ./krb5.conf:/etc/krb5.conf:ro
+      - ./svc-bow.keytab:/etc/bagofwords/svc-bow.keytab:ro   # readable by the 'app' user
+    environment:
+      # GSSAPI initiates from the keytab automatically — no kinit cron needed.
+      KRB5_CLIENT_KTNAME: /etc/bagofwords/svc-bow.keytab
+```
+
+A minimal `/etc/krb5.conf`:
+
+```ini
+[libdefaults]
+    default_realm = CORP.EXAMPLE.COM
+    dns_lookup_kdc = true
+    forwardable = true
+
+[domain_realm]
+    .corp.example.com = CORP.EXAMPLE.COM
+    corp.example.com = CORP.EXAMPLE.COM
+```
+
+<Warning>
+  Keep `forwardable = true`. It is required for per-user SSO (Option C), and harmless otherwise.
+</Warning>
+
+Smoke-test from inside the container before touching the app:
+
+```bash
+kinit -kt /etc/bagofwords/svc-bow.keytab svc-bow@CORP.EXAMPLE.COM && klist
+```
+
+### Step 4 — Configure the connection
+
+Create or edit the SQL Server connection and pick **Kerberos (Windows Integrated)** as the authentication method.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `use_kerberos` | No | `true` | Authenticate with the app's Kerberos identity instead of a SQL login. |
+| `kerberos_principal` | No | — | Client principal to authenticate as, e.g. `svc-bow@CORP.EXAMPLE.COM`. Requires a matching keytab entry. **Leave blank** to use the default credential cache from `KRB5_CLIENT_KTNAME` — set it only when the keytab holds several principals. |
+
+Verify from SQL Server that the connection really is Kerberos:
+
+```sql
+SELECT auth_scheme FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+-- expect: KERBEROS
+```
+
+---
+
+## Option C — Kerberos SSO (per-user delegation)
+
+With per-user SSO, queries run as **the signed-in user's AD identity**. No password or token is collected from the user. Bag of words performs *protocol transition* (**S4U2Self** — "issue me a ticket for user X to myself", which needs only the user's UPN) and *constrained delegation* (**S4U2Proxy** — exchange that ticket for one to the SQL Server SPN). SQL-side permissions, row-level security, and auditing all resolve per user.
+
+This builds **on top of** Option B: the service-account Kerberos setup must already be working, because the service identity is still used for schema indexing.
+
+### Additional AD prerequisites
+
+Delegation is configured on the **app's service account**. This is the part your AD team has to approve.
+
+<Steps>
+  <Step title="Give the service account its own SPN">
+    ```text
+    setspn -S bow/apphost CORP\svc-bow
+    ```
+
+    The KDC only issues an S4U2Self evidence ticket to an account that is itself a service — that is, one that has an SPN.
+  </Step>
+
+  <Step title="Enable constrained delegation with protocol transition">
+    **Classic KCD (single domain)** — in Active Directory Users and Computers → `svc-bow` → the **Delegation** tab:
+
+    1. Select **"Trust this user for delegation to specified services only"**.
+    2. Select **"Use any authentication protocol"**.
+    3. Add the SQL Server's `MSSQLSvc/<fqdn>:1433` SPN(s) to the allowed list (this writes `msDS-AllowedToDelegateTo`).
+
+    <Warning>
+      **"Use any authentication protocol" is required.** With "Kerberos only" selected, delegation fails with `KDC_ERR_BADOPTION` — protocol transition is exactly what that setting disables.
+    </Warning>
+
+    **Or resource-based constrained delegation**, which works across domains. On the SQL Server's service account:
+
+    ```powershell
+    Set-ADUser <sqlsvc> -PrincipalsAllowedToDelegateToAccount svc-bow
+    ```
+  </Step>
+
+  <Step title="Create SQL Server logins for the end users">
+    Per user or, more practically, per AD group:
+
+    ```sql
+    CREATE LOGIN [CORP\bi-analysts] FROM WINDOWS;
+    -- then grant that group read access in the target database
+    ```
+
+    The SQL Server host must be **domain-joined** (SSSD or winbind) so it can resolve AD users to SIDs. Verify with `id DOMAIN\user` before creating logins.
+  </Step>
+
+  <Step title="Check for accounts that cannot be delegated">
+    Members of **Protected Users**, and accounts flagged **"Account is sensitive and cannot be delegated"**, cannot be impersonated at all. Those people need a personal SQL login (Option A) instead.
+  </Step>
+</Steps>
+
+Smoke-test the whole AD chain from the container before enabling anything in the app:
+
+```bash
+kinit -kt /etc/bagofwords/svc-bow.keytab svc-bow@CORP.EXAMPLE.COM
+kvno -U jdoe@corp.example.com -P MSSQLSvc/sqldwh01.corp.example.com:1433
+```
+
+If `kvno` succeeds, delegation is correctly configured.
+
+### Configure the connection
+
+<Steps>
+  <Step title="Confirm the image has the Kerberos extra">
+    Per-user delegation needs the `gssapi` Python bindings. The default Dockerfile installs them (`uv sync --extra kerberos`). Service-account Kerberos (Option B) does not need them — the ODBC driver talks to libgssapi directly — so a build without the extra will pass Option B and fail here.
+  </Step>
+
+  <Step title="Set up the connection with Kerberos system auth">
+    Follow Option B first. The system identity is still what indexes the schema.
+  </Step>
+
+  <Step title="Enable Require user authentication">
+    On a Kerberos system-auth connection this defaults the allowed per-user modes to **Kerberos SSO**, so per-user delegation becomes automatic with no action from users — nobody has to click **Connect** or enter anything.
+  </Step>
+</Steps>
+
+The per-user mode's fields:
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `use_kerberos` | No | `true` | Queries run under the user's own AD identity via constrained delegation. |
+| `kerberos_impersonate` | No | — | The user's AD user principal name, e.g. `jdoe@corp.example.com`. **Leave blank** to use their Bag of words login identity. |
+
+The UPN is taken from the user's Bag of words login identity — Entra ID / OIDC `preferred_username` or `upn`, LDAP, or the local email address. If someone's email is not their AD UPN, they can save an explicit principal in `kerberos_impersonate` under the data source's user credentials.
+
+### Optional environment variables
+
+| Variable | Default | Purpose |
+| :-- | :-- | :-- |
+| `KRB5_CLIENT_KTNAME` | — | Service keytab. Used both for the app's own identity and as the impersonator for S4U. **Required** for per-user delegation. |
+| `BOW_KRB5_CCACHE_DIR` | `/tmp/bow_krb5` | Directory for per-user credential caches. Created with mode `0700`. |
+
+### Operational notes
+
+- **Ticket renewal is automatic.** Delegated tickets are cached per user and re-acquired from the keytab as they near expiry. There is nothing to schedule.
+- **Indexing always runs as the service account**, since schema refresh has no user in context.
+- `KRB5CCNAME` is process-global on Linux, so the credential-cache switch is serialized around the driver's connect handshake. Concurrent connects by different users queue for milliseconds; established connections are unaffected.
+- Under integrated auth every user's ODBC connection string would otherwise be identical, since the identity comes from the credential cache rather than the string — which would let a shared pool hand user B a connection authenticated as user A. Bag of words binds a per-identity `APP=BagOfWords-<principal>` token into the string so each impersonated user gets its own pool bucket. Leaving unixODBC pooling off is still worth doing as defence in depth.
+- If your SQL Server is **2022 or newer and Azure Arc-enabled**, Entra token authentication is an alternative to constrained delegation and may be easier to get approved than AD delegation changes.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+| :-- | :-- |
+| `Cannot generate SSPI context`, or SPNEGO errors | The SPN is missing, or `host` is an IP or an alias. Connect by the exact FQDN the `MSSQLSvc` SPN is registered for. |
+| `KDC_ERR_BADOPTION` during delegation | Delegation is set to "Kerberos only" instead of **"Use any authentication protocol"**, or the `MSSQLSvc` SPN is missing from `msDS-AllowedToDelegateTo`. |
+| `KRB5KRB_AP_ERR_SKEW` | Clock skew over 5 minutes. Fix NTP on the host. |
+| `kinit` works in the container but the app does not | The keytab is not readable by the container's `app` user, or `KRB5_CLIENT_KTNAME` is unset. |
+| Delegated auth fails for exactly one user | They are in **Protected Users** or flagged sensitive/cannot-be-delegated, or their email is not their AD UPN — save an explicit `kerberos_impersonate` principal for them. |
+| `auth_scheme` reports `NTLM` or `SQL` | The connection fell back to another path. Confirm the connection is using a Kerberos auth mode. |
+| Kerberos support requires the `gssapi` package | Per-user delegation needs the Kerberos extra installed in the image, plus a mounted `krb5.conf` and keytab. |
+| TLS handshake failures against an old server | Set `odbc_driver` to `17`, and if the instance has no TLS at all, set `encrypt` to `false`. |
+
+## Related
+
+- [Connecting data sources](/data-sources/connecting)
+- [Authentication](/data-sources/authentication)
+- [SQL databases](/data-sources/connectors/databases)

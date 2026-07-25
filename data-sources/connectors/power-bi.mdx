@@ -1,8 +1,7 @@
 ---
-title: "Connect Power BI"
+title: "Power BI"
 description: "Connect Power BI semantic models to Bag of words and query them with DAX"
 icon: "chart-column"
-sidebarTitle: "Connect Power BI"
 ---
 
 Bag of words connects to the **Power BI REST API** to auto-discover the workspaces, semantic models (datasets), tables, and reports an identity can access, and to run **DAX** queries against them. This page covers everything you set up on the Microsoft side (app registration, tenant settings, workspace membership, permissions) and how to enter it in Bag of words.
@@ -27,18 +26,25 @@ Each Power BI table is exposed to the agent as a schema table named `Dataset/Tab
 Power BI supports two authentication modes. You can use either, or both.
 
 <CardGroup cols={2}>
-  <Card title="Service Principal" icon="robot">
-    A single shared application identity discovers and queries Power BI for everyone. Simplest to operate. Best when all users may see the same models.
+  <Card title="Service Principal (Azure AD)" icon="bot">
+    A single shared application identity (a **system** credential) discovers and queries Power BI for everyone. Simplest to operate. Best when all users may see the same models.
   </Card>
 
   <Card title="Sign in with Microsoft (per-user)" icon="user-lock">
-    Each user signs in with their own Microsoft account (OAuth / on-behalf-of). Discovery and queries run with that user's own permissions, so each person sees only what they are allowed to. Requires Enterprise.
+    Each user signs in with their own Microsoft account (OAuth / on-behalf-of). Discovery and queries run with that user's own permissions, so each person sees only what they are allowed to. Requires Enterprise — see [Authentication](/data-sources/authentication).
   </Card>
 </CardGroup>
 
 <Note>
   With per-user authentication, a semantic model is selectable for a user as long as **their own** account can see it — even if the shared service principal cannot. Usage and instructions are still tracked at the organization level per model.
 </Note>
+
+## Before you start
+
+- A **Microsoft Entra ID (Azure AD)** tenant where you can create an app registration.
+- A **Fabric / Power BI administrator** who can change tenant settings.
+- Workspace admin rights on the workspaces you want to expose, so you can add the identity as a Member or Contributor.
+- Outbound network access from Bag of words to `https://api.powerbi.com` and `https://login.microsoftonline.com`.
 
 ## Step 1 — Register an Azure AD application
 
@@ -52,7 +58,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
     From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**. You will paste these into Bag of words.
   </Step>
   <Step title="Create a client secret">
-    Go to **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately (it is only shown once). This is the **Client Secret** field in Bag of words.
+    Go to **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately (it is only shown once). This is the `client_secret` field in Bag of words.
   </Step>
   <Step title="Add API permissions">
     Under **API permissions** → **Add a permission** → **Power BI Service**, add the delegated **Tenant.Read.All** (or the read scopes your policy allows). For per-user sign-in, keep the delegated **profile**, **email**, and **openid** scopes. Grant admin consent for the directory.
@@ -106,31 +112,31 @@ Discovery only sees workspaces where the identity holds a workspace **role**. Sh
   </Step>
 </Steps>
 
-## Step 4 — Add the connection in Bag of words
+## Connect in Bag of words
 
-In Bag of words, go to **Data Sources → Add data source → Power BI** and fill in the form.
+Go to **Settings → Data Sources → Add data source → Power BI** and fill in the form. See [Connecting a data source](/data-sources/connecting) for the general flow.
 
-| Field | Required | Description |
-| :-- | :-- | :-- |
-| **Tenant ID** | Yes | Azure AD Directory (tenant) ID from the app's Overview page. |
-| **Client ID** | Yes | Application (client) ID of the app registration. |
-| **Client Secret** | Yes | The client secret value you copied in Step 1. |
-| **OAuth Client ID** | No | App Registration client ID used for **user sign-in** (per-user auth). Leave blank to reuse the Client ID above. |
-| **OAuth Client Secret** | No | Secret for the user-sign-in app. Leave blank to reuse the Client Secret above. |
-| **Workspaces** | No | Comma-separated workspace name(s) or ID(s) to limit discovery. Leave empty to discover **all** accessible workspaces. |
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `tenant_id` | Yes | — | Azure AD Tenant ID (Directory ID) from the app's Overview page. |
+| `client_id` | Yes | — | Azure AD App Registration Client ID. |
+| `client_secret` | Yes | — | Azure AD App Registration secret value you copied in Step 1. |
+| `oauth_client_id` | No | — | App Registration Client ID used for **user sign-in** (authorization code flow). If blank, falls back to `client_id`. |
+| `oauth_client_secret` | No | — | Secret for the user-sign-in app. If blank, falls back to `client_secret`. |
+| `workspaces` | No | — | Workspace name(s) or ID(s), comma-separated, to limit discovery. If empty, **all** accessible workspaces are discovered. |
 
 <Steps>
   <Step title="Choose the authentication">
-    Pick **Service Principal (Azure AD)** for a shared identity, or **Sign in with Microsoft** for per-user (delegated) access.
+    Pick **Service Principal (Azure AD)** for a shared identity, or **Sign in with Microsoft** for per-user (delegated) access. The **Sign in with Microsoft** mode has no fields of its own — it reuses the app registration configured above.
   </Step>
   <Step title="Test the connection">
     Click **Test Connection**. Bag of words authenticates, lists workspaces, and probes a semantic model to verify query access. A model that is empty or not queryable does not fail the test — it reports that query access was verified.
   </Step>
   <Step title="Require user authentication (optional)">
-    To force every user to sign in with their own Microsoft account instead of using the shared service principal, enable **Require user authentication** under the data source's access settings. Each user then clicks **Connect** to sign in before they can query.
+    To force every user to sign in with their own Microsoft account instead of using the shared service principal, enable **Require user authentication** under the data source's access settings. Each user then clicks **Connect** to sign in before they can query. See [Authentication](/data-sources/authentication).
   </Step>
   <Step title="Select tables and save">
-    After the connection indexes, choose which tables the AI agent may use, then save. See [Data Sources](/using-bow/data_source) for managing tables, instructions, and access.
+    After the connection indexes, choose which tables the AI agent may use, then save. See [Data sources overview](/data-sources/overview) for managing tables, instructions, and access.
   </Step>
 </Steps>
 
@@ -159,8 +165,8 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of
     With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them.
   </Accordion>
 
-  <Accordion title="The Workspaces filter is excluding it">
-    If you set the **Workspaces** field, only those workspaces are discovered. Clear it to discover everything, or add the workspace's name/ID.
+  <Accordion title="The workspaces filter is excluding it">
+    If you set `workspaces`, only those workspaces are discovered. Clear it to discover everything, or add the workspace's name/ID.
   </Accordion>
 </AccordionGroup>
 
@@ -169,3 +175,5 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of
 - **Service principal scope**: `https://analysis.windows.net/powerbi/api/.default`
 - **Per-user (delegated) scope**: `https://analysis.windows.net/powerbi/api/.default offline_access`
 - **OAuth redirect URI**: `https://<your-bow-host>/api/connections/oauth/callback`
+
+For the on-premises product, see [Power BI Report Server](/data-sources/connectors/power-bi-report-server).

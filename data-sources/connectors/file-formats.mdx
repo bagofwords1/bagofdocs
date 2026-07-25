@@ -1,0 +1,96 @@
+---
+title: "CSV and QVD"
+description: "Turn CSV and Qlik QVD files on the backend host into SQL tables the agent can query"
+icon: "table"
+---
+
+The **CSV** and **QVD** connectors expose data files as **SQL tables**. You point each connection at file paths or glob patterns, and every matching file becomes one table the agent can query with SQL, join, and aggregate.
+
+<Tip>
+  Use these when the file *is* a dataset. If you want the agent to search and read documents — PDFs, Word files, mixed folders — use [Files and Directories](/data-sources/connectors/files-and-directories) instead, which exposes files as a searchable catalog rather than as tables.
+</Tip>
+
+## How it works
+
+Both connectors run on **DuckDB** inside Bag of words. Paths are resolved on the **backend host**, exactly like the Files and Directories connector, so a local folder or an already-mounted SMB/NFS share both work. There are no credential fields — access is whatever the operating system grants the backend process.
+
+- **CSV** is read natively by DuckDB. There is no conversion or cache: each resolved file is exposed directly as a table at connect time. One file, one table.
+- **QVD** is a proprietary binary format, so each file is converted to a columnar cache on the backend the first time it is indexed, then queried with SQL from there.
+
+Glob patterns are expanded at connect time, so adding a file that matches an existing pattern makes it available on the next index without editing the connection.
+
+## Before you start
+
+- The files exist on the **Bag of words backend host** and are readable by the process that runs it.
+- For a network share, mount it with the OS first. If Bag of words runs in a container, the mount must be visible inside the container.
+- Give each file a stable, meaningful filename — the filename becomes the table name the agent sees.
+
+---
+
+## CSV
+
+Go to **Data Sources → Add data source → CSV**.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `file_paths` | Yes | — | CSV file paths or glob patterns, one per line, e.g. `/data/*.csv` or `/mnt/exports/sales_2025.csv`. |
+| `delimiter` | No | *(blank)* | Column delimiter. Leave blank to auto-detect. Examples: `,` `;` `&#124;`, or `\t` for tab. |
+| `has_header` | No | `true` | Whether the first row contains column names. Turn off for headerless files. |
+| `encoding` | No | `utf-8` | File encoding, e.g. `utf-8`, `latin-1`. |
+
+The settings apply to **every** file in the connection. If some of your CSVs are semicolon-delimited and others comma-delimited, or they use different encodings, create a separate connection per group.
+
+### Authentication
+
+A single mode, **No Authentication** (`none`), at system scope. Nothing to enter.
+
+---
+
+## QVD
+
+<Note>
+  The QVD connector is part of the **Enterprise Edition**.
+</Note>
+
+Go to **Data Sources → Add data source → Qlik (QVD)**.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `file_paths` | Yes | — | QVD file paths or glob patterns, one per line, e.g. `/data/*.qvd`. |
+
+QVD files carry their own field names and types, so there is nothing to configure beyond the paths.
+
+<Note>
+  Indexing a large QVD set takes longer than CSV, because each file is converted before it can be queried. The conversion is cached, so subsequent indexing only touches files that changed.
+</Note>
+
+### Authentication
+
+A single mode, **No Authentication** (`none`), at system scope. Nothing to enter.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No tables appear after saving">
+    The glob matched nothing. Check that the path is absolute and correct **from the backend host's point of view** — a path that works on your laptop is not necessarily the path inside the container.
+  </Accordion>
+
+  <Accordion title="A CSV loads with one giant column, or the columns are shifted">
+    Auto-detection picked the wrong delimiter. Set `delimiter` explicitly on the connection.
+  </Accordion>
+
+  <Accordion title="Column names look like data (col0, col1, …)">
+    The file has no header row but `has_header` is on, or vice versa. Toggle `has_header`.
+  </Accordion>
+
+  <Accordion title="Accented or non-Latin characters are mangled">
+    Set `encoding` to match the file — `latin-1` is the usual fix for exports from older Windows tools.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Files and Directories](/data-sources/connectors/files-and-directories) — the same paths, exposed as a searchable document catalog instead of tables.
+- [Amazon S3](/data-sources/connectors/s3) — data files in object storage.

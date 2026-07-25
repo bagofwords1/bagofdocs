@@ -9,6 +9,10 @@ The Email integration gives the Bag of words analyst **its own mailbox** (e.g., 
 - **Outbound only** — the analyst sends answers, scheduled reports, and notifications by email.
 - **Inbound enabled** — the mailbox becomes a full channel: users email the analyst a question and get an answer back, with the conversation saved as a BOW report.
 
+<Note>
+  This is a **channel**, not a data source. If you instead want the agent to search and read a user's *own* mailbox as data, see the [Gmail and Outlook Mail connectors](/data-sources/connectors/mail). The two are configured separately and can be used together.
+</Note>
+
 ## Authentication options
 
 Basic Auth (passwords) is being phased out by Microsoft and Google, so BOW authenticates to cloud mailboxes with **OAuth over IMAP/SMTP (XOAUTH2)**. Pick the method matching your environment:

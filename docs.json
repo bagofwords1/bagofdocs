@@ -8,7 +8,9 @@
     "dark": "#0C0C15"
   },
   "favicon": "/favicon.png",
-  "icons": { "library" : "lucide" },
+  "icons": {
+    "library": "lucide"
+  },
   "navigation": {
     "groups": [
       {
@@ -34,13 +36,51 @@
           "using-bow/dashboards",
           "using-bow/instructions",
           "using-bow/catalog",
-          "using-bow/data_source",
-          "using-bow/connect-powerbi",
           "using-bow/evals",
           "using-bow/llm",
           "using-bow/mcp",
           "using-bow/excel",
           "using-bow/settings"
+        ]
+      },
+      {
+        "group": "Data Sources",
+        "pages": [
+          "data-sources/overview",
+          "data-sources/connecting",
+          "data-sources/authentication",
+          {
+            "group": "Connectors",
+            "expanded": false,
+            "pages": [
+              "data-sources/connectors/databases",
+              "data-sources/connectors/snowflake",
+              "data-sources/connectors/bigquery",
+              "data-sources/connectors/sql-server",
+              "data-sources/connectors/sap",
+              "data-sources/connectors/power-bi",
+              "data-sources/connectors/power-bi-report-server",
+              "data-sources/connectors/microsoft-fabric",
+              "data-sources/connectors/analysis-services",
+              "data-sources/connectors/tableau",
+              "data-sources/connectors/qlik-sense",
+              "data-sources/connectors/sisense",
+              "data-sources/connectors/oracle-bi",
+              "data-sources/connectors/infor-olap",
+              "data-sources/connectors/timbr",
+              "data-sources/connectors/observability",
+              "data-sources/connectors/business-apps",
+              "data-sources/connectors/files-and-directories",
+              "data-sources/connectors/s3",
+              "data-sources/connectors/sharepoint-onedrive",
+              "data-sources/connectors/google-drive",
+              "data-sources/connectors/mail",
+              "data-sources/connectors/file-formats"
+            ]
+          },
+          "data-sources/mcp",
+          "data-sources/custom-api",
+          "data-sources/user-context"
         ]
       },
       {
@@ -102,6 +142,16 @@
     {
       "source": "/using-bow/teams",
       "destination": "/channels/teams",
+      "permanent": true
+    },
+    {
+      "source": "/using-bow/data_source",
+      "destination": "/data-sources/overview",
+      "permanent": true
+    },
+    {
+      "source": "/using-bow/connect-powerbi",
+      "destination": "/data-sources/connectors/power-bi",
       "permanent": true
     }
   ]

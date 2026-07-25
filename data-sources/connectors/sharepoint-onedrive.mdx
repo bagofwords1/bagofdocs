@@ -1,0 +1,160 @@
+---
+title: "SharePoint and OneDrive"
+description: "Read files from a SharePoint document library or from each user's own OneDrive via Microsoft Graph"
+icon: "microsoft"
+---
+
+Both connectors read files through **Microsoft Graph** and expose them to the agent as a file catalog — Excel, CSV and documents become searchable and readable. They differ in **whose** files they reach:
+
+- **SharePoint** connects to one site and document library that an admin picks. Everyone who can use the connection sees the same library.
+- **OneDrive** connects to *each user's own* drive. There is nothing for an admin to pick, and no shared catalog exists.
+
+<Note>
+  The SharePoint and OneDrive connectors are part of the **Enterprise Edition**.
+</Note>
+
+## Shared vs per-user catalogs
+
+This is the most important difference between the two, and it changes what you configure.
+
+| | SharePoint | OneDrive |
+| :-- | :-- | :-- |
+| Catalog ownership | `shared` | `per_user` |
+| What the catalog is | The site + library + folder the admin configured | Each signed-in user's own drive |
+| Config fields | `site_url`, `drive_name`, `folder_path`, `include_globs`, `recursive` | **None** |
+| Who curates it | An admin indexes it once; per-user access filters that one catalog | Nobody — each user's drive *is* their catalog, and no two users share one |
+
+Because OneDrive's catalog is per user, there is no admin-side file list to index or curate, and no "select which files the agent may use" step. Each user connects their own account and the agent works against that drive. See [User context and per-user data](/data-sources/user-context).
+
+## How it works
+
+Bag of words calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to resolve the site and drive, walk folders, search, and download file content. `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted; plain-text formats are read as text.
+
+For SharePoint, `folder_path` is the server-side base — the efficient way to scope a connection — and `include_globs` is the access boundary on top of it. A file outside the globs is **denied**, not merely hidden, including for drive-wide search results.
+
+<Warning>
+  Graph requires **delegated** (per-user) authentication for file reads on most tenants. The service principal reliably enumerates SharePoint sites and drives, but app-only file reads can be refused depending on tenant policy. Plan on per-user sign-in for the read path.
+</Warning>
+
+## Before you start
+
+- A **Microsoft Entra ID app registration** in your tenant, with a client secret.
+- A Global Administrator (or Privileged Role Administrator) who can **grant admin consent** for the Graph permissions.
+- Your Bag of words base URL, for the OAuth redirect URI.
+- For SharePoint: the full site URL, and the name of the document library if it is not the site's default **Documents**.
+
+## Step 1 — Register an Entra ID application
+
+In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations** → **New registration**.
+
+<Steps>
+  <Step title="Create the app registration">
+    Name it (e.g. `Bag of words - Microsoft 365`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+  </Step>
+  <Step title="Copy the Tenant ID and Client ID">
+    From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**.
+  </Step>
+  <Step title="Create a client secret">
+    **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately — it is shown once.
+  </Step>
+  <Step title="Add the redirect URI">
+    Under **Authentication** → **Add a platform** → **Web**, add:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Replace `<your-bow-host>` with your Bag of words base URL.
+  </Step>
+</Steps>
+
+## Step 2 — Grant Microsoft Graph permissions
+
+Under **API permissions** → **Add a permission** → **Microsoft Graph**, add the permissions for the connectors you plan to use, then click **Grant admin consent for &lt;tenant&gt;**.
+
+| Connector | Delegated permissions requested at sign-in |
+| :-- | :-- |
+| SharePoint | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `openid`, `profile`, `offline_access` |
+| OneDrive | `Files.Read.All`, `User.Read`, `openid`, `profile`, `offline_access` |
+
+If you also want the shared service principal to enumerate SharePoint without a signed-in user, add the corresponding **Application** permissions (`Sites.Read.All`, `Files.Read.All`) and grant admin consent for those too — the app-only token is issued for `https://graph.microsoft.com/.default`, so it carries exactly the application permissions the app has been granted.
+
+<Warning>
+  Without admin consent, sign-in fails or returns a token with no usable Graph scopes. `offline_access` is required for the refresh token — omit it and users have to re-authenticate whenever the access token expires.
+</Warning>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source** and pick **SharePoint** or **OneDrive**.
+
+### SharePoint fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `site_url` | Yes | — | Full site URL, e.g. `https://contoso.sharepoint.com/sites/Finance`. |
+| `drive_name` | No | — | Document library (drive) name on the site. Blank uses the site's default **Documents** library. |
+| `folder_path` | No | — | Folder within the drive to scope the connection, e.g. `Reports/2025`. This is the server-side base; blank means the drive root. |
+| `include_globs` | No | — | Glob patterns relative to `folder_path`, e.g. `Reports/**/*.xlsx`, `**/*.pdf`, `2025/**`. When set, only matching files are visible **and** readable. |
+| `recursive` | No | `false` | Walk subfolders. Off by default because the admin usually points at one specific folder. |
+
+<Note>
+  `allowed_extensions` is **deprecated** — use `include_globs` with a pattern like `**/*.xlsx` instead.
+</Note>
+
+### OneDrive fields
+
+OneDrive has **no config fields**. Each user's own drive is the catalog, so there is nothing to scope on the admin side. You supply the app registration credentials and the connector does the rest. Internally, OneDrive walks recursively by default, since a user's drive root is almost always folders rather than loose files.
+
+## Authentication modes
+
+Both connectors offer the same two modes.
+
+### Entra ID App (Service Principal) — `service_principal`
+
+Scopes: **system** and **user**. This is where the app registration lives. The same credentials back both the app-only token (client credentials) and the per-user sign-in flow.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Directory (tenant) ID. |
+| `client_id` | Yes | Application (client) ID of the app registration. |
+| `client_secret` | Yes | The client secret value from Step 1. |
+| `oauth_client_id` | No | A separate app registration client ID for user sign-in. Falls back to `client_id`. |
+| `oauth_client_secret` | No | Secret for that separate app. Falls back to `client_secret`. |
+
+### Sign in with Microsoft — `oauth`
+
+Scope: **user** only, and it has no fields — each user clicks **Connect** and completes the Microsoft authorization-code flow against the app registration above. Discovery and reads then run as that user, so people see only what their own account can see.
+
+For OneDrive this is the only meaningful path: the drive being read is the signed-in user's own. For SharePoint it is the recommended read path, because Graph enforces the library's own permissions per user.
+
+See [Authentication and access](/data-sources/authentication) for how to require user sign-in on a connection.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Sign-in fails with a consent error">
+    The Graph permissions in Step 2 were added but admin consent was never granted. Grant it in **API permissions**, then have the user click **Connect** again.
+  </Accordion>
+
+  <Accordion title="The redirect URI does not match">
+    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your Bag of words base URL exactly, scheme and trailing path included.
+  </Accordion>
+
+  <Accordion title="SharePoint files list but will not read">
+    Most tenants require delegated auth for Graph file downloads. Switch the connection to per-user sign-in, or grant the `Files.Read.All` **Application** permission with admin consent.
+  </Accordion>
+
+  <Accordion title="A SharePoint file exists but is invisible or denied">
+    `include_globs` is the access boundary and is matched relative to `folder_path`. A path outside the patterns is denied by design. Also check `recursive` if the file is in a subfolder.
+  </Accordion>
+
+  <Accordion title="Users are being asked to sign in repeatedly">
+    `offline_access` is missing from the granted delegated permissions, so no refresh token is issued.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Gmail and Outlook Mail](/data-sources/connectors/mail) — the same Entra app registration also backs the Outlook Mail connector.
+- [Google Drive](/data-sources/connectors/google-drive) — the Google equivalent of OneDrive.
+- [Files and Directories](/data-sources/connectors/files-and-directories) — for shares mounted on the backend host instead.

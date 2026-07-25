@@ -1,0 +1,138 @@
+---
+title: "Microsoft Fabric"
+description: "Connect Microsoft Fabric Warehouse and Lakehouse SQL endpoints and query them with T-SQL"
+icon: "microsoft"
+---
+
+Bag of words connects to **Microsoft Fabric** Warehouse and Lakehouse **SQL endpoints** with Microsoft Entra ID (Azure AD) authentication, discovers the tables the connecting identity may read, and queries them with **T-SQL**. A shared service principal and per-user sign-in are both supported.
+
+## How it works
+
+The Fabric SQL endpoint is a SQL Server-compatible endpoint. Bag of words acquires an Entra access token, then connects with the **Microsoft ODBC Driver 18 for SQL Server** using that token (`Encrypt=yes`, `TrustServerCertificate=no`).
+
+- **Service principal** — a client-credentials token for `https://database.windows.net/.default`.
+- **Per-user** — a delegated token for `https://database.windows.net/user_impersonation offline_access`, obtained by user sign-in or by an on-behalf-of exchange from the user's Entra login.
+
+<Warning>
+  The SQL endpoint authenticates with **Azure SQL** tokens, not Fabric API tokens. An app registration granted only Fabric/Power BI API permissions yields tokens the SQL endpoint rejects with login error `18456`. The permission that matters is **Azure SQL Database → user_impersonation** (delegated), with admin consent.
+</Warning>
+
+Discovery reads `INFORMATION_SCHEMA.COLUMNS` for the configured database, skips the `sys`, `INFORMATION_SCHEMA`, and `queryinsights` schemas, and — importantly — filters to objects the connecting principal actually has `SELECT` on (`HAS_PERMS_BY_NAME`). `INFORMATION_SCHEMA` alone lists objects whose *existence* is visible, which is broader than read access, so without this filter a principal with `DENY SELECT` would still see tables listed. Table and column descriptions come from `MS_Description` extended properties when readable; otherwise a simpler introspection runs.
+
+Each object is exposed to the agent as `schema.table`.
+
+<Note>
+  Fabric SQL endpoints are serverless and can be slow to answer the first connection after the capacity has been idle. Bag of words allows a 60-second login timeout and retries transient connection failures up to three times, so a cold start surfaces as a slow first query rather than an error.
+</Note>
+
+## Before you start
+
+- A Fabric Warehouse or Lakehouse, and its **SQL endpoint** hostname (for example `abc123.datawarehouse.fabric.microsoft.com`) — copy it from the item's settings in Fabric.
+- Permission to create an app registration in Microsoft Entra ID, and an administrator who can grant admin consent.
+- The identity you connect with needs access to the workspace and read access to the warehouse or lakehouse. Discovery only lists objects it holds `SELECT` on, so missing grants show up as missing tables rather than as an error.
+- The Microsoft ODBC Driver 18 for SQL Server must be present on the backend host. The official Bag of words container image already includes it.
+
+## Step 1 — Register an Entra ID application
+
+In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations** → **New registration**.
+
+<Steps>
+  <Step title="Create the app registration">
+    Name it (for example `Bag of words - Fabric`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+  </Step>
+  <Step title="Copy the Tenant ID and Client ID">
+    From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**.
+  </Step>
+  <Step title="Create a client secret">
+    **Certificates & secrets → New client secret**. Copy the secret **value** immediately — it is shown only once.
+  </Step>
+  <Step title="Add the Azure SQL Database permission">
+    **API permissions → Add a permission → APIs my organization uses → Azure SQL Database**, then add the delegated **user_impersonation** permission and **grant admin consent** for the directory. This is what makes the issued token acceptable to the Fabric SQL endpoint.
+  </Step>
+  <Step title="(Per-user only) Add the redirect URI">
+    Under **Authentication**, add a **Web** redirect URI:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Keep **offline\_access** among the delegated scopes so the token can be refreshed without asking the user to sign in again.
+  </Step>
+</Steps>
+
+## Step 2 — Grant the identity access in Fabric
+
+Add the service principal (or the security group containing it) to the Fabric **workspace**, and grant it read access to the warehouse or lakehouse you want to query. Do the same for the user accounts that will sign in per-user.
+
+<Tip>
+  A connection that tests successfully but discovers zero tables is almost always a permissions gap, not a configuration error: the identity can log in to the endpoint but holds `SELECT` on nothing.
+</Tip>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Microsoft Fabric** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `server_hostname` | Yes | — | The Fabric SQL endpoint, e.g. `abc123.datawarehouse.fabric.microsoft.com`. |
+| `database` | Yes | — | The Warehouse or Lakehouse name. |
+| `schema` | No | *(empty)* | A schema, or a comma-separated list. Empty discovers all schemas the identity can read. |
+
+**Test Connection** acquires a token, opens the ODBC connection, and runs `SELECT 1`.
+
+## Authentication modes
+
+<CardGroup cols={2}>
+  <Card title="Service Principal (Azure AD)" icon="robot">
+    One shared application identity discovers and queries Fabric for everyone. Simplest to operate; every user sees the same tables. System scope.
+  </Card>
+
+  <Card title="Sign in with Microsoft" icon="user-lock">
+    Each user signs in with their own Microsoft account. Discovery and queries run with that user's own permissions on the warehouse. Per-user scope.
+  </Card>
+</CardGroup>
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Service Principal (Azure AD)** | System only | `tenant_id` — Directory (tenant) ID; `client_id` — app registration Client ID; `client_secret` — app registration secret; optional `oauth_client_id` / `oauth_client_secret` — a separate app registration used for **user sign-in**, falling back to the Client ID/Secret above when blank. |
+| **Sign in with Microsoft** | Per-user only | None — each user authorizes through the sign-in flow and their delegated token is stored for them. |
+
+<Note>
+  Per-user authentication on database-style connectors requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+To force everyone to use their own account instead of the shared service principal, enable **Require user authentication** on the data source. Each user then clicks **Connect** and signs in before they can query.
+
+## Querying
+
+Fabric uses **T-SQL**, and the agent writes it accordingly: `SELECT TOP n` rather than `LIMIT`, `+` for string concatenation, `GETDATE()`, `ISNULL()`/`COALESCE()`, `DATEPART()`/`DATEADD()`/`DATEDIFF()`, and square brackets around reserved words. Tables are addressed as `schema.table`.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Login error 18456 when a token was obtained">
+    The token has the wrong audience. Add the **Azure SQL Database → user_impersonation** delegated permission to the app registration and grant admin consent; a Fabric/Power BI API scope produces tokens the SQL endpoint rejects.
+  </Accordion>
+
+  <Accordion title="Login timeout expired (HYT00) on the first attempt">
+    A cold-starting serverless endpoint. Bag of words already retries with a 60-second login timeout; if it persists across retries, the endpoint or the capacity is unavailable rather than idle.
+  </Accordion>
+
+  <Accordion title="The connection tests fine but shows zero tables">
+    Discovery lists only objects the identity has `SELECT` on. Grant the service principal (or user) access to the workspace and read access on the warehouse/lakehouse, and check the `schema` field is not excluding them.
+  </Accordion>
+
+  <Accordion title="An admin sees zero tables on a per-user connection they just created">
+    On a connection that runs queries with each user's own credentials, the creating admin has no delegated token yet, so the table list is empty and **Reload tables** cannot help. Click **Connect** on the data source and sign in with Microsoft; the tables appear once the token is stored. The same applies to any member opening the tables view before connecting.
+  </Accordion>
+
+  <Accordion title="Descriptions are missing from the schema">
+    Table and column comments come from `MS_Description` extended properties. When that enriched query fails — commonly on a low-privilege principal — discovery falls back to names and data types only.
+  </Accordion>
+</AccordionGroup>
+
+## Reference
+
+- **Service principal token scope**: `https://database.windows.net/.default`
+- **Per-user (delegated) scope**: `https://database.windows.net/user_impersonation offline_access`
+- **OAuth redirect URI**: `https://<your-bow-host>/api/connections/oauth/callback`

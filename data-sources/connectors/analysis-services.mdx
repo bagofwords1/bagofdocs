@@ -1,0 +1,133 @@
+---
+title: "Microsoft Analysis Services"
+description: "Connect SSAS Multidimensional and Tabular models and query them with MDX or DAX over XMLA"
+icon: "boxes"
+---
+
+Bag of words connects to **SQL Server Analysis Services (SSAS)** over **XMLA**, discovers every catalog and cube the account can see, and runs **MDX** or **DAX** against them. Both SSAS model types are supported: Multidimensional (MDX) and Tabular (DAX or MDX).
+
+<Note>
+  The Microsoft Analysis Services connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+XMLA is a SOAP-over-HTTP protocol. Bag of words posts to the endpoint URL you configure, authenticating with **HTTP Basic** on every request — XMLA is stateless, so there is no logon round-trip.
+
+1. Lists catalogs (databases) with a `DBSCHEMA_CATALOGS` Discover.
+2. Lists the cubes/models in each catalog (`MDSCHEMA_CUBES`).
+3. Reads each cube's hierarchies (`MDSCHEMA_HIERARCHIES`) and measures (`MDSCHEMA_MEASURES`).
+4. Runs MDX or DAX statements at query time with an XMLA `Execute` (`Format=Tabular`).
+
+Each cube is exposed to the agent as a schema table named `Catalog/Cube` (for example `AdventureWorks/Sales`). Its columns are the cube's dimension hierarchies (`dtype="dimension"`) and measures (`dtype="measure"`); the unique name needed to write a query is carried in each column's `metadata.unique_name`.
+
+**Model-type detection.** For each catalog, Bag of words probes the Tabular metadata DMV `SELECT * FROM $SYSTEM.TMSCHEMA_MODEL`. If it succeeds, the catalog is recorded as `TABULAR` (DAX and MDX both work); if it fails, the catalog is treated as `MULTIDIMENSIONAL`, which is always safe because MDX runs on both. Sending DAX at a Multidimensional target is rejected before the request leaves Bag of words, with an explicit "use MDX instead" error rather than a cryptic server fault.
+
+## Before you start
+
+- The SSAS **XMLA endpoint must be published over HTTP(S)**. SSAS's native protocol is TCP (port 2383 by default) and Bag of words does not speak it — the only supported transport is XMLA over HTTP, which means the **`msmdpump.dll` IIS pump** (see Step 1).
+- The Bag of words backend host must be able to reach that URL. There is no path discovery and no redirect following: whatever URL works in `curl` is the URL to paste into the form, verbatim.
+- The pump's IIS application must accept **Basic authentication** — that is the only scheme the connector sends.
+- An SSAS account with read access to the databases you want to query.
+- If the endpoint uses a certificate signed by an internal CA that the backend host does not trust, either install the CA or turn off **Verify SSL**.
+
+## Step 1 — Publish the msmdpump HTTP pump in IIS
+
+This is the step that most SSAS connections fail on. `msmdpump.dll` is an ISAPI extension that ships with Analysis Services and forwards XMLA requests received over HTTP to the SSAS instance. It is **not** enabled by default — an administrator has to publish it on a Windows server running IIS (usually the SSAS server itself). Microsoft documents the full procedure as *Configure HTTP Access to Analysis Services*.
+
+<Steps>
+  <Step title="Copy the pump files">
+    The pump ships with SSAS under the instance's OLAP folder, in `bin\isapi`. Copy that folder's contents (including `msmdpump.dll` and `msmdpump.ini`) to a directory you will serve from IIS, for example `C:\inetpub\wwwroot\olap`.
+  </Step>
+  <Step title="Point msmdpump.ini at the SSAS instance">
+    Edit `msmdpump.ini` and set the server name to the Analysis Services instance the pump should forward to (for example `localhost` or `SERVER\INSTANCE`). A pump pointed at the wrong instance answers requests but shows no catalogs.
+  </Step>
+  <Step title="Create the IIS application">
+    In IIS Manager, create an application (for example `/olap`) whose physical path is that directory, running in an application pool with **No Managed Code**. Allow the `msmdpump.dll` ISAPI extension under **ISAPI and CGI Restrictions** — a blocked extension is the usual cause of an HTTP 404 on an otherwise correct URL.
+  </Step>
+  <Step title="Enable Basic authentication">
+    On the application's **Authentication** settings, enable **Basic Authentication**. The connector authenticates with HTTP Basic only; a pump that accepts Windows/Kerberos authentication exclusively rejects it with HTTP 401.
+
+    <Warning>
+      Basic authentication sends credentials on every request. Publish the pump over **HTTPS**, not plain HTTP.
+    </Warning>
+  </Step>
+  <Step title="Grant SSAS permissions">
+    The account you will use must have read access to the SSAS databases. Without it the connection succeeds but reports zero catalogs.
+  </Step>
+</Steps>
+
+The endpoint URL is then the full path to the DLL:
+
+```text
+https://<server>/olap/msmdpump.dll
+```
+
+<Tip>
+  Quick liveness check: a working XMLA endpoint is **POST-only**, so a plain `GET` on it returns **HTTP 405**. A `404` means the URL path is wrong (or the ISAPI extension is blocked), never a broken client.
+</Tip>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Microsoft Analysis Services** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Full URL of the XMLA endpoint, typically the IIS pump: `https://server/olap/msmdpump.dll`. Used exactly as entered. |
+| `catalog` | No | *(empty)* | Optional database/catalog to scope discovery to. Leave blank to list every accessible catalog. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate when calling the XMLA endpoint. |
+| `timeout_sec` | No | `60` | HTTP timeout for XMLA calls, in seconds. |
+
+**Test Connection** authenticates, runs a catalog Discover, and reports how many catalogs were found. Zero catalogs is reported as a success with the note *"No databases visible to this user — check permissions."*
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password** | System and per-user | `username` — SSAS user for the XMLA endpoint (Basic auth); `password` |
+
+This is the only mode. It can be used two ways:
+
+- **System (shared)** — one admin-supplied SSAS account discovers and queries for everyone.
+- **Per-user** — each user supplies their own SSAS credentials, so SSAS role membership and cell/dimension security apply to that person's queries.
+
+<Note>
+  Per-user authentication on database-style connectors requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Querying
+
+The agent writes MDX or DAX itself, picking the language from the model type recorded during discovery:
+
+- **Multidimensional** cubes — MDX only.
+- **Tabular** models — DAX preferred, MDX also accepted.
+
+Cubes are addressed as `Catalog/Cube`, and members and measures are referenced by the unique names captured in the schema.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="HTTP 404 — 'nothing serves XMLA at this URL path'">
+    The host answered but no XMLA service lives at that path. Check the path portion of the endpoint URL (it must end in `msmdpump.dll`), that the IIS application exists, and that the `msmdpump.dll` ISAPI extension is allowed.
+  </Accordion>
+
+  <Accordion title="HTTP 401 / 403 — credentials or authentication scheme rejected">
+    The endpoint was reached but the logon failed. Either the username/password is wrong, or the IIS application does not have **Basic Authentication** enabled — the connector sends Basic and nothing else.
+  </Accordion>
+
+  <Accordion title="Connected, but 0 catalogs found">
+    The account has no read access to any SSAS database, or `msmdpump.ini` points at a different instance than you expect. Grant the account read on the databases and re-test.
+  </Accordion>
+
+  <Accordion title="Could not resolve the endpoint hostname (DNS)">
+    The backend host cannot resolve the name in the URL. Use a resolvable FQDN or an IP address.
+  </Accordion>
+
+  <Accordion title="Connection timed out">
+    Nothing answered on the port. Check firewall rules between the Bag of words backend and the IIS server, and the port in the URL. Raising `timeout_sec` helps only when the server is slow, not when it is unreachable.
+  </Accordion>
+
+  <Accordion title="'DAX queries are only supported on Tabular models'">
+    The target catalog was detected as Multidimensional. This is a guard, not a failure of the connection — the same question can be answered with MDX. If the catalog really is Tabular, confirm the account can read `$SYSTEM.TMSCHEMA_MODEL`, which is how the model type is detected.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,100 @@
+---
+title: "Authentication and Access"
+description: "Shared credentials vs per-user sign-in, OAuth, Kerberos SSO, and what requires Enterprise"
+icon: "lock"
+---
+
+Every connection authenticates in one of two ways. The choice determines whose permissions the agent's queries run under, and it is the single most important security decision when adding a data source.
+
+## The two auth policies
+
+<CardGroup cols={2}>
+  <Card title="Shared credentials" icon="users">
+    One credential set, configured once by an admin. Everyone who can use the data source queries through it. The default.
+  </Card>
+  <Card title="Per-user authentication" icon="user-lock">
+    Each user supplies their own credentials or signs in with their own account. Queries run with that person's permissions in the source system.
+  </Card>
+</CardGroup>
+
+Per-user authentication is what you want when the source system already models who may see what — a Power BI tenant, a SharePoint site, a warehouse with row-level security. Instead of reproducing those rules inside Bag of words, you let the source enforce them.
+
+You choose the policy with the **Require user authentication** toggle when creating or editing a connection. When it is on, you also choose which sign-in methods users may use — for most connectors that list is filled in for you.
+
+<Note>
+  **Integrations are always per-user.** MCP connections that use OAuth, and personal sources like OneDrive, Google Drive, and mailboxes, are per-user by definition — each user's own account is the catalog.
+</Note>
+
+## What requires Enterprise
+
+Per-user authentication is **included for file and tool connections** — MCP servers, custom APIs, OneDrive, Google Drive, SharePoint, mailboxes. There is no license check on those.
+
+Per-user authentication on **database-style connections** — anything the agent sees as tables, such as PostgreSQL, Snowflake, SQL Server, or Power BI — requires an Enterprise license. Turning the toggle on without one returns:
+
+```text
+Per-user authentication for this connector requires an enterprise license.
+```
+
+Separately, a number of connectors are Enterprise-only in their entirety, regardless of auth policy — Power BI, Power BI Report Server, Tableau, Qlik Sense, Sisense, Oracle BI, Analysis Services, Infor OLAP, Splunk, Zabbix, Timbr, Sybase, QVD, SharePoint, OneDrive, Google Drive, Gmail, and Outlook Mail. They appear in the catalog with a lock until a license key is set. See [License Key](/enterprise/license).
+
+## Sign-in methods
+
+Which methods a connector offers is set by the connector itself; each connector page lists its own. The recurring ones:
+
+| Method | How it works | Typical connectors |
+|---|---|---|
+| Username and password | Credentials stored encrypted, used for every query | Most databases |
+| Key pair / certificate | A private key instead of a password | Snowflake, Salesforce |
+| Service account | A machine identity (JSON key, client secret, PAT) | BigQuery, Power BI, Databricks, Tableau |
+| OAuth (per-user) | Each user signs in with their own account; BOW stores and refreshes their token | Power BI, Fabric, SharePoint, OneDrive, Google Drive, ServiceNow, SAP Datasphere, MCP |
+| Kerberos | The service's own ticket, from a keytab on the host | SQL Server |
+| Kerberos delegated (per-user) | The service impersonates the caller via constrained delegation — no stored secret | SQL Server |
+| API key / token | A single header token | Splunk, Zabbix, PostHog, Timbr, MCP, Custom API |
+| None | The environment supplies access (mounted share, instance IAM role) | Files and Directories, S3, SQLite |
+
+## How users sign in
+
+For a per-user connection, each person connects once:
+
+1. Open the data source (or try to use it in a chat).
+2. If it uses OAuth, you are sent straight to the provider's consent screen and back. If it uses credentials, a dialog asks for them, with a **Test** button before saving.
+3. Credentials are encrypted at rest and tied to your account; OAuth tokens refresh automatically.
+
+Until a user connects, queries against that data source fail with a clear prompt rather than silently falling back to someone else's access:
+
+```text
+Connect required: this connection runs queries with your own credentials.
+```
+
+Users can re-test, replace, or remove their credentials at any time, and refresh their own schema view — a per-user connection shows each person only the tables or files their own account can reach.
+
+## Query identity
+
+On connections that support per-user OAuth, an admin can choose which identity **their own** queries use:
+
+- **Self** — the admin's own account, like everyone else. The default.
+- **Service account** — the shared credentials stored on the connection.
+
+This exists so admins can curate a catalog, run indexing, and verify a connection works without needing personal access to every object. It applies to admins and connection owners only; regular users always query as themselves.
+
+<Note>
+  Background work that has no user — scheduled indexing, catalog refresh, warm-up — uses the connection's stored credentials. This is why a per-user connection can still keep a shared catalog current.
+</Note>
+
+## Access control on top of authentication
+
+Authentication decides *whose* permissions apply. Two other layers decide who can reach the data source at all:
+
+- **Members** — who in your organization can use this data source, set on the data source's settings tab.
+- **Tool policies** — for MCP and Custom API connections, each tool is `allow`, `ask`, or `deny`, resolved per user. See [MCP connections](/data-sources/mcp).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="SQL Server Kerberos SSO" icon="key-round" href="/data-sources/connectors/sql-server">
+    Constrained delegation with protocol transition, step by step.
+  </Card>
+  <Card title="Power BI per-user access" icon="chart-column" href="/data-sources/connectors/power-bi">
+    Delegated OAuth against a Power BI tenant.
+  </Card>
+</CardGroup>

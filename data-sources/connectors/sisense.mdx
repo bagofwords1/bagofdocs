@@ -1,0 +1,81 @@
+---
+title: "Sisense"
+description: "Connect Sisense data models and query ElastiCubes with SQL"
+icon: "boxes"
+---
+
+Bag of words connects to a **Sisense** deployment, discovers every data model (ElastiCube or live model) the credential can reach, and queries them with **SQL**. Dashboards built on a model are attached to it as context, so the agent knows which reports a table already feeds.
+
+<Note>
+  The Sisense connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+1. Bag of words authenticates and obtains a bearer token.
+2. It lists data models from the v2 API (`/api/v2/datamodels`), falling back to the v1 ElastiCubes API on older deployments.
+3. For each model it reads the field list (`/api/datasources/{title}/fields`), grouping fields into tables and translating Sisense column type codes into readable types. Relationships defined in the model become foreign keys.
+4. Dashboards are listed and indexed against the model they are built on.
+5. Queries run as SQL against the model (`/api/datasources/{title}/sql`).
+
+Each table is exposed as a schema entry named `Datamodel/Table` — for example `SalesModel/Customers`. Tables in the same model can be joined; the part after the `/` is the name to use inside the SQL itself.
+
+<Warning>
+  The SQL endpoint does **not** apply Sisense row-level security. If a model relies on data security rules to restrict what people may see, treat the connection as having full access to that model and control visibility through table selection and [data source access settings](/data-sources/authentication) instead.
+</Warning>
+
+## Before you start
+
+- The Sisense server URL, for example `https://sisense.company.com`, reachable from Bag of words.
+- A Sisense account with access to the data models you want to expose, or a pre-issued API token for such an account.
+- At least one data model the account can query — the connection test fails if the account sees none.
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Sisense**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Sisense server URL, e.g. `https://sisense.company.com`. |
+
+**Test Connection** runs three checks in order: it authenticates, lists the data models, and then runs a trivial query against the first model. Each stage reports separately, so a failure tells you whether the problem is the credential, visibility of models, or query permission on a model.
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password** | `system` and `user` | `username`, `password`, `api_token` |
+
+All three fields are optional individually, but you must supply one of the two combinations:
+
+| Field | Notes |
+| :-- | :-- |
+| `username` | Sisense username (email). Leave blank if you are using an API token. |
+| `password` | Sisense password. Leave blank if you are using an API token. |
+| `api_token` | A pre-existing Sisense API bearer token. **If provided, `username` and `password` are ignored** and no login call is made. |
+
+Because the mode is available at both scopes, you can configure **one shared service account** for the workspace (`system`), or have **each user supply their own Sisense credential** (`user`). Per-user credentials on a connector like this require Enterprise — see [Authentication](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication failed">
+    If you filled in `api_token`, the username and password are not consulted at all — check the token first. Otherwise verify the username is the account's email address and that `host` points at the Sisense web application, not a load-balancer path that strips `/api`.
+  </Accordion>
+
+  <Accordion title="Connected but no data models found">
+    The credential authenticated but sees nothing. Give the account access to at least one ElastiCube or live model. On older deployments the v2 datamodels API may be unavailable; Bag of words then falls back to the v1 ElastiCubes API, and the account needs visibility there.
+  </Accordion>
+
+  <Accordion title="Connected but cannot query a data model">
+    Listing a model and querying it are separate permissions. The test runs a minimal query against the first model it finds — if that step fails, grant the account query access on the model.
+  </Accordion>
+
+  <Accordion title="A model is listed but its tables are missing">
+    The field lookup for that model failed and it was skipped so the rest of the catalog could finish indexing. This is usually a permission gap on that specific model, or a model whose build has never completed.
+  </Accordion>
+
+  <Accordion title="A query fails on syntax">
+    Sisense SQL uses `LIMIT N`, not `TOP N`, and table names containing spaces must be bracketed, as in `[Order Details]`. Joins only work between tables that belong to the same data model.
+  </Accordion>
+</AccordionGroup>

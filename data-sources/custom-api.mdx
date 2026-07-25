@@ -1,0 +1,95 @@
+---
+title: "Custom API Connections"
+description: "Turn any REST API into agent tools by describing its endpoints"
+icon: "webhook"
+---
+
+A **Custom API** connection lets the agent call any REST API without an MCP server in between. You describe the endpoints you want to expose; each one becomes a tool with a typed input schema, governed by the same approval policies as [MCP tools](/data-sources/mcp).
+
+Use this when the service you need has a plain HTTP API and no MCP server — an internal microservice, a vendor REST API, a webhook receiver.
+
+<Note>
+  Custom API connections are **beta**. Field names may change.
+</Note>
+
+## Connection fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `base_url` | Yes | — | Every endpoint path is appended to this |
+| `headers` | No | `{}` | Sent with every request; these override the generated headers |
+| `endpoints` | No | `[]` | The endpoint definitions that become tools |
+
+## Authentication
+
+| Mode | Scope | Fields |
+|---|---|---|
+| None | Shared | — |
+| Bearer token | Shared or per-user | `token` |
+| API key | Shared or per-user | `api_key`, `api_key_header` (default `X-API-Key`) |
+| OAuth app | Shared or per-user | `authorize_url`, `token_url`, `client_id`, `client_secret`, `scopes`, `audience`, `token_endpoint_auth_method` |
+
+Bearer and OAuth modes send `Authorization: Bearer <token>`. API-key mode sends the key in the header you name. Choosing OAuth makes the connection [per-user](/data-sources/authentication), so each person signs in with their own account — no Enterprise license required for tool connections.
+
+## Defining endpoints
+
+Each endpoint becomes one tool. Build them in the visual editor, or paste JSON directly:
+
+```json
+{
+  "name": "get_customer",
+  "description": "Fetch a customer by id",
+  "method": "GET",
+  "path": "/customers/{id}",
+  "parameters": [
+    { "name": "id", "in": "path", "type": "string", "required": true,
+      "description": "Customer id" },
+    { "name": "include", "in": "query", "type": "string", "required": false,
+      "description": "Comma-separated related objects to include" }
+  ]
+}
+```
+
+| Key | Notes |
+|---|---|
+| `name` | Becomes the tool name the agent sees — make it descriptive |
+| `description` | How the agent decides when to call it. Worth writing carefully |
+| `method` | `GET`, `POST`, `PUT`, `PATCH`, or `DELETE` |
+| `path` | Appended to `base_url`; `{name}` placeholders are filled from path parameters |
+| `parameters` | Each has `name`, `in` (`query`, `path`, or `body`), `type` (`string`, `number`, `integer`, `boolean`), `required`, and `description` |
+| `confirm` | Optional. `true` forces user confirmation; `false` opts out of the write-method default |
+
+The `description` fields are not decoration — they are the entire basis on which the model chooses a tool and fills its arguments. Vague descriptions produce wrong calls.
+
+## Write endpoints require confirmation by default
+
+Any endpoint using `POST`, `PUT`, `PATCH`, or `DELETE` defaults to the `ask` policy: the agent proposes the call and a human confirms before anything happens. `GET` endpoints default to `allow`.
+
+Override per endpoint with `confirm`, or change the policy later on the connection's tools view. The [three-layer policy model](/data-sources/mcp) applies here identically, including the rule that an admin `deny` cannot be overridden.
+
+<Warning>
+  Think carefully before setting a destructive endpoint to `allow`. The agent will call it without asking.
+</Warning>
+
+## Responses
+
+Bag of words classifies each response so the agent can use it well:
+
+- A JSON array of objects is treated as **tabular** data and can be charted or joined with other results.
+- Other JSON is passed through as structured data.
+- Anything else is treated as text.
+
+Requests time out after 30 seconds. `GET` and `DELETE` send parameters in the query string; other methods send a JSON body.
+
+## Presets
+
+One preset ships today — **X (Write)**, which exposes `POST /2/tweets` as a `create_post` tool with confirmation required. It is a good reference for how a write-capable connection should look.
+
+## Adding a connection
+
+1. Go to **Settings → Data Sources**, add a connection, and choose **Custom API**.
+2. Enter the `base_url` and any static headers.
+3. Choose an authentication mode.
+4. Define your endpoints.
+5. **Test**, then save. Each endpoint appears as a tool.
+6. Review the tool policies, then attach the connection to an agent.

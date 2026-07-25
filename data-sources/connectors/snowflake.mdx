@@ -1,0 +1,150 @@
+---
+title: "Snowflake"
+description: "Connect a Snowflake warehouse so the agent can explore its schemas and run SQL"
+icon: "snowflake"
+---
+
+Bag of words connects to Snowflake with the standard Snowflake driver, reads the tables, views, and semantic views in the schemas you point it at, and runs SQL against a warehouse you choose. You can authenticate with a username and password, or with **key pair (RSA) authentication**, which is the option most Snowflake accounts require once MFA is enforced on human users.
+
+## How it works
+
+Bag of words opens a connection scoped to one `database` and one or more `schema` values, using the `warehouse` you specify for compute (and the `role` you specify, if any). During indexing it reads:
+
+- **Tables and views** from `INFORMATION_SCHEMA`, including table and column comments where they exist.
+- **Semantic views** — discovered with `SHOW SEMANTIC VIEWS` and described with `DESC SEMANTIC VIEW`. These are exposed to the agent alongside regular tables, and the agent knows to query them through the `SEMANTIC_VIEW()` function rather than as ordinary tables.
+
+Schema names are normalized to uppercase, matching Snowflake's `INFORMATION_SCHEMA` behavior. Queries are read-only.
+
+## Before you start
+
+- A Snowflake **account identifier**, in the organization-account form (for example `ABCDEF-GHIJKL`). This is the identifier from your account URL, not the full hostname.
+- A **warehouse** the connecting user can use, and a **database** to query.
+- The names of the **schemas** you want indexed. One schema, or several as a comma-separated list.
+- A user for Bag of words to connect as. A dedicated service user with a read-only role is the usual pattern.
+- Network access from the Bag of words host to your Snowflake account. If your account restricts access by network policy, allow the Bag of words egress IP.
+
+<Tip>
+  Create a dedicated role with `USAGE` on the warehouse, database, and schemas, plus `SELECT` on the objects you want available, and grant it to the service user. Then set that role in the **Role** field so the connection can never see more than intended.
+</Tip>
+
+## Step 1 — Generate a key pair (key-pair auth only)
+
+Skip this step if you are using a username and password.
+
+Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair yourself, register the **public** key on the Snowflake user, and paste the **private** key into Bag of words.
+
+<Steps>
+  <Step title="Generate the private key">
+    For an encrypted key (recommended — `openssl` prompts you for a passphrase):
+
+    ```bash
+    openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -v2 des3 -out rsa_key.p8
+    ```
+
+    For an unencrypted key:
+
+    ```bash
+    openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -nocrypt -out rsa_key.p8
+    ```
+
+    Either form works. Bag of words accepts a PKCS#8 PEM private key and decrypts it with the passphrase you provide.
+  </Step>
+
+  <Step title="Derive the public key">
+    ```bash
+    openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
+    ```
+
+    If the private key is encrypted, `openssl` asks for the passphrase here.
+  </Step>
+
+  <Step title="Register the public key on the Snowflake user">
+    Open `rsa_key.pub`, and copy the body **without** the `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----` lines and without line breaks. Then, as a user with `SECURITYADMIN` (or ownership of the target user):
+
+    ```sql
+    ALTER USER BOW_SVC SET RSA_PUBLIC_KEY='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...';
+    ```
+
+    Verify it registered:
+
+    ```sql
+    DESC USER BOW_SVC;
+    -- the RSA_PUBLIC_KEY_FP property should now hold a fingerprint
+    ```
+  </Step>
+
+  <Step title="Keep the private key safe">
+    <Warning>
+      `rsa_key.p8` is a credential. Store it in your secret manager and delete any working copies. Never register the private key with `ALTER USER` — only the public key goes to Snowflake.
+    </Warning>
+  </Step>
+</Steps>
+
+## Step 2 — Add the connection in Bag of words
+
+Go to **Data Sources → Add data source → Snowflake** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `account` | Yes | — | Account identifier, for example `ABCDEF-GHIJKL`. Not the full `.snowflakecomputing.com` hostname. |
+| `warehouse` | Yes | — | Warehouse used for compute on every query. |
+| `database` | Yes | — | Database to connect to. |
+| `schema` | Yes | — | Schema to index. Accepts a **comma-separated list** (`SALES, MARKETING, FINANCE`); the first entry is used as the connection's default schema. |
+| `role` | No | — | Optional Snowflake role to activate for the connection. Leave blank to use the user's default role. |
+
+Then choose an authentication method (below), click **Test Connection**, and select the tables the agent may use.
+
+## Authentication modes
+
+Snowflake supports two modes. Both can be used as a **shared** credential for the whole workspace (system scope) or as a **per-user** credential where each person supplies their own (user scope).
+
+<Tabs>
+  <Tab title="Username / Password">
+    | Field | Required | Notes |
+    | :-- | :-- | :-- |
+    | `user` | Yes | Snowflake login name. |
+    | `password` | Yes | The user's password. |
+
+    Straightforward, but not usable for a user on which your account enforces MFA. For service accounts, prefer key pair.
+  </Tab>
+
+  <Tab title="Key Pair (Private Key)">
+    | Field | Required | Notes |
+    | :-- | :-- | :-- |
+    | `user` | Yes | Snowflake login name the public key is registered on. |
+    | `private_key_pem` | Yes | The **full** PEM private key, including the `-----BEGIN ... PRIVATE KEY-----` and `-----END ... PRIVATE KEY-----` lines and the newlines between them. Paste the contents of `rsa_key.p8`. |
+    | `private_key_passphrase` | No | Passphrase that decrypts the key. Leave blank when the key was generated with `-nocrypt`. |
+
+    Bag of words parses the PEM, decrypts it with the passphrase if one is given, and hands the key to the Snowflake driver. No passphrase is sent to Snowflake.
+  </Tab>
+</Tabs>
+
+<Note>
+  Using per-user credentials on a database connector — every person authenticating as themselves rather than through one shared login — requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Invalid Snowflake private key">
+    The PEM did not parse. Check that you pasted the whole file including both `-----BEGIN`/`-----END` lines, that no lines were reflowed or truncated, and that the passphrase field matches how the key was generated. An encrypted key with a blank passphrase, or an unencrypted key with a passphrase set, both fail here.
+  </Accordion>
+
+  <Accordion title="JWT token is invalid / user authentication failed">
+    The public key registered on the Snowflake user does not match the private key you supplied. Re-derive the public key with `openssl rsa -in rsa_key.p8 -pubout`, re-run `ALTER USER ... SET RSA_PUBLIC_KEY='...'`, and confirm `DESC USER` shows a new `RSA_PUBLIC_KEY_FP`. Also confirm the `user` field is the Snowflake **login name**, not an email address, unless they are the same.
+  </Accordion>
+
+  <Accordion title="No tables appear after indexing">
+    The role in use has no `USAGE` on the database or schema, or no `SELECT` on the objects. Check the `role` field — with it blank, the user's default role applies, which may be more restrictive than you expect. Also confirm the `schema` names are spelled as they appear in Snowflake; they are matched in uppercase.
+  </Accordion>
+
+  <Accordion title="Object does not exist or not authorized on the warehouse">
+    The connecting role lacks `USAGE` on the warehouse named in the `warehouse` field, or the warehouse is suspended and the role cannot resume it. Grant `USAGE` (and `OPERATE` if auto-resume is off).
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Connecting data sources](/data-sources/connecting)
+- [Authentication](/data-sources/authentication)
+- [SQL databases](/data-sources/connectors/databases)

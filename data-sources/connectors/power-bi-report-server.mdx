@@ -1,0 +1,95 @@
+---
+title: "Power BI Report Server"
+description: "Connect an on-premises Power BI Report Server and query its reports, datasets, and PBIX models"
+icon: "server"
+---
+
+Bag of words connects to an on-premises **Power BI Report Server (PBIRS)** over its REST API at `/Reports/api/v2.0/` using **NTLM** authentication. It discovers Power BI (`.pbix`) reports, paginated (RDL) reports, shared datasets, KPIs, and the upstream data-source lineage behind them, and lets the agent query the ones that are queryable.
+
+<Note>
+  The Power BI Report Server connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+Bag of words signs in with a Windows account, then enumerates the report server catalog and builds one schema entry per asset. Entries are prefixed by kind so the agent knows what it is looking at:
+
+| Catalog entry | What it is | Queryable |
+| :-- | :-- | :-- |
+| `pbix:<Report>` | A Power BI report — the umbrella entry, carrying its data sources, upstream lineage, model tables, relationships, and DAX measures | No (metadata only) |
+| `pbix:<Report>/<Table>` | An internal table inside the report's semantic model | Yes, via SQL |
+| `rdl:<Report>/<Dataset>` | A dataset inside a paginated (RDL) report, including its backing SQL (`command_text`) | Yes, via CSV export |
+| `dataset:<Name>` | A shared dataset (`.rsd`) | Yes |
+| `kpi:<Name>` | A KPI tile (current value, goal, status) | No (metadata only) |
+
+### PBIX semantic models are a cached snapshot
+
+Power BI Report Server has no `executeQueries` endpoint like the cloud service, so DAX cannot be run against an embedded `.pbix` model. Instead, Bag of words downloads the `.pbix`, extracts its Vertipaq tables to **Parquet**, and queries them with **DuckDB**. All tables from the same report are registered in one DuckDB session, so the agent can join them with plain SQL using the internal table names shown in the schema.
+
+<Warning>
+  The data you query is a **snapshot of the last PBIX refresh**, not live upstream data. When the answer must be current, connect the report's upstream source (SQL Server, a file share, and so on) as its own data source instead — the `pbix:<Report>` entry lists that source in its metadata.
+</Warning>
+
+The Parquet cache is keyed by report ID **and** last-modified date, so editing and re-publishing a report invalidates it automatically. Caches are also warmed on a schedule so the first question about a large report does not stall. Auto-generated internal date tables (`LocalDateTable_*`, `DateTableTemplate_*`) are filtered out. Reports larger than 200 MB, and individual model tables above 5 million rows, are skipped rather than materialized.
+
+DAX **measures** are captured as metadata but cannot be executed — they are expressions, not data. The agent rewrites them as SQL over the extracted columns when you ask for a measure-like aggregate.
+
+## Before you start
+
+- The report server's web portal URL, reachable from Bag of words over HTTP(S).
+- A Windows account that can sign in to the report server and browse the folders you want to expose. It may be a domain account (`DOMAIN\user`) or a local machine account.
+- If the server uses a certificate issued by an internal CA, the CA bundle file must be readable on the Bag of words host.
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Power BI Report Server**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `server_url` | Yes | — | Base URL of the report server, e.g. `http://pbi.example.com` or `http://pbi.example.com/Reports`. Both forms work — the `/Reports/api/v2.0` API path is derived for you. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate. Disable only for self-signed test servers. |
+| `ca_bundle_path` | No | — | Path to a custom CA bundle for internal certificates. Use this instead of turning `verify_ssl` off when the server's certificate comes from a private CA. |
+
+**Test Connection** authenticates, reads `/System`, and counts the catalog. A successful test reports the product name and version along with how many Power BI reports, paginated reports, shared datasets, and KPIs were found.
+
+## Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password (NTLM)** | `system` and `user` | `username` (required), `password` (required), `domain` (optional) |
+
+- `username` — the Windows username. It may already include a domain prefix (`DOMAIN\user`) or be a local machine user.
+- `password` — the Windows password.
+- `domain` — optional Windows domain (AD domain or workgroup/machine name). If you leave it blank and the username has no domain prefix, NTLM authenticates against the local machine.
+
+Because the mode is available at both scopes, you can either configure **one shared service account** for the whole workspace (`system`) or require **each user to supply their own Windows credentials** (`user`), so the report server applies that person's own permissions. Per-user credentials on a connector like this require Enterprise — see [Authentication](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Test Connection reports an authentication failure">
+    The server answered but rejected the credentials. Check the username, password, and especially the **domain**: a local machine account needs the machine name as the domain (or a `MACHINE\user` username), while an AD account needs the AD domain.
+  </Accordion>
+
+  <Accordion title="Test Connection reports the server cannot be reached">
+    The `/System` endpoint was not reachable. Verify `server_url` (both `http://host` and `http://host/Reports` are accepted), that the host is routable from Bag of words, and — for HTTPS with an internal CA — that `ca_bundle_path` points at a valid bundle.
+  </Accordion>
+
+  <Accordion title="TLS certificate errors on an internal CA">
+    Set `ca_bundle_path` to the CA bundle file rather than disabling `verify_ssl`. Turning verification off should be reserved for throwaway test servers.
+  </Accordion>
+
+  <Accordion title="A PBIX report shows up but has no queryable tables">
+    Some reports have nothing to materialize: the report exceeds the 200 MB limit, every model table is above the 5 million row cap, or the file has no embedded semantic model (for example a thin report over a shared dataset). The `pbix:<Report>` entry still carries the upstream data sources — connect one of those directly to query live data.
+  </Accordion>
+
+  <Accordion title="Query results look stale">
+    Expected: PBIX queries run against the Parquet snapshot taken from the last published/refreshed `.pbix`. Republishing or refreshing the report changes its modified date, which invalidates the cache on the next query.
+  </Accordion>
+
+  <Accordion title="Shared datasets endpoint returns nothing">
+    `/Datasets` only lists standalone shared datasets. Models embedded inside a `.pbix` never appear there — they are discovered from the report itself as `pbix:<Report>/<Table>` entries.
+  </Accordion>
+</AccordionGroup>
+
+For the cloud service, see [Power BI](/data-sources/connectors/power-bi).

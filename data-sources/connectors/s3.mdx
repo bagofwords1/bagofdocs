@@ -1,0 +1,113 @@
+---
+title: "Amazon S3"
+description: "Expose an S3 bucket (or a prefix within it) to the agent as a searchable file catalog"
+icon: "aws"
+---
+
+The **Amazon S3** connector points Bag of words at a bucket, optionally scoped to a key prefix. The agent lists objects, greps them, and reads them — including inside PDF, Word, PowerPoint, Excel and CSV — and can attach an object to a report. Objects too large to load whole can be read in byte-range windows.
+
+<Note>
+  This connector is in **beta**. Fields and behavior may change between releases.
+</Note>
+
+<Tip>
+  S3 appears under the database category in the add-connection grid, but it is a **file** connection: the agent sees files and reads them, it does not write SQL against them.
+</Tip>
+
+## How it works
+
+Bag of words builds a file catalog from the bucket. It uses the same parsing and search pipeline as [Files and Directories](/data-sources/connectors/files-and-directories), with object-store-appropriate limits:
+
+- **`list_files`** — a bounded `ListObjectsV2` under the prefix.
+- **`read_file`** — `GetObject`, with `.csv`/`.tsv`/`.xlsx`/`.xls` parsed into tables and `.pdf`/`.docx`/`.pptx` text-extracted.
+- **Windowed reads** — a byte-range `GetObject` for objects too large to load whole (logs, ndjson, big CSVs).
+- **`grep_files`** — line-level grep with an explicit file, byte and time budget, and a resumable cursor.
+
+There is no live full-content search: a content scan over an object store is one `GetObject` per key, so keyword search runs against the indexed catalog instead. Writes are not supported.
+
+Everything is confined to `bucket` + `prefix`. A file id is the key **relative to the prefix**, and any id that escapes it is rejected.
+
+## Before you start
+
+- The bucket exists, and you know its **region** (or the endpoint of your S3-compatible store).
+- The credential you will use can call `s3:ListBucket` on the bucket and `s3:GetObject` on the keys you want to expose. Scope the IAM policy to the prefix you are connecting.
+- For a non-AWS store (MinIO, Cloudflare R2, Wasabi), you have its endpoint URL and a matching access key pair.
+- For **AWS Default Chain** or a role assumed without static keys, the backend host must already carry credentials — an instance profile, IRSA, or the standard environment/config files.
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source → Amazon S3** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `bucket` | Yes | — | Bucket name, e.g. `my-company-reports`. |
+| `prefix` | No | — | Key prefix that scopes the connection, e.g. `reports/2025/`. All listing and reads are confined to it. Blank means the whole bucket. |
+| `region` | No | — | AWS region of the bucket, e.g. `us-west-2`. Recommended — it avoids a redirect on the first call. |
+| `endpoint_url` | No | — | Custom endpoint for S3-compatible stores (MinIO, Cloudflare R2, Wasabi). Leave blank for AWS. |
+| `include_globs` | No | — | Comma- or newline-separated glob patterns relative to the prefix, e.g. `docs/**/*.pdf`, `**/*.csv`, `reports/**`. When set, only matching objects are visible **and** readable. `**` crosses sub-prefixes, `*` matches one segment. |
+| `recursive` | No | `true` | Enumerate keys below the prefix when listing and indexing. |
+| `max_file_mb` | No | `100` | Reject whole-object reads above this size. Windowed byte-range reads are exempt. |
+| `index_mode` | No | `content` | How much is cached from the bucket — see below. |
+| `max_catalog_objects` | No | `5000` | Cap on objects indexed into the catalog, so a huge bucket cannot produce an unbounded catalog. |
+
+<Note>
+  `allowed_extensions` and `index_content` are **deprecated**. Use `include_globs` with a pattern like `**/*.pdf` instead of `allowed_extensions`, and `index_mode` instead of `index_content`.
+</Note>
+
+### Indexing modes
+
+Reads are always live; `index_mode` only decides what is cached ahead of time.
+
+| Mode | What is cached | Use when |
+| :-- | :-- | :-- |
+| `none` | Nothing — listing and reads go live. | The bucket is huge or highly volatile. |
+| `metadata` | The object list only. | You want a fast catalog without content search. |
+| `content` | The object list plus extracted keywords, so the agent can find objects by topic. | The default. |
+
+## Authentication modes
+
+All three modes are **system-scope only** — one shared credential serves every user of the connection. There is no per-user sign-in for S3; restrict who can use the connection with access rules instead. See [Authentication and access](/data-sources/authentication).
+
+### AWS Access Key (`aws_keys`)
+
+The default. Static IAM credentials.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key id. |
+| `secret_key` | Yes | AWS secret access key. |
+| `session_token` | No | Session token, for temporary credentials. |
+
+### AWS Assume Role (STS) (`aws_role`)
+
+Bag of words calls `sts:AssumeRole` and uses the returned temporary credentials.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `role_arn` | Yes | ARN of the IAM role to assume for bucket access. |
+| `access_key` | No | Access key id used to assume the role. Leave blank to use the instance profile / IRSA. |
+| `secret_key` | No | Secret access key used to assume the role. Leave blank to use the instance profile / IRSA. |
+
+### AWS Default Chain (`aws_default`)
+
+No fields. Bag of words uses the standard AWS credential chain on the backend host — environment variables, shared config, instance profile, or IRSA. Use this when the deployment already has an AWS identity and you do not want to store keys in the product.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No objects appear even though the bucket is not empty">
+    Check `include_globs` — patterns are matched relative to `prefix`, so a pattern that repeats the prefix will never match. Also confirm `recursive` is on if the objects sit below sub-prefixes.
+  </Accordion>
+
+  <Accordion title="Access denied on read but listing works">
+    The credential has `s3:ListBucket` but not `s3:GetObject` on those keys, or the object is outside `include_globs` — an off-glob key is denied, not just hidden.
+  </Accordion>
+
+  <Accordion title="A large object cannot be read">
+    Whole-object reads above `max_file_mb` are rejected. Ask the agent for a windowed read, or raise the limit.
+  </Accordion>
+
+  <Accordion title="Only part of a large bucket is catalogued">
+    The bucket exceeded `max_catalog_objects`. Narrow the connection with `prefix` or `include_globs` rather than raising the cap.
+  </Accordion>
+</AccordionGroup>

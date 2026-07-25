@@ -1,0 +1,270 @@
+---
+title: "SAP"
+description: "Connect SAP HANA, SAP BW, SAP Datasphere, and SAP BusinessObjects to Bag of words"
+icon: "database"
+---
+
+Bag of words ships four SAP connectors. They are complementary rather than alternatives: each reaches a different layer of the SAP landscape, with its own catalog, query language, and security model. This page covers all four — pick the one that matches the system you want to query, or connect several.
+
+| Connector | What it reaches | Query language | Per-user security |
+| :-- | :-- | :-- | :-- |
+| **SAP HANA** | HANA, HANA Cloud, and Datasphere Open SQL schemas — tables and views over the SQL port | SQL | HANA analytic privileges, per database user |
+| **SAP BW (XMLA)** | BW / BW4HANA InfoProviders and BEx queries as XMLA cubes | MDX | Analysis authorizations, per signed-in SAP user |
+| **SAP Datasphere** | The Datasphere semantic layer — analytic models with measures and dimensions | OData query options | Data Access Controls, per user token |
+| **SAP BusinessObjects** | On-prem universes (the BOBJ semantic layer) via `/biprws` | Result-object selection (no SQL) | Universe security profiles and CMS rights, per logged-on user |
+
+<Note>
+  Server-side row-level security in SAP — Data Access Controls, analytic privileges, analysis authorizations, universe security profiles — is only enforced when the query runs under the end user's own identity. A single shared technical account collapses all of it to one identity. For any protected object, use the connector's **per-user** authentication mode. Per-user authentication on database-style connectors requires an Enterprise license; see [Authentication](/data-sources/authentication).
+</Note>
+
+---
+
+## SAP HANA
+
+Plain SQL against the HANA SQL port via SAP's official `hdbcli` driver. Covers on-premise HANA, HANA Cloud, and SAP Datasphere's **Open SQL** schema — where views marked *Expose for Consumption* appear in the space schema and are queried like any other view.
+
+### How it works
+
+Bag of words connects with the configured database user and introspects `SYS.TABLE_COLUMNS` / `SYS.VIEW_COLUMNS` (joined to `SYS.TABLES` / `SYS.VIEWS` for comments, plus `SYS.CONSTRAINTS` for primary keys). Tables **and views** are both first-class — Datasphere exposes only views. If the enriched introspection fails on a low-privilege user, it falls back to a minimal query without comments or keys.
+
+Unless you scope the connection to specific schemas, HANA's own and SAP-delivered schemas are filtered out of discovery: `SYS`, `SYSTEMDB`, `PUBLIC`, `UIS`, `HANA_XS_BASE`, `SAP_XS_LM`, and anything starting with `_SYS`, `SAP_`, `XSSQLCC`, `HDI_`, or `BROKER_`.
+
+Each object is exposed to the agent as `SCHEMA.OBJECT`. The agent writes HANA SQL; unquoted identifiers fold to uppercase, so mixed-case Datasphere view names have to be double-quoted exactly as the schema shows them.
+
+### Before you start
+
+- The SQL port must be reachable from the Bag of words backend host: `443` for HANA Cloud and Datasphere, `3<instance>13` or `3<instance>41` on-premise.
+- A database user with `SELECT` on the objects you want. For Datasphere, that is a **space database user** such as `MYSPACE#ANALYST`, created in the space's database-access settings.
+- For Datasphere, the views must be marked **Expose for Consumption** — nothing else is readable in the Open SQL schema.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | SQL endpoint host. For HANA Cloud / Datasphere, the instance hostname (`….hanacloud.ondemand.com`). |
+| `port` | No | `443` | `443` for HANA Cloud / Datasphere; `3<instance>13` or `3<instance>41` on-premise. |
+| `database` | No | *(empty)* | Tenant database name when connecting through the system database of a multitenant HANA. Leave empty for HANA Cloud / Datasphere. |
+| `schema` | No | *(empty)* | A schema, or a comma-separated list. For Datasphere, the space schema. Leave empty to discover all non-system schemas. |
+| `encrypt` | No | `true` | Connect over TLS. Required for HANA Cloud and Datasphere; disable only for on-premise systems without TLS. |
+| `verify_ssl` | No | `true` | Verify the server certificate. Disable for certificates signed by an internal CA the backend host does not trust. |
+
+### Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password** | System and per-user | `user` — database user (for Datasphere, a space user such as `MYSPACE#ANALYST`); `password` |
+
+Shared (system) use puts one database user behind every query. Per-user use has each person supply their own HANA user, so HANA analytic privileges apply to them individually.
+
+<Warning>
+  The Open SQL / HANA SQL path authenticates as a **database user**, which is a weaker per-user story than Datasphere's OData consumption API with a per-user OAuth token. If Data Access Controls matter for a model, query it through the **SAP Datasphere** connector instead.
+</Warning>
+
+### Troubleshooting
+
+- **Connection fails outright** — the message is the raw driver error. Check host, port, and whether TLS is expected (`encrypt`).
+- **No tables discovered** — the user has no `SELECT` anywhere outside the filtered system schemas, or (Datasphere) no views are exposed for consumption. Set `schema` explicitly if your objects live in a schema whose name matches one of the filtered prefixes.
+- **Object not found at query time** — mixed-case or dotted names must be double-quoted exactly as shown in the schema, for example `"MySpace"."Sales Orders View"`.
+
+---
+
+## SAP BW (XMLA)
+
+BW / BW4HANA InfoProviders and BEx queries, queried with **MDX** over BW's standard XMLA web service. No RFC SDK is involved — XMLA is plain SOAP over HTTP — and unlike the BW-OData path there is no "one structure per query" limit.
+
+### How it works
+
+Bag of words builds the endpoint URL from the server base URL plus the XMLA ICF path, then speaks the same XMLA contract as every other XMLA source:
+
+1. `DBSCHEMA_CATALOGS` for catalogs, `MDSCHEMA_CUBES` for the InfoProviders and released queries in each.
+2. `MDSCHEMA_HIERARCHIES` and `MDSCHEMA_MEASURES` for each cube — BW characteristics become dimension columns, key figures become measure columns.
+3. XMLA `Execute` for MDX at query time.
+
+Each InfoProvider/query is a schema table named `Catalog/Cube`. BW technical names are not guessable, so the agent references characteristics and key figures by the `metadata.unique_name` recorded during discovery.
+
+**Analysis authorizations (RSECADMIN) are enforced by BW's OLAP processor for the identity that runs the query.** That only produces correct row-level results when the connection uses per-user credentials.
+
+### Step 1 — Activate the XMLA service in SICF
+
+This is the prerequisite most BW connections trip over. The BW XMLA provider is an **ICF service** that is not necessarily active on a given system — and it is less emphasised in newer BW/4HANA releases, so verify it rather than assume it.
+
+<Steps>
+  <Step title="Activate the service node">
+    In transaction **SICF**, navigate to the service path and activate it:
+
+    ```text
+    /sap/bw/xml/soap/xmla
+    ```
+
+    Its WSDL is served at the same URL with `?wsdl` appended — a quick way to confirm the node is live.
+  </Step>
+  <Step title="Allow Basic authentication on the node">
+    The connector authenticates with **HTTP Basic** against the ICF node. Make sure the node's logon procedure accepts it.
+  </Step>
+  <Step title="Release the queries for external access">
+    BEx queries must be released for external access to appear as XMLA cubes. A query that exists in BW but is not released will not be discovered.
+  </Step>
+</Steps>
+
+<Tip>
+  Prefer a released BEx query's cube over the raw InfoProvider when one exists — it carries the intended restricted and calculated key figures.
+</Tip>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | BW application server base URL, e.g. `https://bw.example.com:44300`. The XMLA path is appended automatically; `https://` is assumed if you omit the scheme. |
+| `xmla_path` | No | `/sap/bw/xml/soap/xmla` | ICF path of the XMLA web service. The default suits standard systems. |
+| `sap_client` | No | *(empty)* | SAP client/mandant, e.g. `100`. Appended to the endpoint as `sap-client=`. |
+| `sap_language` | No | *(empty)* | Logon language, e.g. `EN`. Appended as `sap-language=`. |
+| `catalog` | No | *(empty)* | A single InfoProvider/catalog to scope discovery to. Leave empty to discover all visible catalogs. |
+| `verify_ssl` | No | `true` | Verify the server certificate. Disable only for internal CAs the backend host does not trust. |
+
+### Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **SAP User / Password (Basic)** | System and per-user | `username` — SAP user name; `password` |
+
+Use **per-user** whenever analysis authorizations matter: each person provides their own SAP credentials, the MDX runs under their named SAP user, and BW restricts the result server-side. A shared system user returns whatever that one account is entitled to see, for everyone.
+
+### Troubleshooting
+
+- **HTTP 404** — reported as *"nothing serves XMLA at this URL path"*, with the hint that the BW path is usually `/sap/bw/xml/soap/xmla`. Activate the node in SICF, or correct `xmla_path`.
+- **HTTP 401 / 403** — the endpoint was found but the credentials or the authentication scheme were rejected. Check the SAP user, and that the ICF node accepts Basic authentication.
+- **Connected, but 0 catalogs** — reported as *"No InfoProviders/queries visible to this user — check the user's analysis authorizations and that queries are released for external access."*
+- **DNS or timeout errors** — the endpoint URL never resolved or nothing answered; these are reported separately from HTTP failures so you can tell a network problem from a path problem.
+
+---
+
+## SAP Datasphere
+
+The Datasphere **semantic layer** — analytic models with measures, dimensions, and server-side aggregation — over the OData Consumption API. This is the governed path; the SAP HANA connector above reaches the same tenant's raw Open SQL views instead.
+
+### How it works
+
+1. Authenticates with OAuth against the tenant's auth server (client credentials for a technical user, or a per-user token from the authorization-code flow).
+2. Crawls the catalog `assets` collection — one call spans every authorized space — following `@odata.nextLink` paging, optionally filtered to the spaces you name.
+3. Reads each asset's OData `$metadata` and classifies every property as a **measure** (SAP analytics annotation, or a numeric EDM type as fallback) or a **dimension**.
+4. Queries the analytical OData endpoint at request time. Measures aggregate **server-side** over the dimensions in `$select`; `$filter`, `$orderby`, and `$top` work as usual, and analytic-model variables are passed as `(P='v')/Set` parameters.
+
+Each model is a schema table named `Space/Model`. The agent writes OData query options — no SQL, DAX, or MDX.
+
+### Before you start
+
+- Objects must be marked **Expose for Consumption** in Datasphere; nothing else appears in the catalog.
+- An OAuth client from **Administration → App Integration** in the Datasphere tenant. That page also shows the tenant's **token** and **authorize** URLs — copy them from there rather than constructing them.
+- For per-user sign-in, a second OAuth client of purpose **Interactive Usage** whose redirect URI is your Bag of words callback.
+
+### Step 1 — Create the OAuth clients
+
+<Steps>
+  <Step title="Create the Technical User client">
+    In **Administration → App Integration**, add an OAuth client for **API Access** with a technical-user (client credentials) purpose. Copy its **client ID** and **client secret**, plus the **Token URL** shown on the page.
+  </Step>
+  <Step title="(Per-user only) Create the Interactive Usage client">
+    Add a second OAuth client with the **Interactive Usage** purpose and this redirect URI:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Copy its client ID and secret into the **OAuth Client ID / OAuth Client Secret** fields, and the page's **Authorization URL** into `authorization_url`. If you leave the OAuth client fields blank, the technical-user client is used for sign-in instead.
+  </Step>
+  <Step title="Check the API path prefix">
+    Older tenants serve the consumption APIs under `/api/v1/dwc/…`; newer tenants use `/api/v1/datasphere/consumption/…`. Both are configurable on the connection — see the fields below.
+  </Step>
+</Steps>
+
+<Warning>
+  A model protected by **Data Access Controls** returns an *empty* result to a technical user rather than an error. If a model that clearly has data comes back with no rows, query it with per-user authentication.
+</Warning>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Consumption host, e.g. `mytenant.us10.hcs.cloud.sap` — no scheme, no path. |
+| `token_url` | Yes | — | Token endpoint from Administration → App Integration, e.g. `https://<subdomain>.authentication.<region>.hana.ondemand.com/oauth/token`. |
+| `authorization_url` | No | *(empty)* | Authorize endpoint, needed only for per-user sign-in, e.g. `https://<subdomain>.authentication.<region>.hana.ondemand.com/oauth/authorize`. |
+| `space` | No | *(empty)* | Space ID(s), comma-separated, to scope discovery. Empty discovers every accessible space. |
+| `catalog_path` | No | `/api/v1/dwc/catalog` | Base path of the catalog API. Newer tenants may use `/api/v1/datasphere/consumption/catalog`. |
+| `consumption_path` | No | `/api/v1/dwc/consumption` | Base path of the consumption (data) API. Newer tenants may use `/api/v1/datasphere/consumption`. |
+| `verify_ssl` | No | `true` | Verify the server certificate. Disable only for test endpoints with self-signed certificates. |
+
+### Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Technical User (OAuth client credentials)** | System only | `client_id`, `client_secret` — the technical-user client. Optional `oauth_client_id` / `oauth_client_secret` — the Interactive Usage client used for per-user sign-in; blank falls back to the technical-user client. |
+| **Sign in with SAP (per-user)** | Per-user only | None — each user signs in through the authorization-code flow and their delegated token is stored for them. |
+
+The technical user drives discovery, indexing, and shared queries. Per-user sign-in is what makes Data Access Controls apply, so use it for anything protected.
+
+### Troubleshooting
+
+- **"Authentication failed"** — the client-credentials grant was refused. Re-check `token_url`, the client ID, and the secret.
+- **"Authenticated, but catalog listing failed"** — the token is good but the catalog path is wrong. Try the newer `/api/v1/datasphere/consumption/catalog` prefix.
+- **Connected, 0 exposed assets** — the message points at the three causes: the OAuth client's scoped roles, space membership, and whether objects are marked *Expose for Consumption*.
+- **A model returns no rows** — most often a Data Access Control filtering everything out for a technical user. Switch that connection to per-user sign-in.
+
+---
+
+## SAP BusinessObjects
+
+On-prem **universes** (the BOBJ semantic layer) through the `/biprws` RESTful Web Service SDK. Each universe becomes one schema table whose columns are its dimensions/attributes and measures; the agent selects **result objects** and BusinessObjects generates and runs the query, applying the universe's security for the logged-on user. There is no SQL to write.
+
+### How it works
+
+1. Logs on at `POST /biprws/logon/long` and caches the returned `X-SAP-LogonToken`, which is resent (double-quoted, as the BI Platform contract requires) on every subsequent call.
+2. Enumerates universes with `GET /biprws/sl/v1/universes`, paging by offset.
+3. Reads each universe's outline (`GET /biprws/sl/v1/universes/{id}`) and flattens it into columns — measures become `role=measure`, dimensions/attributes/details become `role=dimension`. Filters and predefined conditions are skipped because they are not result objects. A universe whose detail cannot be read still appears, with no columns, rather than failing the whole crawl.
+4. Runs queries by posting a query specification naming the universe and its result objects.
+
+### Before you start
+
+- The **RESTful Web Service SDK must be deployed and reachable** on the BusinessObjects web tier — that is what serves `/biprws`. It is a separate web application from the BI Launch Pad; if it was not deployed, no URL under `/biprws` exists and every call 404s. Typical web-tier ports are Tomcat `8080` and WACS `6405`, over TLS.
+- Universes must be published to the repository to be discoverable.
+- A CMS account resolvable through the authentication plugin you intend to use — or, for **Trusted Authentication**, the shared secret (see below).
+
+### Step 1 — Choose the logon method
+
+<Tabs>
+  <Tab title="Username / password">
+    Pick the CMS authentication plugin in the `auth_type` field: `secEnterprise` (native), `secLDAP`, `secWinAD` (Active Directory), or `secSAPR3` (SAP). Each resolves to a named CMS user, and that named user drives all security. `secSAPR3` aliases the BO user to an SAP/BW account, which is useful when a universe sits on top of a BW connection.
+  </Tab>
+  <Tab title="Trusted Authentication">
+    Trusted Authentication logs a **named user on without their password** — the shared secret authenticates the calling application, and the user to act as is named in the request. Because it bypasses the credential-plugin check, it works no matter which SSO BusinessObjects itself runs (Kerberos/AD, SAML, or SAP).
+
+    Enable it in **CMC → Authentication → Enterprise → Trusted Authentication**, then use the generated shared secret (the value distributed as `TrustedPrincipal.conf`).
+
+    <Warning>
+      The shared secret lets Bag of words log on as **any** named user. Treat it as a high-privilege credential, restrict it to the accounts you intend, and rotate it in the CMC if it is ever exposed.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Web tier base URL, e.g. `https://boserver:6405`. The base path is appended automatically; `https://` is assumed if you omit the scheme. |
+| `base_path` | No | `/biprws` | Base path of the RESTful Web Service SDK. The default suits standard deployments. |
+| `verify_ssl` | No | `true` | Verify the server certificate. Disable only for internal CAs the backend host does not trust. |
+
+### Authentication modes
+
+| Mode | Scope | Fields |
+| :-- | :-- | :-- |
+| **Username / Password (secEnterprise / LDAP / AD / SAP)** | System and per-user | `username`; `password`; `auth_type` — one of `secEnterprise` (default), `secLDAP`, `secWinAD`, `secSAPR3`. Any other value is rejected before the logon is attempted. |
+| **Trusted Authentication (per-user, no password)** | System and per-user | `trusted_user` — the named BusinessObjects user to log on as; `shared_secret` — from CMC → Authentication → Enterprise → Trusted Authentication. |
+
+Both modes can be shared or per-user. Universe security profiles and CMC object rights are enforced against the logged-on named identity in either case — trusted authentication produces a genuine named-user session, so nothing is bypassed.
+
+### Troubleshooting
+
+- **"Authentication failed: Logon failed: HTTP …"** — the logon call itself was refused. For username/password, check the `auth_type` plugin matches how the account is defined. For trusted auth, check the shared secret and that Trusted Authentication is enabled in the CMC.
+- **"Logon succeeded but no X-SAP-LogonToken was returned"** — the endpoint answered but is not the RESTful Web Service SDK. Verify `base_path` and that `/biprws` is deployed on that web tier.
+- **"Logged on, but universe listing failed"** — the session is valid but `/sl/v1/universes` failed; the Semantic Layer part of the SDK is the thing to check.
+- **Connected, 0 universes** — reported with the causes: the user's rights, and whether universes are published to the repository.
