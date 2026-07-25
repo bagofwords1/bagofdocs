@@ -1,0 +1,102 @@
+---
+title: "Email"
+description: "Give the analyst its own mailbox — send answers by email and (optionally) receive questions"
+icon: "envelope"
+---
+
+The Email integration gives the Bag of words analyst **its own mailbox** (e.g., `analyst@acme.com`) — like a teammate with an inbox. BOW connects **outbound** to that one mailbox: it **sends** via SMTP and, optionally, **reads** incoming mail via IMAP. It never exposes an inbound port and never logs in as your end users.
+
+- **Outbound only** — the analyst sends answers, scheduled reports, and notifications by email.
+- **Inbound enabled** — the mailbox becomes a full channel: users email the analyst a question and get an answer back, with the conversation saved as a BOW report.
+
+## Authentication options
+
+Basic Auth (passwords) is being phased out by Microsoft and Google, so BOW authenticates to cloud mailboxes with **OAuth over IMAP/SMTP (XOAUTH2)**. Pick the method matching your environment:
+
+| Your environment | Auth method in BOW |
+| --- | --- |
+| On-prem Exchange, or any mailbox that still allows IMAP/SMTP passwords | **Username & password** |
+| Microsoft 365 / Exchange Online | **Microsoft 365 (OAuth app-only)** |
+| Google Workspace | **Google Workspace (service account)** |
+
+<Note>
+  The mailbox credential is separate from your SSO sign-in config — same tenant, but a distinct, least-privilege credential. Don't reuse the Entra/Google app you configured for user login.
+</Note>
+
+Everything is configured at **Settings → Integrations → Email** in BOW.
+
+---
+
+## Option A: Microsoft 365
+
+**You need:** Entra admin (app registration \+ consent) and Exchange admin (mailbox grant). ~10 minutes.
+
+### Step 1: Create the mailbox
+
+In the Microsoft 365 admin center, create the address. A **shared mailbox** (`analyst@acme.com`) is ideal — it's free (no license), has no interactive sign-in, and app-only access works on it.
+
+### Step 2: Register an Entra application
+
+1. Go to **Microsoft Entra admin center → Identity → Applications → App registrations → New registration**.
+2. Name it (e.g., "BOW Analyst Mailbox"), choose **Accounts in this organizational directory only**, and click **Register**.
+3. From the app's **Overview**, copy the **Directory (tenant) ID** and **Application (client) ID**.
+
+### Step 3: Add the mail permissions (Exchange Online, not Graph)
+
+1. In the app → **API permissions → Add a permission → APIs my organization uses** → search **Office 365 Exchange Online**.
+2. Choose **Application permissions** and add:
+   - `SMTP.SendAsApp` — to send mail
+   - `IMAP.AccessAsApp` — to read mail (only needed for inbound)
+3. Click **Grant admin consent** (required — there's no user to consent for app-only access).
+
+### Step 4: Create a client secret
+
+**Certificates & secrets → New client secret** → copy the **Value** immediately.
+
+### Step 5: Scope the app to this one mailbox
+
+By default the app could access any mailbox — this restricts it to just the analyst's. In **Exchange Online PowerShell** (`Connect-ExchangeOnline`):
+
+```powershell
+# Register the app's service principal in Exchange.
+# ObjectId is the *Enterprise application* object id, NOT the App registration object id.
+New-ServicePrincipal -AppId <APPLICATION_CLIENT_ID> -ObjectId <ENTERPRISE_APP_OBJECT_ID> -DisplayName "BOW Analyst Mailbox"
+
+# Grant read access to only this mailbox.
+Add-MailboxPermission -Identity analyst@acme.com -User <SERVICE_PRINCIPAL_ID> -AccessRights FullAccess
+
+# Allow sending as this mailbox.
+Add-RecipientPermission -Identity analyst@acme.com -Trustee <SERVICE_PRINCIPAL_ID> -AccessRights SendAs
+```
+
+### Step 6: Connect in BOW
+
+In **Settings → Integrations → Email**, choose **Microsoft 365**, and enter the mailbox address, **Tenant ID**, **Client ID**, and **Client Secret**. Toggle **inbound** on if the analyst should receive questions by email. SMTP/IMAP hosts default to Office 365 automatically.
+
+---
+
+## Option B: Google Workspace
+
+**You need:** Google Workspace super admin. ~10 minutes.
+
+1. Create the mailbox user (e.g., `analyst@acme.com`) in the Google Admin console, and make sure IMAP is allowed for it.
+2. In a Google Cloud project, create a **service account** and a **JSON key**.
+3. Enable **domain-wide delegation** for the service account: in the Google Admin console (**Security → Access and data control → API controls → Domain-wide delegation**), add the service account's client ID with the scope `https://mail.google.com/`.
+4. In **Settings → Integrations → Email** in BOW, choose **Google Workspace**, enter the mailbox address, and paste the **service account JSON**. Toggle **inbound** on if desired. SMTP/IMAP hosts default to Gmail automatically.
+
+---
+
+## Option C: Username & password
+
+For on-prem Exchange or providers that still allow IMAP/SMTP passwords (or app passwords):
+
+1. In **Settings → Integrations → Email**, choose **Username & password**.
+2. Enter the **SMTP host/port/username/password** (and security mode — STARTTLS, SSL, or none).
+3. For inbound, enter the **IMAP host/port/credentials** and toggle inbound on.
+
+---
+
+## How it's used
+
+- **Outbound**: the analyst sends answers, notifications, and scheduled report deliveries from the mailbox, as `From: Bag of words Analyst <analyst@acme.com>` (the display name is configurable).
+- **Inbound** (if enabled): users email the analyst directly. BOW polls the inbox, matches the sender to a BOW account by email address, runs the question with that user's permissions, and replies in the same email thread. Each thread maps to a BOW report, same as chat channels.

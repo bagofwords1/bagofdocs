@@ -1,0 +1,98 @@
+---
+title: "Google Chat"
+description: "Chat with the analyst from Google Chat — outbound-only Pub/Sub connection, no public URL required"
+icon: "google"
+---
+
+The Google Chat integration lets users in your Google Workspace domain DM the Bag of words analyst directly from Google Chat. It uses **Google Cloud Pub/Sub**: Google publishes chat events to a topic in your GCP project, and BOW **pulls** them over an outbound connection.
+
+<Note>
+  Because BOW pulls events outbound, **your server never needs to be reachable from the internet** — no public URL, no inbound firewall rules. This makes Google Chat a good fit for locked-down enterprise deployments.
+</Note>
+
+## Capabilities
+
+- **Direct messages** — users DM the analyst app one-on-one in Google Chat.
+- **Threaded replies** — answers land in a thread on the user's message; replying continues the same conversation and report.
+- **Auto-linking by email** — Google vouches for the sender's email, so users whose email matches a BOW account are linked automatically on first message.
+- **Status feedback** — the bot posts a 👀 _"Working on it…"_ message while processing and removes it when the answer is ready.
+- **Report links** — every conversation is saved as a BOW report, with a link posted in the thread.
+
+---
+
+## How to integrate
+
+You'll need admin access to BOW, a Google Cloud project, and permission to configure a Chat app for your Workspace domain.
+
+<Warning>
+  Use a **dedicated Google Cloud project** for this integration. In particular, never enable the _"Make this Chat app available as a Google Workspace add-on"_ option — switching a Chat app to add-on mode is effectively irreversible and will break Pub/Sub event delivery for the project.
+</Warning>
+
+### Step 1: Create a project and enable the APIs
+
+1. In the [Google Cloud Console](https://console.cloud.google.com), create a new project (e.g., `bow-chat`).
+2. Enable two APIs for the project (**APIs & Services → Enable APIs**):
+   - **Google Chat API**
+   - **Cloud Pub/Sub API**
+
+### Step 2: Create the Pub/Sub topic
+
+1. Go to **Pub/Sub → Topics → Create Topic** and name it (e.g., `bow-chat-events`).
+2. On the topic's **Permissions** tab, click **Add Principal** and grant:
+   - **Principal**: `chat-api-push@system.gserviceaccount.com` (Google's Chat service account)
+   - **Role**: **Pub/Sub Publisher**
+
+<Note>
+  If your organization enforces the **Domain Restricted Sharing** policy, this grant will fail with "IAM policy update failed" because the principal is outside your domain. A project admin can override the `iam.allowedPolicyMemberDomains` policy at the **project** level (set it to _Allow all_), apply the grant, and optionally restore the policy — the check happens at write time only.
+</Note>
+
+### Step 3: Create the subscription
+
+1. Go to **Pub/Sub → Subscriptions → Create Subscription**.
+2. Name it (e.g., `bow-chat-events-sub`), select the topic from Step 2, and keep **Delivery type: Pull**.
+3. Note the full subscription name — you'll paste it into BOW:
+   ```text
+   projects/YOUR-PROJECT-ID/subscriptions/bow-chat-events-sub
+   ```
+
+### Step 4: Create a service account for BOW
+
+1. Go to **IAM & Admin → Service Accounts → Create Service Account** (e.g., `bow-chat-sa`).
+2. Grant it the **Pub/Sub Subscriber** role (on the project, or just on the subscription).
+3. Open the service account → **Keys → Add Key → Create new key → JSON**, and download the key file.
+
+### Step 5: Configure the Chat app
+
+1. Go to **APIs & Services → Google Chat API → Configuration**.
+2. Fill in the app identity:
+   - **App name** (e.g., "BOW"), **Avatar URL**, and **Description**
+3. Under **Interactive features**:
+   - Toggle interactive features **On**
+   - Enable **Receive 1:1 messages**
+4. Under **Connection settings**, select **Cloud Pub/Sub** and enter the **topic** name from Step 2 (`projects/YOUR-PROJECT-ID/topics/bow-chat-events`).
+5. Under **Visibility**, make the app available to your domain (or specific people/groups).
+6. Set **App status** to **Live** and click **Save**.
+
+### Step 6: Connect in BOW
+
+1. In BOW, go to **Settings → Integrations** and open the **Google Chat** integration.
+2. Paste the full **subscription name** from Step 3 and the **service account JSON** key from Step 4.
+3. Click **Connect**. BOW validates the credentials by performing a real pull against the subscription before saving.
+
+---
+
+## How to use
+
+1. In Google Chat, start a DM with the app (search for its name under **Apps**).
+2. Send a question. If your email matches a BOW account you're linked automatically; the bot confirms once.
+3. The bot posts 👀 _"Working on it…"_ in the thread, then replies with the answer and a link to the full report, removing the working marker when done.
+4. Reply in the thread to continue the conversation — follow-ups extend the same report.
+
+<Note>
+  Google Chat messages are capped at ~4,000 characters; longer answers are split across messages. Charts and data files are summarized in the thread with a link to the full report in BOW, since Google Chat apps can't upload files with app credentials.
+</Note>
+
+## Troubleshooting
+
+- **"bow is not responding"** — check the topic's **Metrics** tab for publish requests. If Google isn't publishing at all, check **Cloud Logging** for `ChatAppLogEntry` errors, and verify the app is **not** in Workspace add-on mode (see the warning above — if it is, create a fresh project).
+- **Nothing arrives in BOW** — verify `chat-api-push@system.gserviceaccount.com` has **Publisher on the topic** (not Subscriber on the subscription), and that the BOW service account has **Subscriber** on the subscription.

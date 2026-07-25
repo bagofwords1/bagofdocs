@@ -1,0 +1,122 @@
+---
+title: "Slack"
+description: "Let users ask data questions via Slack DMs and channel mentions — no public URL required with Socket Mode"
+icon: "slack"
+---
+
+The Slack integration installs a bot into your Slack workspace so users can chat with the Bag of words analyst directly from Slack — in DMs or by @mentioning the bot in channels. Each Slack user is linked to their BOW account, so every query runs with that user's permissions (see the [Channels Overview](/channels/overview) for the shared model).
+
+## Capabilities
+
+- **Direct messages and channel @mentions** — DM the bot one-on-one, or @mention it in a public channel.
+- **The Slack Agent experience** — BOW registers as a Slack Agent: users get **suggested prompts** (sourced from your agents' conversation starters), a native **"is thinking…"** status while the bot works, and threaded agent conversations in the bot's Messages tab.
+- **Threaded conversations** — every reply lands in a thread, and each thread maps to a single BOW report. Replying in a thread continues the same conversation.
+- **Visual feedback** — 👀 means processing, ✅ means done.
+- **Rich responses** — text, charts, and data files (CSV) delivered directly in Slack.
+- **Permission-aware** — channel mentions query only public agents; DMs also include the user's private agents.
+
+## Connection modes
+
+| Mode | How it works | Requirements |
+| --- | --- | --- |
+| **Socket Mode** (default, recommended) | BOW opens an outbound WebSocket to Slack and receives events over it | No public URL, no signing secret |
+| **HTTP webhook** | Slack posts events to your BOW server's webhook URL | Publicly reachable BOW URL \+ signing secret |
+
+Socket Mode is the default for new setups — it works behind firewalls and VPNs since nothing needs to reach your server from the internet. Existing webhook-based integrations keep working unchanged.
+
+---
+
+## How to integrate (Socket Mode)
+
+You'll need admin access to BOW and permission to create apps in your Slack workspace.
+
+### Step 1: Create a Slack App
+
+1. Go to the [Slack API dashboard](https://api.slack.com/apps) and click **Create New App** → **From scratch**.
+2. Enter an **App Name** (e.g., "BOW") and pick your workspace, then click **Create App**.
+
+### Step 2: Add Bot Token Scopes
+
+In **OAuth & Permissions → Bot Token Scopes**, add:
+
+- `app_mentions:read` — see channel messages that @mention the bot
+- `assistant:write` — power the Agent experience (suggested prompts, status)
+- `chat:write` — send messages
+- `files:read`, `files:write` — receive and send files
+- `im:history`, `im:read`, `im:write` — direct messages
+- `reactions:read`, `reactions:write` — 👀 / ✅ status reactions
+- `users:read`, `users:read.email` — map Slack users to BOW accounts by email
+
+### Step 3: Enable the Agent experience
+
+1. In your app's settings, go to **Agents & AI Apps** (under _Features_) and toggle it **On**.
+2. This lets the bot appear as an Agent in Slack — with suggested prompts and a native thinking status in its Messages tab.
+
+<Note>
+  Third-party Agents are available on all paid Slack plans. On the free plan the bot still works as a regular app — you just won't get suggested prompts or the thinking status.
+</Note>
+
+### Step 4: Enable Socket Mode and get the App-Level Token
+
+1. Go to **Socket Mode** (under _Settings_) and toggle **Enable Socket Mode** on.
+2. You'll be prompted to create an **App-Level Token** — name it (e.g., "socket"), give it the `connections:write` scope, and click **Generate**.
+3. Copy the token that starts with `xapp-`. This is your **App Token**.
+
+### Step 5: Subscribe to events
+
+1. Go to **Event Subscriptions** and toggle it **On**. With Socket Mode enabled there is no Request URL to configure.
+2. Under **Subscribe to bot events**, add:
+   - `message.im` — direct messages to the bot
+   - `app_mention` — @mentions in channels
+   - `app_home_opened` — lets BOW show suggested prompts when a user opens the bot
+3. Click **Save Changes**.
+
+### Step 6: Install the app and get the Bot Token
+
+1. Go to **OAuth & Permissions** and click **Install to Workspace**, then authorize it.
+2. Copy the **Bot User OAuth Token** that starts with `xoxb-`. This is your **Bot Token**.
+
+### Step 7: Connect in BOW
+
+1. In BOW, go to **Settings → Integrations** and open the **Slack** integration.
+2. Select **Socket Mode** as the connection mode (the default).
+3. Paste the **Bot Token** (`xoxb-...`) and the **App Token** (`xapp-...`), then click **Connect**.
+4. BOW validates both tokens and opens the socket connection. The integration shows as connected.
+
+---
+
+## Alternative: HTTP webhook mode
+
+If you prefer Slack to deliver events over HTTPS (your BOW server must be publicly reachable):
+
+1. Skip Step 4 above (leave Socket Mode off).
+2. In **Event Subscriptions**, set the **Request URL** to:
+   ```text
+   https://YOUR-BOW-URL.com/api/settings/integrations/slack/webhook
+   ```
+   Slack will verify the URL and show a green checkmark.
+3. Copy the **Signing Secret** from **Basic Information → App Credentials**.
+4. In the BOW Slack modal, select **HTTP webhook** as the connection mode and paste the **Bot Token** and **Signing Secret**.
+
+---
+
+## How to use
+
+### Account linking
+
+If a user's Slack email matches their BOW account email, they are **linked automatically** on first contact — the bot confirms with a short message. Otherwise, the bot replies with a one-time verification link. (Auto-linking can be disabled in the integration settings.)
+
+### Direct messages
+
+1. Open the bot from the **Apps** section in Slack. With the Agent experience enabled you'll see suggested prompts at the top of the Messages tab — click one, or type your own question.
+2. The bot adds 👀, shows an "is thinking…" status, and replies in a thread with the answer (text, charts, and data files), swapping 👀 for ✅ when done.
+3. Reply in the thread to continue the same conversation — follow-ups extend the same report.
+
+### Channel @mentions
+
+1. In any public channel, @mention the bot with your question (e.g., "@BOW what were last month's sales?").
+2. The bot responds in a thread on your message. Reply in the thread to continue.
+
+<Note>
+  When using channel mentions, only public agents are queried since responses are visible to everyone in the channel. For access to private agents, use DMs instead.
+</Note>
