@@ -18,7 +18,7 @@ This is what lets a shared MCP connection stay permission-aware: one connection,
 
 ```text
 X-User-Email: dana@acme.com
-X-Employee-Id: elbit_nt\45812
+X-Employee-Id: acme\1234
 ```
 
 **Tool arguments** — the identity is merged into a named argument on every tool call, for servers that expect it in the payload rather than the transport:
@@ -43,7 +43,7 @@ Each forwarded field draws its value from one of these — and only these:
 The `static:` form is how you build composite values a service expects:
 
 ```text
-static:elbit_nt\{membership.attr:employeeId}
+static:acme\{membership.attr:employeeId}
 ```
 
 <Note>
