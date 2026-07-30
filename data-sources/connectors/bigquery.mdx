@@ -27,7 +27,6 @@ This identity is the shared credential — it indexes the datasets and, unless y
   <Step title="Create the service account">
     In the [Google Cloud Console](https://console.cloud.google.com) → **IAM & Admin → Service Accounts → Create service account**. Name it something like `bow-bigquery`.
   </Step>
-
   <Step title="Grant it BigQuery roles">
     Grant, at project level or on the specific datasets:
 
@@ -36,7 +35,6 @@ This identity is the shared credential — it indexes the datasets and, unless y
 
     Bag of words only issues reads, so a viewer-level data role is sufficient and recommended.
   </Step>
-
   <Step title="Create a JSON key">
     On the service account → **Keys → Add key → Create new key → JSON**. The file downloads once.
 
@@ -56,7 +54,6 @@ For **Sign in with Google**, Bag of words needs a Google Cloud **OAuth 2.0 clien
   <Step title="Create the OAuth 2.0 client ID">
     In the Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**. Choose **Web application** as the type.
   </Step>
-
   <Step title="Add the redirect URI">
     Under **Authorized redirect URIs**, add:
 
@@ -66,11 +63,9 @@ For **Sign in with Google**, Bag of words needs a Google Cloud **OAuth 2.0 clien
 
     Replace `<your-bow-host>` with your Bag of words base URL.
   </Step>
-
   <Step title="Copy the client ID and secret">
     These go into the `oauth_client_id` and `oauth_client_secret` fields on the connection. Without both, per-user sign-in cannot start.
   </Step>
-
   <Step title="Check the consent screen scope">
     Bag of words requests the read-only BigQuery scope, `https://www.googleapis.com/auth/bigquery.readonly`, plus offline access so the token can be refreshed. Make sure that scope is allowed on your OAuth consent screen. If the app is in **Testing** status, add each user as a test user, or publish it internally.
   </Step>
@@ -106,9 +101,9 @@ The `oauth_client_id` and `oauth_client_secret` fields live alongside it: they a
 
 ### Sign in with Google
 
-Each user clicks **Connect** on the data source and completes a Google sign-in. Their token carries the read-only BigQuery scope, so discovery and queries run with **their own** BigQuery permissions — dataset-level access, row-level security, and audit logs all resolve to that person rather than the shared service account.
+Each user clicks **Connect** on the data source and completes a Google sign-in. Their token carries the read-only BigQuery scope, so discovery and queries run with **their own** BigQuery permissions — dataset-level access, row-level security, and audit logs all resolve to that person rather than the shared service account. Google access tokens last about an hour; Bag of words refreshes them automatically, so users sign in once.
 
-To force this, enable **Require user authentication** on the data source. Indexing and schema refresh, which have no user in context, continue to run as the service account.
+To force this, enable **Require user authentication** on the connection. With `oauth_client_id` set, OAuth is added to the allowed sign-in methods automatically, and each person's **Connect** click goes straight to Google's consent screen and back. Indexing and schema refresh, which have no user in context, continue to run as the service account.
 
 <Note>
   Per-user authentication on a database connector requires an Enterprise license. See [Authentication](/data-sources/authentication).
