@@ -12,6 +12,7 @@ Every connection authenticates in one of two ways. The choice determines whose p
   <Card title="Shared credentials" icon="users">
     One credential set, configured once by an admin. Everyone who can use the data source queries through it. The default.
   </Card>
+
   <Card title="Per-user authentication" icon="user-lock">
     Each user supplies their own credentials or signs in with their own account. Queries run with that person's permissions in the source system.
   </Card>
@@ -42,11 +43,11 @@ Separately, a number of connectors are Enterprise-only in their entirety, regard
 Which methods a connector offers is set by the connector itself; each connector page lists its own. The recurring ones:
 
 | Method | How it works | Typical connectors |
-|---|---|---|
+| --- | --- | --- |
 | Username and password | Credentials stored encrypted, used for every query | Most databases |
 | Key pair / certificate | A private key instead of a password | Snowflake, Salesforce |
 | Service account | A machine identity (JSON key, client secret, PAT) | BigQuery, Power BI, Databricks, Tableau |
-| OAuth (per-user) | Each user signs in with their own account; BOW stores and refreshes their token | Power BI, Fabric, SharePoint, OneDrive, Google Drive, ServiceNow, SAP Datasphere, MCP |
+| OAuth (per-user) | Each user signs in with their own account; BOW stores and refreshes their token | Power BI, Fabric, Snowflake, SharePoint, OneDrive, Google Drive, ServiceNow, SAP Datasphere, MCP |
 | Kerberos | The service's own ticket, from a keytab on the host | SQL Server |
 | Kerberos delegated (per-user) | The service impersonates the caller via constrained delegation — no stored secret | SQL Server |
 | API key / token | A single header token | Splunk, Zabbix, PostHog, Timbr, MCP, Custom API |
@@ -83,7 +84,7 @@ This exists so admins can curate a catalog, run indexing, and verify a connectio
 
 ## Access control on top of authentication
 
-Authentication decides *whose* permissions apply. Two other layers decide who can reach the data source at all:
+Authentication decides _whose_ permissions apply. Two other layers decide who can reach the data source at all:
 
 - **Members** — who in your organization can use this data source, set on the data source's settings tab.
 - **Tool policies** — for MCP and Custom API connections, each tool is `allow`, `ask`, or `deny`, resolved per user. See [MCP connections](/data-sources/mcp).
@@ -94,6 +95,7 @@ Authentication decides *whose* permissions apply. Two other layers decide who ca
   <Card title="SQL Server Kerberos SSO" icon="key-round" href="/data-sources/connectors/sql-server">
     Constrained delegation with protocol transition, step by step.
   </Card>
+
   <Card title="Power BI per-user access" icon="chart-column" href="/data-sources/connectors/power-bi">
     Delegated OAuth against a Power BI tenant.
   </Card>

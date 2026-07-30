@@ -4,7 +4,7 @@ description: "Connect a Snowflake warehouse so the agent can explore its schemas
 icon: "snowflake"
 ---
 
-Bag of words connects to Snowflake with the standard Snowflake driver, reads the tables, views, and semantic views in the schemas you point it at, and runs SQL against a warehouse you choose. You can authenticate with a username and password, or with **key pair (RSA) authentication**, which is the option most Snowflake accounts require once MFA is enforced on human users.
+Bag of words connects to Snowflake with the standard Snowflake driver, reads the tables, views, and semantic views in the schemas you point it at, and runs SQL against a warehouse you choose. You can authenticate with a username and password, with **key pair (RSA) authentication** — the option most Snowflake accounts require once MFA is enforced on human users — or per-user with **Sign in with Snowflake** (OAuth), where each person signs in with their own Snowflake account and queries run under their own role and permissions.
 
 ## How it works
 
@@ -49,7 +49,6 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
 
     Either form works. Bag of words accepts a PKCS#8 PEM private key and decrypts it with the passphrase you provide.
   </Step>
-
   <Step title="Derive the public key">
     ```bash
     openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
@@ -57,7 +56,6 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
 
     If the private key is encrypted, `openssl` asks for the passphrase here.
   </Step>
-
   <Step title="Register the public key on the Snowflake user">
     Open `rsa_key.pub`, and copy the body **without** the `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----` lines and without line breaks. Then, as a user with `SECURITYADMIN` (or ownership of the target user):
 
@@ -72,7 +70,6 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
     -- the RSA_PUBLIC_KEY_FP property should now hold a fingerprint
     ```
   </Step>
-
   <Step title="Keep the private key safe">
     <Warning>
       `rsa_key.p8` is a credential. Store it in your secret manager and delete any working copies. Never register the private key with `ALTER USER` — only the public key goes to Snowflake.
@@ -80,7 +77,46 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
   </Step>
 </Steps>
 
-## Step 2 — Add the connection in Bag of words
+## Step 2 — Create an OAuth security integration (per-user sign-in only)
+
+Skip this step unless you want **Sign in with Snowflake** — per-user OAuth where each person queries as themselves.
+
+Snowflake acts as its own OAuth authorization server: you register Bag of words as a client with a **security integration**, then save the integration's client ID and secret on the connection.
+
+<Steps>
+  <Step title="Create the security integration">
+    As `ACCOUNTADMIN` (or a role with `CREATE INTEGRATION`):
+
+    ```sql
+    CREATE SECURITY INTEGRATION BOW_OAUTH
+      TYPE = OAUTH
+      ENABLED = TRUE
+      OAUTH_CLIENT = CUSTOM
+      OAUTH_CLIENT_TYPE = 'CONFIDENTIAL'
+      OAUTH_REDIRECT_URI = 'https://<your-bow-host>/api/connections/oauth/callback'
+      OAUTH_ISSUE_REFRESH_TOKENS = TRUE
+      OAUTH_REFRESH_TOKEN_VALIDITY = 7776000;  -- 90 days, the maximum
+    ```
+
+    The redirect URI must match your Bag of words host exactly and must use HTTPS — for a local or non-TLS deployment, add `OAUTH_ALLOW_NON_TLS_REDIRECT_URI = TRUE`.
+  </Step>
+  <Step title="Read the client ID and secret">
+    ```sql
+    SELECT SYSTEM$SHOW_OAUTH_CLIENT_SECRETS('BOW_OAUTH');
+    ```
+
+    Copy `OAUTH_CLIENT_ID` and one of the `OAUTH_CLIENT_SECRET` values — they go into the connection's **OAuth Client ID** and **OAuth Client Secret** fields in Step 3.
+  </Step>
+  <Step title="Check the roles users will sign in with">
+    A Snowflake OAuth session cannot use `ACCOUNTADMIN` or `SECURITYADMIN` (they are on the integration's blocked-roles list by default). With the connection's **Role** field blank, each token is bound to the user's **default role**, so that role needs `USAGE` on the warehouse, database, and schemas. If you set a **Role** on the connection, Bag of words requests the `session:role:<ROLE>` scope so the token authorizes exactly that role — users still need the role granted to them.
+  </Step>
+</Steps>
+
+<Note>
+  `OAUTH_ISSUE_REFRESH_TOKENS = TRUE` is what lets Bag of words renew the short-lived access token (about 10 minutes) without asking the user to sign in again. When the refresh token itself expires — 90 days at most — the user reconnects.
+</Note>
+
+## Step 3 — Add the connection in Bag of words
 
 Go to **Data Sources → Add data source → Snowflake** and fill in the form.
 
@@ -96,7 +132,7 @@ Then choose an authentication method (below), click **Test Connection**, and sel
 
 ## Authentication modes
 
-Snowflake supports two modes. Both can be used as a **shared** credential for the whole workspace (system scope) or as a **per-user** credential where each person supplies their own (user scope).
+Snowflake supports three modes. Username/password and key pair can be used as a **shared** credential for the whole workspace (system scope) or as a **per-user** credential where each person supplies their own (user scope). **Sign in with Snowflake** is per-user only: each person authorizes through Snowflake's own sign-in and consent screens, and their token is stored and refreshed for them.
 
 <Tabs>
   <Tab title="Username / Password">
@@ -107,7 +143,6 @@ Snowflake supports two modes. Both can be used as a **shared** credential for th
 
     Straightforward, but not usable for a user on which your account enforces MFA. For service accounts, prefer key pair.
   </Tab>
-
   <Tab title="Key Pair (Private Key)">
     | Field | Required | Notes |
     | :-- | :-- | :-- |
@@ -117,7 +152,21 @@ Snowflake supports two modes. Both can be used as a **shared** credential for th
 
     Bag of words parses the PEM, decrypts it with the passphrase if one is given, and hands the key to the Snowflake driver. No passphrase is sent to Snowflake.
   </Tab>
+  <Tab title="Sign in with Snowflake (OAuth)">
+    Per-user only, and requires the security integration from Step 2. Users fill in **no fields** — clicking **Connect** on the data source sends them to Snowflake's sign-in (password, MFA, and the consent screen), and Bag of words stores and auto-refreshes their token.
+
+    The integration's client belongs on the connection's **system credentials**, next to the shared username/password or key pair:
+
+    | Field | Required | Notes |
+    | :-- | :-- | :-- |
+    | `oauth_client_id` | Yes | `OAUTH_CLIENT_ID` from `SYSTEM$SHOW_OAUTH_CLIENT_SECRETS`. |
+    | `oauth_client_secret` | Yes | An `OAUTH_CLIENT_SECRET` value from the same call. |
+
+    Queries then run as the signed-in person: their Snowflake user, their role (the default role, or the connection's **Role** via the `session:role` scope), their permissions. The shared credential is still used for admin-side indexing and background catalog refresh.
+  </Tab>
 </Tabs>
+
+To force everyone to use their own account, enable **Require user authentication** on the connection. With OAuth configured as the only user auth mode, each person's **Connect** click goes straight to Snowflake's sign-in page and back.
 
 <Note>
   Using per-user credentials on a database connector — every person authenticating as themselves rather than through one shared login — requires an Enterprise license. See [Authentication](/data-sources/authentication).
@@ -140,6 +189,18 @@ Snowflake supports two modes. Both can be used as a **shared** credential for th
 
   <Accordion title="Object does not exist or not authorized on the warehouse">
     The connecting role lacks `USAGE` on the warehouse named in the `warehouse` field, or the warehouse is suspended and the role cannot resume it. Grant `USAGE` (and `OPERATE` if auto-resume is off).
+  </Accordion>
+
+  <Accordion title="OAuth sign-in is not enabled for this connection">
+    The connection is missing `oauth_client_id`/`oauth_client_secret`, or **Require user authentication** is off. Save the security integration's client ID and secret on the connection credentials and enable the toggle — OAuth is then added to the allowed sign-in methods automatically.
+  </Accordion>
+
+  <Accordion title="Snowflake rejects the redirect after sign-in">
+    The `OAUTH_REDIRECT_URI` on the security integration must exactly match `https://<your-bow-host>/api/connections/oauth/callback` — scheme, host, and path. Snowflake also refuses non-HTTPS redirect URIs unless the integration sets `OAUTH_ALLOW_NON_TLS_REDIRECT_URI = TRUE`.
+  </Accordion>
+
+  <Accordion title="Role-related errors on an OAuth session">
+    `ACCOUNTADMIN` and `SECURITYADMIN` are blocked for OAuth sessions by default, so a user whose default role is one of those cannot query until a working role is set. And if the connection pins a **Role** the user does not hold, the `session:role` scope fails — grant the role, or clear the field so each user's default role applies. Users must reconnect after their default role or grants change, since the token is bound to the role it was issued for.
   </Accordion>
 </AccordionGroup>
 
