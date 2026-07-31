@@ -1,0 +1,127 @@
+---
+title: "Overview"
+description: "Prepare a database for agent analysis: a governed, materialized copy that is fast to query and filtered per person"
+icon: "zap"
+keywords: ["bow fast", "custom queries", "cache", "acceleration", "row-level security", "materialization"]
+---
+
+A production database is built for the application that owns it. An agent asking questions of it is a different workload, and often an awkward guest: it explores, it retries, it asks the same thing five ways, and it has no idea which tables are expensive.
+
+BOW Fast prepares a database for that workload. A connection admin defines the queries worth exposing, and BOW re-runs them on a schedule into an encrypted local copy that agents query instead of the source.
+
+<CardGroup cols={2}>
+  <Card title="Custom queries" icon="database" href="/bow-fast/custom-queries">
+    Write the SQL once, put it on a schedule, choose which agents may use it.
+  </Card>
+
+  <Card title="Row-level security" icon="shield-check" href="/bow-fast/row-level-security">
+    Filter one shared copy per person, against their attributes, groups, or roles.
+  </Card>
+</CardGroup>
+
+## What preparing a database buys you
+
+<CardGroup cols={2}>
+  <Card title="The source stops absorbing exploration" icon="server">
+    A legacy Oracle or SQL Server box no longer sees an agent's bursts. One measured six-query agent workload went from 24 statements against the source to none.
+  </Card>
+
+  <Card title="Answers arrive in milliseconds" icon="gauge">
+    A local columnar copy answers in about 1–2 ms where the live source took tens of milliseconds, or over a second on a cloud warehouse.
+  </Card>
+
+  <Card title="The scan bill stops repeating" icon="receipt">
+    Snowflake and BigQuery bill for every scan. An agent's variations read a local file instead of re-scanning gigabytes each time.
+  </Card>
+
+  <Card title="Each person sees their own rows" icon="shield-check">
+    One shared copy, filtered at read time against who is asking — without reproducing the source's permission model by hand.
+  </Card>
+</CardGroup>
+
+There is a fifth benefit that is easy to miss: **the copy speaks full SQL regardless of the source.** Agents get joins, CTEs, and window functions over a cached rollup even when the underlying system supports none of them.
+
+## Curation is the point, not a side effect
+
+The cached relation is not a mirror of a table. It is a query an admin chose to expose, with a name and a description they wrote.
+
+That matters more than the speed. An agent handed 400 raw tables has to guess which ones matter and how they join; an agent handed `revenue_by_region_monthly` with a sentence explaining its grain has the business definition already encoded. The same mechanism that spares the source also narrows what the agent has to reason about.
+
+Agents are told which relations are cached and asked to prefer them over re-deriving the same figures from raw tables.
+
+## What it costs
+
+A refresh is a full run of your SQL against the source. That makes BOW Fast a trade, not a free win:
+
+<Warning>
+  **A copy refreshed more often than it is queried costs more than it saves.** An hourly refresh that nobody queries is 24 full scans a day bought for nothing. Match the interval to how often people actually ask, not to how fresh you wish the data were.
+</Warning>
+
+Measured against live accounts, the break-even is low — roughly **1.8 agent questions per refresh on BigQuery** and **1.0 on Snowflake**. Past that, the copy is cheaper than the source.
+
+Latency, unlike cost, improves unconditionally. Mean time to answer one agent question, six questions per source:
+
+| Source | Live | Cached |
+| --- | --- | --- |
+| BigQuery (213M rows) | 1.37 s | 1.33 ms |
+| Snowflake (60M rows) | 1.45 s | 1.43 ms |
+| PostgreSQL 16 | 33.13 ms | 2.16 ms |
+| SQL Server 2022 | 46.03 ms | 1.45 ms |
+| Oracle Free 23ai | 20.73 ms | 1.66 ms |
+
+The three on-prem engines ran as containers on one machine, so their live figures carry no network latency — treat them as a floor, not as what a database across a VPN will give.
+
+## When not to use it
+
+- The answer must be current to the second. A copy is as fresh as its last refresh, and no fresher.
+- The question genuinely needs the full detail table rather than a rollup or a filtered slice.
+- Nobody asks often enough to earn back the refresh. See the warning above.
+
+## Requirements
+
+1. **The feature is on.** BOW Fast is beta and off by default. An admin enables **Custom queries** under AI settings.
+2. **The connector supports it** (see below).
+3. **The connection uses shared credentials.** On a per-user connection, one materialized copy cannot represent each person's row visibility. [Row-level security](/bow-fast/row-level-security) is how you filter a shared copy instead.
+4. **You have `manage_connection`** on the connection. Activating an existing cached query for a specific agent is a separate, lighter permission — `manage` on that agent.
+
+## Supported connectors
+
+| Connector | Status |
+| --- | --- |
+| PostgreSQL | Verified against a live server |
+| MySQL / MariaDB | Verified against a live server |
+| SQLite | Verified against a live server |
+| Microsoft SQL Server | Verified against a live server |
+| Oracle Database | Verified against a live server |
+| Snowflake | Verified against a live account |
+| Google BigQuery | Verified against a live account |
+| Microsoft Fabric | Implemented, not yet verified |
+| Sybase SQL Anywhere | Implemented, not yet verified |
+
+<Note>
+  The last two are offered but have never been run end to end against a real server. Their SQL and streaming paths are implemented and unit-tested; their cost estimation and query cancellation are not proven. Expect the safeguards to be weaker there, and test on non-critical data first.
+</Note>
+
+Connectors not listed simply do not show the option.
+
+<Note>
+  In the product this feature is labelled **Custom queries (beta)** — that is the name of the setting you enable and the button you click. "BOW Fast" is the capability those custom queries provide.
+</Note>
+
+## Security
+
+The copy is a **DuckDB database file encrypted at rest**, with a per-artifact key stored encrypted alongside the connection. That is a boundary, not just compliance: agent-generated Python cannot read an encrypted DuckDB file with pandas, and the key never enters the sandbox.
+
+Agents can only name relations that were put in their catalog, so an agent cannot reach a cached query it has not been given.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Authentication and Access" icon="lock" href="/data-sources/authentication">
+    Why BOW Fast needs shared credentials, and what per-user auth changes.
+  </Card>
+
+  <Card title="AI Settings" icon="sliders" href="/using-bow/settings">
+    Where an admin turns Custom queries on for the organization.
+  </Card>
+</CardGroup>

@@ -1,0 +1,69 @@
+---
+title: "Row-level security"
+description: "Filter a shared materialized copy per person, against their profile attributes, groups, or roles"
+icon: "shield-check"
+keywords: ["rls", "row-level security", "policy", "grants", "preview as"]
+---
+
+A materialized copy is built once, with the connection's shared credential. It therefore holds every row that credential could see — which is exactly what makes it fast, and exactly what makes it dangerous to hand to everyone.
+
+Row-level security makes that copy safe to share, by filtering it at read time against who is asking.
+
+<Note>
+  This is what lets a single prepared copy serve a whole organization. Without it, the alternative to a shared copy is one copy per audience — N extractions on N schedules, against the source you were trying to protect.
+</Note>
+
+## How a policy is defined
+
+A policy binds a **column in the cached relation** to an **identity source**:
+
+| Identity source | Matches against |
+| --- | --- |
+| `profile.<attribute>` | A synced profile attribute, such as department or office |
+| `user.email` | The person's email address |
+| `groups` | Their group memberships |
+| `roles` | Their roles in Bag of words |
+
+A relation with a `department` column bound to `profile.department` shows each person only the rows for their own department. Someone in two groups sees the union of both.
+
+On top of that, **grants** widen access for specific principals — per group and per role — and a "sees everything" grant exists for the people who need the whole picture.
+
+## Two properties worth knowing
+
+**Enforcement is structural, not a rewritten query.** Agent-generated SQL is arbitrary; subqueries, CTEs, unions and lateral joins give a dozen ways to lose an appended predicate. Instead, each request gets a private catalog containing only the rows that person may read, and the raw copy is detached before any agent SQL runs. There is no unfiltered copy left for a query to reach.
+
+**An unresolved identity sees nothing.** If someone carries no value for the attribute a policy binds to — never signed in through the identity provider, or a background job with no user at all — the default is zero rows rather than all of them. This can be inverted per relation, but it starts closed, because the failure mode of the opposite default is handing over the whole table.
+
+## Testing before you save
+
+**Preview as** runs the policy against a member you choose and shows exactly the rows they would get — before the policy is saved. Use it on someone in a narrow department and someone with a wide grant; the two results together tell you whether the binding is doing what you meant.
+
+## Auditing
+
+Policy changes are recorded in the audit log with both the old and the new rule, so a widening is visible after the fact and attributable.
+
+## Current limits
+
+Phase 1 supports **attribute mode**: a column, an identity source, and per-principal grants. The operator is set membership, which covers equality as the single-value case.
+
+Not yet available:
+
+- SQL-expression policies
+- A conformance check that diffs the filtered copy against the source's own answer under the user's credential
+- Per-group materialization
+
+<Warning>
+  RLS filters the **cached copy**. It does not read the source's own row-level security — if your database already enforces per-user visibility, the copy was built with the shared credential and knows nothing about those rules. Model them here, or use a per-user connection and query live.
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Custom queries" icon="database" href="/bow-fast/custom-queries">
+    Creating the relation a policy applies to.
+  </Card>
+
+  <Card title="Authentication and Access" icon="lock" href="/data-sources/authentication">
+    Shared credentials versus per-user sign-in, and when each is right.
+  </Card>
+</CardGroup>

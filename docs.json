@@ -84,6 +84,15 @@
         ]
       },
       {
+        "group": "BOW Fast",
+        "icon": "zap",
+        "pages": [
+          "bow-fast/overview",
+          "bow-fast/custom-queries",
+          "bow-fast/row-level-security"
+        ]
+      },
+      {
         "group": "Channels",
         "pages": [
           "channels/overview",
