@@ -11,7 +11,7 @@ The **Gmail** and **Outlook Mail** connectors let the agent search and read mess
 </Note>
 
 <Warning>
-  These connectors are **not** the [Email channel](/channels/email). The Email channel gives the Bag of words analyst *its own* mailbox so it can send answers and receive questions — one shared address, configured once by an admin. These connectors do the opposite: they let the agent read *your* mailbox as data. The two are configured separately and can be used together or independently.
+  These connectors are **not** the [Email channel](/channels/email). The Email channel gives the Bag of words analyst _its own_ mailbox so it can send answers and receive questions — one shared address, configured once by an admin. These connectors do the opposite: they let the agent read _your_ mailbox as data. The two are configured separately and can be used together or independently.
 </Warning>
 
 ## How it works
@@ -26,7 +26,7 @@ The agent gets mail-shaped tools rather than file tools:
 | `search_email` | A keyword search across the mailbox. |
 | `read_email` | One message rendered as plain text: subject, from, to, date, then the body (HTML bodies are converted to text). |
 
-| | Gmail | Outlook Mail |
+|  | Gmail | Outlook Mail |
 | :-- | :-- | :-- |
 | API | Gmail API v1 (`https://gmail.googleapis.com/gmail/v1`) | Microsoft Graph (`https://graph.microsoft.com/v1.0`, `/me/messages`) |
 | Admin credential | Google Cloud OAuth client (`oauth_app`) | Entra ID app registration (`service_principal`) |
@@ -158,4 +158,5 @@ Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mai
 
 - [Email channel](/channels/email) — give the analyst its own mailbox to send and receive answers. A different feature from these connectors.
 - [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — same Entra app registration.
+- [OneNote](/data-sources/connectors/onenote) — read Microsoft OneNote notebooks with the same Entra app.
 - [Google Drive](/data-sources/connectors/google-drive) — same kind of Google OAuth client.

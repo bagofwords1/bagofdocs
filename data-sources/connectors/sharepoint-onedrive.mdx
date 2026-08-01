@@ -7,7 +7,7 @@ icon: "microsoft"
 Both connectors read files through **Microsoft Graph** and expose them to the agent as a file catalog — Excel, CSV and documents become searchable and readable. They differ in **whose** files they reach:
 
 - **SharePoint** connects to one site and document library that an admin picks. Everyone who can use the connection sees the same library.
-- **OneDrive** connects to *each user's own* drive. There is nothing for an admin to pick, and no shared catalog exists.
+- **OneDrive** connects to _each user's own_ drive. There is nothing for an admin to pick, and no shared catalog exists.
 
 <Note>
   The SharePoint and OneDrive connectors are part of the **Enterprise Edition**.
@@ -17,12 +17,12 @@ Both connectors read files through **Microsoft Graph** and expose them to the ag
 
 This is the most important difference between the two, and it changes what you configure.
 
-| | SharePoint | OneDrive |
+|  | SharePoint | OneDrive |
 | :-- | :-- | :-- |
 | Catalog ownership | `shared` | `per_user` |
-| What the catalog is | The site + library + folder the admin configured | Each signed-in user's own drive |
+| What the catalog is | The site \+ library \+ folder the admin configured | Each signed-in user's own drive |
 | Config fields | `site_url`, `drive_name`, `folder_path`, `include_globs`, `recursive` | **None** |
-| Who curates it | An admin indexes it once; per-user access filters that one catalog | Nobody — each user's drive *is* their catalog, and no two users share one |
+| Who curates it | An admin indexes it once; per-user access filters that one catalog | Nobody — each user's drive _is_ their catalog, and no two users share one |
 
 Because OneDrive's catalog is per user, there is no admin-side file list to index or curate, and no "select which files the agent may use" step. Each user connects their own account and the agent works against that drive. See [User context and per-user data](/data-sources/user-context).
 
@@ -70,7 +70,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
 
 ## Step 2 — Grant Microsoft Graph permissions
 
-Under **API permissions** → **Add a permission** → **Microsoft Graph**, add the permissions for the connectors you plan to use, then click **Grant admin consent for &lt;tenant&gt;**.
+Under **API permissions** → **Add a permission** → **Microsoft Graph**, add the permissions for the connectors you plan to use, then click **Grant admin consent for \<tenant\>**.
 
 | Connector | Delegated permissions requested at sign-in |
 | :-- | :-- |
@@ -155,6 +155,7 @@ See [Authentication and access](/data-sources/authentication) for how to require
 
 ## Related
 
+- [OneNote](/data-sources/connectors/onenote) — read Microsoft OneNote notebooks over the same Entra app registration.
 - [Gmail and Outlook Mail](/data-sources/connectors/mail) — the same Entra app registration also backs the Outlook Mail connector.
 - [Google Drive](/data-sources/connectors/google-drive) — the Google equivalent of OneDrive.
 - [Files and Directories](/data-sources/connectors/files-and-directories) — for shares mounted on the backend host instead.

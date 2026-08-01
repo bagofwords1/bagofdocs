@@ -1,0 +1,158 @@
+---
+title: "OneNote"
+description: "Search and read Microsoft OneNote notebooks — pages become a searchable catalog the agent can grep and read, embedded images included"
+icon: "microsoft"
+---
+
+The **OneNote** connector reads Microsoft OneNote notebooks through **Microsoft Graph** and exposes their pages to the agent as a searchable catalog. A notebook's hierarchy — notebook, section groups, sections, pages — is flattened into `Notebook/Section/Page` paths, so the agent can list, search, grep, and read pages the same way it works with a file source. Embedded images on a page are extracted and passed to the model when the page is read.
+
+<Note>
+  The OneNote connector is part of the **Enterprise Edition**.
+</Note>
+
+<Warning>
+  OneNote is **delegated-only**. Microsoft retired app-only (service-principal) access to the OneNote Graph APIs on **2025-03-31** with no replacement, so — unlike SharePoint — there is no app-only path that can ever read notebooks. The admin supplies an Entra app registration; each user then signs in, and their own token is what reads pages.
+</Warning>
+
+## How it works
+
+Bag of words calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to walk notebooks, list pages, fetch page HTML, and pull embedded media. The agent gets **note-shaped** tools rather than file tools:
+
+| Tool | What it does |
+| :-- | :-- |
+| `list_notes` | The pages in the catalog, with their full `Notebook/Section/Page` path. |
+| `search_notes` | Keyword search over page titles and paths — good when the user names a notebook, section, or page. |
+| `grep_notes` | A regex/substring sweep over page **bodies** — good for an error string, hostname, ticket id, or any word written inside a page. |
+| `read_note` | One page rendered as text, with its path and any embedded images passed through to the model's vision channel. |
+
+### Shared catalog
+
+Unlike OneDrive (which is per-user), the OneNote catalog is **shared** (`catalog_ownership: shared`). A OneNote deployment is usually a team knowledge base many people can see, so a per-user catalog would index the same notebook once per user and store N copies of identical page text. Instead, the first user to crawl populates the shared catalog; because a per-user crawl may only **add** rows (never prune), everyone else's crawl is skipped by the incremental check when nothing has changed. This also keeps the connection eligible for scheduled reindex.
+
+### Indexing
+
+By default the connector caches page **text** (`index_mode: content`). A page is a few KB of HTML and accounts hold hundreds of pages, not tens of thousands, so caching the body is affordable — and it is the only thing that makes a page findable by a word in its body, because Graph's page-level search does not reach work or school notebooks. Set indexing to titles-only or live-only if you would rather not cache page text.
+
+## Notebook sources
+
+One connection reads notebooks from a single source, chosen with **Notebooks To Read**:
+
+| Source | Reads | Also set |
+| :-- | :-- | :-- |
+| `me` | Each signed-in user's own notebooks. Requires a Microsoft 365 licence — personal notebooks live in OneDrive and are not reachable here. | — |
+| `site` | A SharePoint site's notebooks. | **Site URL** |
+| `group` | A Microsoft 365 group's notebook. | **Group ID** |
+
+Site and group notebooks are the usual home of a shared team knowledge base and need no personal OneDrive.
+
+## Before you start
+
+- A **Microsoft Entra ID app registration** in your tenant, with a client secret.
+- An administrator who can **grant admin consent** for the Graph permissions.
+- Your Bag of words base URL, for the OAuth redirect URI.
+- For a `site` source: the full SharePoint site URL. For a `group` source: the Microsoft 365 group id.
+
+## Step 1 — Register an Entra ID application
+
+<Steps>
+  <Step title="Create the app registration">
+    [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations** → **New registration**. Copy the **Directory (tenant) ID** and **Application (client) ID** from the Overview page.
+  </Step>
+  <Step title="Create a client secret">
+    **Certificates & secrets** → **New client secret**. Copy the value immediately — it is shown once.
+  </Step>
+  <Step title="Add the redirect URI">
+    **Authentication** → **Add a platform** → **Web**:
+
+    ```text
+    https://<your-bow-host>/api/connections/oauth/callback
+    ```
+
+    Replace `<your-bow-host>` with your Bag of words base URL.
+  </Step>
+</Steps>
+
+<Note>
+  If you already registered an app for [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) or [Outlook Mail](/data-sources/connectors/mail), you can reuse it — just add the OneNote permissions below and grant consent again.
+</Note>
+
+## Step 2 — Grant Microsoft Graph permissions
+
+Under **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated permissions**, add the permissions below, then click **Grant admin consent for \<tenant\>**.
+
+| Permission | Why |
+| :-- | :-- |
+| `Notes.Read` | Read the signed-in user's own notebooks. |
+| `Notes.Read.All` | Reach **shared**, site, and group notebooks the user has access to. |
+| `User.Read` | Basic sign-in / profile. |
+| `openid`, `profile` | OpenID Connect sign-in. |
+| `offline_access` | Issue a refresh token so users are not asked to sign in every hour. |
+
+<Warning>
+  Without admin consent, sign-in fails or returns a token with no usable Graph scopes. Omit `offline_access` and no refresh token is issued, so users must re-authenticate whenever the access token expires.
+</Warning>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source** and choose **OneNote**. Enter the app registration credentials, pick a notebook source, and save. Each user then clicks **Connect** on the connection to sign in with their own Microsoft account before the agent can read any pages.
+
+### Configuration fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `notebook_source` | Yes | `me` | Whose notebooks to read: `me`, `site`, or `group` (see [Notebook sources](#notebook-sources)). |
+| `site_url` | If `site` | — | SharePoint site holding the notebooks, e.g. `https://contoso.sharepoint.com/sites/Engineering`. |
+| `group_id` | If `group` | — | Microsoft 365 group id whose notebook to read. |
+| `include_globs` | No | — | Comma- or newline-separated glob patterns bounding which pages are indexed, matched against `Notebook/Section/Page` paths — e.g. `Team Notebook/**` or `**/Troubleshooting*/**`. Blank indexes every notebook the signed-in user can see. |
+| `index_mode` | No | `content` | `content` caches page text (recommended); `metadata` caches titles/paths only; `none` caches nothing and reads pages live. |
+| `max_catalog_objects` | No | `5000` | Safety cap on pages enumerated into one catalog. Truncation keeps the most recently modified pages. |
+
+<Tip>
+  Scope with `include_globs` to the shared notebooks a team actually uses. It keeps personal notebooks out of the org catalog and bounds indexing cost.
+</Tip>
+
+## Authentication
+
+### Sign in with Microsoft — `oauth`
+
+Scopes: **system** and **user**. OneNote has a single authentication mode. Because there is no service-principal variant, the Entra app registration is captured here rather than under a separate credential.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Directory (tenant) ID. |
+| `client_id` | Yes | Application (client) ID of the app registration used for user sign-in. |
+| `client_secret` | Yes | The client secret value from Step 1. |
+
+Each user clicks **Connect** and completes the Microsoft authorization-code flow against this app registration. Discovery and reads then run as that user, so people see only the notebooks their own account can reach.
+
+See [Authentication and access](/data-sources/authentication) for how to require user sign-in on a connection.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The agent says it has no access token">
+    The user has not completed **Connect**. OneNote is delegated-only — there is no shared credential to fall back on, so a notebook is only reachable after the user signs in.
+  </Accordion>
+
+  <Accordion title="Sign-in succeeds but searching returns nothing">
+    `Notes.Read` (own notebooks) or `Notes.Read.All` (shared/site/group notebooks) was not granted or not admin-consented. Check **API permissions** on the app registration.
+  </Accordion>
+
+  <Accordion title="'me' notebooks are empty">
+    The `me` source needs a Microsoft 365 licence — personal (consumer) OneNote notebooks live in OneDrive and are not reachable through this API. Use a `site` or `group` source for a shared team notebook.
+  </Accordion>
+
+  <Accordion title="redirect_uri_mismatch / reply URL mismatch">
+    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your Bag of words base URL exactly.
+  </Accordion>
+
+  <Accordion title="Users must sign in again every hour">
+    `offline_access` is missing from the granted delegated permissions, so no refresh token is issued.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — the same Entra app registration backs both; SharePoint/OneDrive read files rather than notebook pages.
+- [Gmail and Outlook Mail](/data-sources/connectors/mail) — another per-user Microsoft Graph source.
+- [Authentication and access](/data-sources/authentication) — how per-user sign-in works.
