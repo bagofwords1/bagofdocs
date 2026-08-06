@@ -1,7 +1,7 @@
 ---
-title: 'Embed Bow Chat'
-description: 'Use the Bag of Words API to add a Bow-powered chat panel to your own product'
-icon: 'code-2'
+title: "Embed Bow Chat"
+description: "Use the Bag of Words API to add a Bow-powered chat panel to your own product"
+icon: "code-2"
 ---
 
 Use the Bag of Words API to add a Bow-powered chat or completion panel to your own product. Your UI creates or reuses a report, streams a completion with `fetch`, and renders Server-Sent Events as they arrive.
@@ -13,17 +13,39 @@ This guide is for internal tools, trusted admin panels, and backend-proxied prod
 ## What You Need
 
 - A Bag of Words base URL — e.g. `http://localhost:3000` or `https://bow.example.com`
-- A `bow_...` API key created in Bag of Words Settings → API Keys
+- A `bow_...` API key (see [Choosing a credential](#choosing-a-credential) below)
 - Optional data source or agent IDs to attach to the report
 - A browser or backend that can call the Bow API
 
 <Note>
-Do **not** include `/api` in the user-facing base URL. Build the API base internally:
+  Do **not** include `/api` in the user-facing base URL. Build the API base internally:
 
-```ts
-const bowUrl = inputBowUrl.replace(/\/+$/, "").replace(/\/api$/i, "");
-const apiBase = `${bowUrl}/api`;
+  ```ts
+  const bowUrl = inputBowUrl.replace(/\/+$/, "").replace(/\/api$/i, "");
+  const apiBase = `${bowUrl}/api`;
+  ```
+</Note>
+
+### Choosing a credential
+
+Both key types are `bow_...` keys and authenticate identically. Pick based on who owns the integration:
+
+| Credential | Created in | Use it when |
+| --- | --- | --- |
+| **Service account key** | Settings → Service Accounts → _create account_, then _create key_ | The integration is owned by the organization. Recommended for anything long-lived: the key survives staff changes, carries its own org role, is separately revocable, and cannot mint further keys or manage members even if leaked. |
+| **Personal API key** | Settings → API Keys | Prototyping, or a tool that should act as one specific person. The key inherits that user's permissions and dies with their account. |
+
+Send the key either way — both are accepted on every endpoint in this guide:
+
+```http
+Authorization: Bearer bow_...
+X-API-Key: bow_...
 ```
+
+<Note>
+  An API key already identifies its organization, so you do **not** need the `X-Organization-Id` header that browser sessions use. Sending a wrong one overrides the key's org and fails with `404 organization.not_found`.
+
+  Service-account keys report an empty `organizations` array from `/api/users/whoami` — a service account is bound to its org through the account itself, not through a seat-consuming membership. Use `GET /api/mentions/available` as the reachability check for those keys.
 </Note>
 
 ---
@@ -34,11 +56,29 @@ For a **private internal app**, the browser can call Bow directly with an API ke
 
 For a **public app**, proxy requests through your own backend:
 
-```
+```text
 Browser UI → Your backend → Bag of Words API
 ```
 
 Your backend should store the Bow API key, enforce your app's authorization rules, and stream the Bow SSE response back to the browser. Do not expose long-lived Bow API keys in public client-side code.
+
+---
+
+## Allow Your Origin (CORS)
+
+If the browser calls Bow directly, the Bow deployment must allow your page's origin. Cross-origin requests are **rejected by default** — the preflight returns `400` with no `Access-Control-Allow-Origin` header, and the browser reports `Failed to fetch`.
+
+Set the allowed origins on the Bow server (comma-separated, no trailing slash) and restart it:
+
+```bash
+BOW_CORS_ALLOWED_ORIGINS=https://app.example.com,http://localhost:5173
+```
+
+Origins must match scheme, host, and port exactly. `Authorization`, `Content-Type`, and `X-Organization-Id` are already on the allow list, as is `Accept` (a browser-safelisted header), so the streaming request needs no extra configuration once the origin is allowed.
+
+<Note>
+  A backend proxy never hits this: server-to-server calls are not subject to CORS. Leaving `BOW_CORS_ALLOWED_ORIGINS` unset is the safe default for proxied and same-origin deployments.
+</Note>
 
 ---
 
@@ -50,7 +90,7 @@ Your backend should store the Bow API key, enforce your app's authorization rule
 4. Render assistant text, reasoning, tool progress, and errors from the events.
 
 <Note>
-Reports are the scope for data sources. Attach data sources when creating or updating the report — not in the completion prompt mentions.
+  Reports are the scope for data sources. Attach data sources when creating or updating the report — not in the completion prompt mentions.
 </Note>
 
 ---
@@ -95,6 +135,12 @@ async function createReport(apiBase: string, apiKey: string, dataSourceIds: stri
 ## Stream a Completion
 
 Use `fetch`, not `EventSource`, because the completion stream is a `POST` request with custom headers.
+
+The same endpoint serves streaming and non-streaming responses. It streams when **any** of these is true — send `stream: true` and the `Accept` header together for clarity:
+
+- `stream: true` in the request body
+- `Accept: text/event-stream`
+- `?stream=true` in the query string
 
 ```http
 POST /api/reports/{report_id}/completions
@@ -166,7 +212,7 @@ async function streamCompletion(params: {
 
 Bow sends standard Server-Sent Events:
 
-```
+```text
 event: completion.started
 data: {"event":"completion.started","data":{"system_completion_id":"..."}}
 
@@ -273,23 +319,44 @@ function createSseParser(onEvent: (event: BowSseEvent) => void) {
 
 ## Event Reference
 
-Handle unknown events gracefully — the API may add events over time.
+Handle unknown events gracefully — the API may add events over time. A minimal chat only needs `completion.started`, `block.upsert`, `block.delta.token`, `block.delta.text`, the `tool.*` events, and `completion.finished`; the rest are available when you want to render more of the run.
+
+Every frame carries the same envelope — `event`, `data`, `timestamp`, `completion_id`, `agent_execution_id`, `seq` — so `seq` gives you a stable ordering within a run.
+
+### Run lifecycle
 
 | Event | Meaning | UI suggestion |
-|-------|---------|---------------|
-| `completion.started` | The completion run has started | Mark the chat as streaming and store the completion ID |
-| `block.upsert` | A report block was created or updated | Insert or update the matching assistant, reasoning, or tool block |
-| `block.delta.token` | A token-level text delta arrived | Append `payload.token` to the target block field |
-| `block.delta.text` | A full text replacement arrived | Replace the target block field with `payload.text` |
-| `decision.partial` | The model emitted an intermediate reasoning/action decision | Show provisional reasoning or the planned tool/action |
-| `decision.final` | The model finalized a decision or answer | Mark the decision block complete and render final text |
-| `tool.started` | A tool call started | Show a compact running tool row |
-| `tool.progress` | A tool call reported progress | Update the tool row summary or progress details |
-| `tool.finished` | A tool call finished | Mark the tool row success/error and expose result JSON behind a disclosure |
-| `completion.finished` | The completion run finished | Mark the chat success unless the payload reports an error |
-| `completion.error` | Bow reported a completion-level error | Stop streaming and show the error message |
+| --- | --- | --- |
+| `completion.started` | The run has started. `data` carries `system_completion_id`, `user_prompt`, and the resolved `model` | Mark the chat as streaming and store `system_completion_id` — you need it to resume or stop the run |
+| `completion.resumed` | Sent first on a re-attached stream instead of `completion.started` | Treat exactly like `completion.started` |
+| `instructions.context` | The instructions loaded into this run's context | Optional; useful for a "what did the agent know" debug panel |
+| `completion.follow_ups` | Suggested next questions, sent after the answer | Render as clickable chips |
+| `completion.finished` | The run finished. `data.status` is `success`, `error`, or `stopped` | Mark the chat done. **May arrive more than once** for a single run — make this handler idempotent and ignore repeats |
+| `completion.error` | The run failed at the completion level | Stop streaming and show the error message |
 | `llm.error` | The LLM provider or model call failed | Stop streaming and show the error message |
-| `[DONE]` | The SSE stream ended | Close the stream and enable input again |
+| `[DONE]` | The SSE stream ended | Close the stream and re-enable input |
+
+### Text and blocks
+
+| Event | Meaning | UI suggestion |
+| --- | --- | --- |
+| `block.upsert` | A block was created or updated. `data.block` holds the full block, including `title`, `icon`, and `status` | Insert or update the matching assistant, reasoning, or tool block |
+| `block.delta.token` | A token-level delta. Always branch on `data.field` — `content` is the visible answer, `reasoning` is the thinking trace | Append `data.token` to that field |
+| `block.delta.text` | A full replacement for a block field | Replace the field with `data.text` |
+| `block.delta.text.complete` | That field is finished streaming | Stop any typing indicator on the block |
+| `block.delta.artifact` | Incremental changes to a chart or table attached to the block | Optional; re-render the artifact preview |
+| `decision.partial` | An intermediate reasoning/action decision | Show provisional reasoning or the planned tool call |
+| `decision.final` | The decision was finalized. `data.metrics` carries timings and token usage | Mark the decision block complete |
+
+### Tools and artifacts
+
+| Event | Meaning | UI suggestion |
+| --- | --- | --- |
+| `tool.started` | A tool call started (`tool_name`, `arguments`, `tool_call_id`, `block_id`) | Show a compact running tool row |
+| `tool.progress` | Progress within a tool call — expect many per call | Update the tool row summary |
+| `tool.finished` | A tool call finished (`status`, `result_summary`, `result_json`) | Mark the row success/error; keep result JSON behind a disclosure |
+| `query.created` | The agent created a saved query on the report | Optional; link to it |
+| `visualization.created` / `visualization.updated` | A chart or table was created, then filled in once the query ran | Optional; render the visualization inline |
 
 ---
 
@@ -336,13 +403,64 @@ function applyBowEvent(state: ChatState, event: BowSseEvent) {
       state.error = payload.message ?? payload.error ?? JSON.stringify(payload);
       break;
 
+    // Both can arrive more than once — keep this branch idempotent.
     case "completion.finished":
+      if (payload.status === "error") state.status = "error";
+      else if (state.status !== "error") state.status = payload.status ?? "success";
+      break;
+
     case "[DONE]":
-      if (state.status !== "error") state.status = "success";
+      if (state.status === "streaming") state.status = "success";
       break;
   }
 }
 ```
+
+---
+
+## Resume and Stop a Run
+
+A dropped connection does not stop the agent — the run continues server-side. Two endpoints cover the rest of the lifecycle.
+
+**Re-attach to a run in progress** (page refresh, network drop, a second tab). Pass the `system_completion_id` you stored from `completion.started`. The endpoint is idempotent and side-effect free, so it is safe to retry with backoff. It replays the run's blocks, then continues live:
+
+```http
+GET /api/reports/{report_id}/completions/{system_completion_id}/stream
+Authorization: Bearer bow_...
+Accept: text/event-stream
+```
+
+**Actually stop a run.** `AbortController` only closes your side of the socket; the agent keeps working and keeps spending tokens. To cancel the run itself, call:
+
+```http
+POST /api/completions/{system_completion_id}/sigkill
+Authorization: Bearer bow_...
+```
+
+Wire your Stop button to both: `sigkill` to end the run, `AbortController` to release the reader. The run then finishes with `status: "stopped"`.
+
+---
+
+## Non-Streaming and History
+
+Omit the streaming triggers and the same `POST` returns JSON once the run completes, which suits scheduled jobs and server-side summaries. Add `?background=true` to return immediately and let the run continue in the background.
+
+Sending a second prompt while a run is still going starts a **second concurrent run** on the report. If you want the chat to behave like one turn at a time instead, send `"queue": true` — the prompt is stored with `status: "queued"` and starts automatically when the current run finishes. Queued prompts never stream; drop one with `DELETE /api/completions/{completion_id}/queued` while it is still queued.
+
+Both that response and `GET /api/reports/{report_id}/completions` return the **whole conversation envelope**, not a single completion:
+
+```json
+{
+  "report_id": "...",
+  "completions": [{ "id": "...", "role": "system", "status": "success", "completion_blocks": [] }],
+  "latest_completion": "...",
+  "has_more": false,
+  "next_before": null,
+  "total_completions": 4
+}
+```
+
+Read the answer from the last `role: "system"` entry. For history, page with `?limit=` and `?before=` (an ISO timestamp cursor) and follow `has_more` / `next_before`.
 
 ---
 
@@ -379,14 +497,18 @@ Content-Type: application/json
 ## Error Handling
 
 | Status | Meaning |
-|--------|---------|
-| `400` | Invalid request or no default LLM model configured |
-| `401` | Missing or invalid API key |
-| `403` | The key does not have permission for this resource |
-| `404` | Report not found |
-| Network / CORS | The browser could not reach Bow or the server does not allow the origin |
+| --- | --- |
+| `400` | Invalid request, or no default LLM model configured — _"No default LLM model configured. Please go to Settings \> LLM and set a default model."_ |
+| `401` | Missing, invalid, expired, or revoked API key |
+| `403` | The key does not have permission for this resource. Also returned when a service-account key touches identity management (`/api/api_keys`, `/api/service_accounts`) — that is by design |
+| `404` | Report not found, or `organization.not_found` from an `X-Organization-Id` header that does not match the key |
+| Network / CORS | The browser could not reach Bow, or the origin is not in `BOW_CORS_ALLOWED_ORIGINS` |
 | Abort | User stopped the stream — treat as controlled cancellation, not a crash |
 | Malformed SSE | Keep the raw frame and show a debug-friendly parse error |
+
+<Warning>
+  Failures **after** the stream opens do not change the HTTP status — the response is already `200`. A run that fails mid-flight reports it as a `completion.error` or `llm.error` frame, or as `completion.finished` with `status: "error"`. Handle those events, not just `response.ok`.
+</Warning>
 
 ---
 
@@ -424,10 +546,13 @@ curl -N -X POST "$API_BASE/reports/$REPORT_ID/completions" \
 ## Production Checklist
 
 - Proxy public integrations through your backend
+- Use a service-account key, not a personal API key, for anything long-lived
 - Keep Bow API keys server-side for public apps
-- Use `AbortController` for the Stop button
-- Persist report IDs if a chat should resume later
+- Set `BOW_CORS_ALLOWED_ORIGINS` if the browser calls Bow directly
+- Wire the Stop button to `sigkill` **and** `AbortController` — aborting alone leaves the run going
+- Persist the report ID for the conversation and the `system_completion_id` for the run in flight, so a refresh can re-attach
 - Attach data sources through report creation or update
 - Keep `mentions: []` unless your integration intentionally supports Bow prompt mentions
+- Treat `completion.finished` as idempotent — it can arrive more than once
 - Log raw SSE frames for support and debugging
 - Render unknown future events without crashing
