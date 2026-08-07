@@ -352,11 +352,136 @@ Every frame carries the same envelope — `event`, `data`, `timestamp`, `complet
 
 | Event | Meaning | UI suggestion |
 | --- | --- | --- |
-| `tool.started` | A tool call started (`tool_name`, `arguments`, `tool_call_id`, `block_id`) | Show a compact running tool row |
+| `tool.started` | A tool call started (`tool_name`, `arguments`, `tool_execution_id`, `block_id`) | Show a compact running tool row |
 | `tool.progress` | Progress within a tool call — expect many per call | Update the tool row summary |
 | `tool.finished` | A tool call finished (`status`, `result_summary`, `result_json`) | Mark the row success/error; keep result JSON behind a disclosure |
 | `query.created` | The agent created a saved query on the report | Optional; link to it |
 | `visualization.created` / `visualization.updated` | A chart or table was created, then filled in once the query ran | Optional; render the visualization inline |
+
+See [Tool event payloads](#tool-event-payloads) for the exact fields these carry.
+
+---
+
+## Tool Event Payloads
+
+The three `tool.*` events share a stable envelope; everything tool-specific lives in one field per event (`arguments`, `payload`, `result_json`). Build your UI on the envelope and treat the tool-specific field as opaque.
+
+| Field | On | Notes |
+| --- | --- | --- |
+| `tool_name` | all three | e.g. `create_data`, `create_artifact`, `clarify`. New tools appear over time — never switch exhaustively on this |
+| `tool_execution_id` | all three | **The correlation key.** Join `started` → `progress` → `finished` on this |
+| `block_id` | all three | The block this call belongs to, so you can nest the row under the right message |
+| `arguments` | `started` | Tool-specific input object |
+| `payload` | `progress` | Tool-specific progress object, always with a `stage` string |
+| `status`, `result_summary`, `duration_ms`, `result_json` | `finished` | See below |
+
+<Warning>
+  Key tool rows on `tool_execution_id`, not `tool_name`. A single run calls the same tool several times — a dashboard request runs `create_data` once per chart — and keying on the name collapses them into one row.
+</Warning>
+
+### `tool.started`
+
+`arguments` is whatever that tool takes. For `create_data`:
+
+```json
+{
+  "tool_name": "create_data",
+  "tool_execution_id": "7cd0027a-e8e3-402a-880e-afeff6bcb8f3",
+  "block_id": "e8547efa-6f51-4a33-bd42-68af0eea9676",
+  "arguments": {
+    "title": "Total Customers",
+    "user_prompt": "Count the total number of customers in the database.",
+    "interpreted_prompt": "Count the distinct number of rows in the Customer table.",
+    "tables_by_source": [{ "tables": ["Customer"] }],
+    "visualization_type": "count"
+  }
+}
+```
+
+`arguments.title` is a good label for the tool row across most tools.
+
+### `tool.progress`
+
+Expect a dozen or more of these per call. `payload.stage` is the only field guaranteed to be present; the rest describe that stage:
+
+```json
+{
+  "tool_name": "create_data",
+  "tool_execution_id": "7cd0027a-...",
+  "block_id": "e8547efa-...",
+  "payload": { "stage": "executing_code", "attempt": 0 }
+}
+```
+
+A `create_data` call walks through stages such as `init`, `resolving_tables`, `building_context`, `generating_code`, `generated_code`, `executing_code`, `post_execution`, `inferring_visualization`, and `formatting_widget`, carrying extras like `code`, `execution_ms`, `chart_type`, and `series` along the way. Render `stage` as status text; do not branch on the exact set, which is tool-specific and grows.
+
+### `tool.finished`
+
+```json
+{
+  "tool_name": "create_data",
+  "tool_execution_id": "7cd0027a-...",
+  "block_id": "e8547efa-...",
+  "status": "success",
+  "duration_ms": 8237.999,
+  "result_summary": "Created data 'Total Customers' successfully; 1 rows x 1 cols; cols: total_customers; chart: count.",
+  "created_step_id": "a835fb5b-7e4a-48d7-8bc1-4f8bc239a51b",
+  "created_widget_id": null,
+  "created_visualization_ids": ["3f5ea153-80f2-4d6f-a417-9691f434b19e"],
+  "result_json": { "success": true, "code": "...", "data": {}, "view": {} }
+}
+```
+
+- **`result_summary`** is a plain-English sentence the agent writes for exactly this purpose. Render it as the tool row's collapsed label instead of parsing `result_json`.
+- **`created_step_id` / `created_widget_id` / `created_visualization_ids`** link the tool call to the artifacts it produced — this is how you attach a rendered chart to the right tool row. They are `null` for tools that create nothing.
+- **`result_json` is tool-specific and can be large.** For `create_data` it carries the generated Python, every executed query, and the full result rows. Keep it behind a disclosure, do not log it wholesale, and never assume a key exists.
+
+Three tools, three unrelated `result_json` shapes — this is why it has no schema:
+
+| Tool | `result_json` keys |
+| --- | --- |
+| `create_data` | `success`, `code`, `data`, `data_preview`, `data_model`, `view`, `query_id`, `executed_queries`, `execution_log`, `stats`, `errors`, timing fields |
+| `create_artifact` | `artifact_id`, `title`, `version`, `mode`, `code`, `code_preview`, `artifact_preview`, `query_id`, `visualization_ids` |
+| `clarify` | `status`, `query_id`, `created_visualization_ids` |
+
+### Clarify: when the agent asks you a question
+
+`clarify` is the one tool an embedded chat must handle explicitly. When the prompt is ambiguous the agent calls it, and the turn **ends** — `tool.finished` reports `status: "success"` with `result_json.status: "awaiting_response"`, then `completion.finished` and `[DONE]` arrive as usual. Nothing is broken; the agent is waiting on the user.
+
+The questions are in `tool.started`:
+
+```json
+{
+  "tool_name": "clarify",
+  "arguments": {
+    "questions": [
+      { "text": "Which group are you interested in?", "options": ["VIP customers", "Best sellers", "Other…"] },
+      { "text": "What would you like to see about them?", "options": ["A list or ranking", "Sales trends", "Other…"] }
+    ],
+    "context": "User said \"the important ones\" — need to identify which entities they want."
+  }
+}
+```
+
+Render the questions with their `options` as chips, then send the answers as a **new completion** on the same report — that is what resumes the work:
+
+```json
+{ "prompt": { "content": "Q: Which group are you interested in?\nA: VIP customers\n\nQ: What would you like to see about them?\nA: A list or ranking", "mentions": [], "mode": "chat" }, "stream": true }
+```
+
+Optionally persist the raw selections first, so a reload rehydrates the form instead of showing an unanswered question:
+
+```http
+POST /api/completions/{system_completion_id}/tool_executions/{tool_execution_id}/clarify_response
+Authorization: Bearer bow_...
+Content-Type: application/json
+
+{ "selected_chips": ["VIP customers"], "other_texts": [], "free_texts": [] }
+```
+
+It returns `{ "ok": true, "result_json": { "status": "answered", "user_response": {...} } }` — the tool execution flips from `awaiting_response` to `answered`, which is what a re-attached stream replays.
+
+An integration that ignores `clarify` looks like it silently gave up on ambiguous questions. If you do not want to build the form, render the question text and let the user reply in the normal chat input — the plain answer works too.
 
 ---
 
@@ -369,7 +494,7 @@ Keep the UI reducer small:
 - Append `block.delta.token` for assistant text
 - Replace text on `block.delta.text`
 - Show reasoning inside a collapsible disclosure
-- Show tools as compact rows with name, status, and summary
+- Show tools as compact rows keyed by `tool_execution_id`, labelled with `result_summary`
 - Keep raw JSON behind a disclosure for tool payloads
 - Keep the raw SSE log available in a debug tab
 
@@ -391,11 +516,15 @@ function applyBowEvent(state: ChatState, event: BowSseEvent) {
       break;
     }
 
+    // Key on tool_execution_id — one run can call the same tool many times.
     case "tool.started":
     case "tool.progress":
-    case "tool.finished":
-      state.tools[payload.tool_call_id ?? payload.tool_name ?? "tool"] = payload;
+    case "tool.finished": {
+      const id = payload.tool_execution_id;
+      if (!id) break;
+      state.tools[id] = { ...(state.tools[id] ?? {}), ...payload };
       break;
+    }
 
     case "completion.error":
     case "llm.error":
@@ -554,5 +683,7 @@ curl -N -X POST "$API_BASE/reports/$REPORT_ID/completions" \
 - Attach data sources through report creation or update
 - Keep `mentions: []` unless your integration intentionally supports Bow prompt mentions
 - Treat `completion.finished` as idempotent — it can arrive more than once
+- Correlate tool events on `tool_execution_id`, and handle `clarify` so ambiguous questions do not dead-end
+- Never assume a key exists in `result_json` — it differs per tool and can be large
 - Log raw SSE frames for support and debugging
 - Render unknown future events without crashing
