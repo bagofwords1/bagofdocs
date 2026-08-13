@@ -64,6 +64,7 @@
               "data-sources/connectors/analysis-services",
               "data-sources/connectors/tableau",
               "data-sources/connectors/qlik-sense",
+              "data-sources/connectors/qlik-sense-onprem",
               "data-sources/connectors/sisense",
               "data-sources/connectors/oracle-bi",
               "data-sources/connectors/infor-olap",
