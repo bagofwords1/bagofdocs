@@ -74,6 +74,7 @@
               "data-sources/connectors/s3",
               "data-sources/connectors/sharepoint-onedrive",
               "data-sources/connectors/onenote",
+              "data-sources/connectors/sharepoint-lists",
               "data-sources/connectors/google-drive",
               "data-sources/connectors/mail",
               "data-sources/connectors/file-formats"
