@@ -1,6 +1,6 @@
 ---
 title: "Business applications"
-description: "Connect Salesforce, NetSuite, ServiceNow, monday.com and PostHog so the agent can query them as tables"
+description: "Connect Salesforce, NetSuite, ServiceNow, Monday and PostHog so the agent can query them as tables"
 icon: "boxes"
 ---
 
@@ -11,7 +11,7 @@ These connectors reach SaaS applications through their own APIs and present them
 | [Salesforce](#salesforce) | SOQL over the REST API | Connected App (JWT bearer), or username/password |  |
 | [NetSuite](#netsuite) | SuiteQL over the REST API | Token-Based Authentication |  |
 | [ServiceNow](#servicenow) | Table API query specs | Username/password, or per-user OAuth | Beta |
-| [monday.com](#monday-com) | Board query specs over the GraphQL API | API token, or per-user OAuth | Beta |
+| [Monday data](#monday-data) | Board query specs over the GraphQL API | API token, or per-user OAuth | Beta |
 | [PostHog](#posthog) | HogQL | Personal API key | Beta |
 
 ---
@@ -157,10 +157,10 @@ https://<your-bow-host>/api/connections/oauth/callback
 
 ---
 
-## monday.com
+## Monday data
 
 <Note>
-  The monday.com connector is in **beta**.
+  The Monday data connector is in **beta**.
 </Note>
 
 Bag of words queries the monday.com **GraphQL API** and presents each **board as a table**: board columns become schema columns (named by their titles, with status and dropdown labels surfaced to the agent), items become rows, and connect-boards columns become foreign keys to the linked board. Duplicate board names are disambiguated with the board id.
