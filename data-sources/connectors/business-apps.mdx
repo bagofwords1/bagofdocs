@@ -188,7 +188,7 @@ The agent sends a JSON query spec — board, columns, filter rules, ordering, li
 | `oauth_client_id` | No | Client ID of an app created in monday.com's **Developer Center**. Setting it enables per-user sign-in. |
 | `oauth_client_secret` | No | Client secret of that app. |
 
-**Sign in with monday.com — `oauth`** (scope: user, no fields). Each user signs in against `auth.monday.com` with read-only scopes (`boards:read workspaces:read users:read account:read`), so queries run with that person's own board permissions. This requires the `oauth_client_id` above to be configured on the connection. monday access tokens do not expire and no refresh token is issued.
+**Sign in with monday.com — `oauth`** (scope: user, no fields). Each user signs in against `auth.monday.com` with read-only scopes (`me:read boards:read workspaces:read users:read account:read`) — enable exactly these on the app in monday's Developer Center, since monday rejects the authorize request if any requested scope is missing. Queries run with that person's own board permissions. This requires the `oauth_client_id` above to be configured on the connection. monday access tokens do not expire and no refresh token is issued.
 
 <Note>
   Per-user authentication on a database-style connection requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
