@@ -22,29 +22,26 @@
         ]
       },
       {
-        "group": "Core",
+        "group": "Work With Agents",
         "pages": [
-          "core/agent",
-          "core/context",
-          "core/monitoring"
-        ]
-      },
-      {
-        "group": "Using Bag of words",
-        "pages": [
+          "work-with-agents",
           "using-bow/reports",
           "using-bow/dashboards",
-          "using-bow/instructions",
-          "using-bow/catalog",
-          "using-bow/evals",
-          "using-bow/llm",
           "using-bow/mcp",
           "using-bow/excel",
           "using-bow/settings"
         ]
       },
       {
-        "group": "Data Sources",
+        "group": "Agents",
+        "pages": [
+          "agents/overview",
+          "agents/instructions",
+          "agents/evals"
+        ]
+      },
+      {
+        "group": "Connect Any Data",
         "pages": [
           "data-sources/overview",
           "data-sources/connecting",
@@ -83,16 +80,30 @@
           },
           "data-sources/mcp",
           "data-sources/custom-api",
-          "data-sources/user-context"
+          "data-sources/user-context",
+          {
+            "group": "Custom Queries and Row-Level Security",
+            "expanded": false,
+            "pages": [
+              "bow-fast/overview",
+              "bow-fast/custom-queries",
+              "bow-fast/row-level-security"
+            ]
+          }
         ]
       },
       {
-        "group": "BOW Fast",
-        "icon": "zap",
+        "group": "Models",
         "pages": [
-          "bow-fast/overview",
-          "bow-fast/custom-queries",
-          "bow-fast/row-level-security"
+          "using-bow/llm"
+        ]
+      },
+      {
+        "group": "Observe and Govern",
+        "pages": [
+          "observe-and-govern/overview",
+          "observe-and-govern/runs-and-traces",
+          "observe-and-govern/usage-cost-quality"
         ]
       },
       {
@@ -114,8 +125,9 @@
         ]
       },
       {
-        "group": "Enterprise Edition",
+        "group": "Open Source and Enterprise",
         "pages": [
+          "enterprise/overview",
           "enterprise/license"
         ]
       }
@@ -164,6 +176,36 @@
     {
       "source": "/using-bow/connect-powerbi",
       "destination": "/data-sources/connectors/power-bi",
+      "permanent": true
+    },
+    {
+      "source": "/using-bow/instructions",
+      "destination": "/agents/instructions",
+      "permanent": true
+    },
+    {
+      "source": "/using-bow/evals",
+      "destination": "/agents/evals",
+      "permanent": true
+    },
+    {
+      "source": "/core/monitoring",
+      "destination": "/observe-and-govern/overview",
+      "permanent": true
+    },
+    {
+      "source": "/core/agent",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/core/context",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/core/agentic-analytics",
+      "destination": "/",
       "permanent": true
     }
   ]

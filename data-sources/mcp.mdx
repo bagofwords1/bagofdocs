@@ -52,6 +52,25 @@ Choosing an OAuth mode makes the connection [per-user](/data-sources/authenticat
   When testing an OAuth-based server before anyone has signed in, a `401` or `403` from the server counts as healthy — it proves the endpoint is reachable and challenging for credentials.
 </Tip>
 
+## OAuth MCP integration
+
+OAuth connects an MCP server without turning a shared secret into a shared identity. Each user authorizes the connection with their own account, and tool calls use that user's token and the policies configured in Bag of words.
+
+The setup flow is:
+
+1. Add an MCP preset or enter a custom server URL and transport.
+2. Choose **OAuth (dynamic registration)** when the server and host allow it, or provide the metadata for an **OAuth app**.
+3. Save and discover the server's tools.
+4. Each user selects **Sign in** and completes the provider's authorization flow.
+5. Review tool policies and attach the connection to the appropriate agent.
+6. The agent can call approved tools as the signed-in user; expired tokens are refreshed through the configured token endpoint.
+
+Use dynamic registration for supported preset servers when you do not want to create and maintain a client ID. Use an OAuth app for a custom server where you control the authorization URL, token URL, client credentials, scopes, audience, and token-endpoint authentication method.
+
+<Warning>
+OAuth authenticates the caller; it does not bypass governance. Connection access, agent scope, tool policy, admin denies, and the MCP server's own authorization rules still apply to every call.
+</Warning>
+
 ## Tool discovery
 
 When you save the connection, Bag of words asks the server for its tools and stores each one with its name, description, and input schema. Re-run discovery any time from the connection's tools view — after the server ships new tools, for example.
@@ -93,7 +112,7 @@ Many internal MCP servers need to know *who* is asking — to apply their own pe
 
 ## Adding a connection
 
-1. Go to **Settings → Data Sources**, add a connection, and pick an MCP preset or **MCP Server**.
+1. Open **Agents**, choose **New → Connection** (or **Connect data**), and pick an MCP preset or **MCP Server**.
 2. Enter the `server_url` and choose the transport.
 3. Choose an authentication mode and fill in its fields.
 4. **Test**, then save. Tools are discovered on save.

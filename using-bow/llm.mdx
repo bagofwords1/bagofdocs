@@ -1,75 +1,44 @@
 ---
-title: 'LLMs'
-icon: 'cpu'
-description: 'Generate, save and publish reports with Bag of words'
+title: 'Models and LLM providers'
+description: 'Bring your preferred models, route work intentionally, and keep a reliable fallback path.'
 ---
 
-## Overview
+Bag of words is model-flexible. Add the providers and models your organization approves, configure credentials, set access, and choose how the platform selects a model for each task.
 
-Bag of words allows you to effortlessly bring your own LLM (via provider and API Key), providing seamless integration with any of the main LLM providers, with additional support to any OpenAI-compatible API providers.
+## Choose a model strategy
 
-*   <img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Google**
-*   <img src="/assets/llm-icons/azure.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Azure**
-*   <img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **OpenAI**
-*   <img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 8, verticalAlign: 'middle', display: 'inline-block'}} /> **Anthropic**
-* Custom LLM endpoints like Ollama or other proxy services
+Your organization can use one model for everything, or offer a governed catalog with different strengths and cost profiles. Model settings expose the capabilities that matter for agent work, including context window, vision, reasoning support, and structured output.
 
-This flexibility ensures you can utilize your preferred LLM while benefiting from Bag of words' features.
+- **Automatic routing** selects an appropriate available model for the task.
+- **Explicit selection** lets people choose from the models they are allowed to use.
+- **Fallback chains** keep work moving when a preferred model is unavailable.
 
-## Natively Supported Models
+The active model is visible in the chat experience. Administrators manage the catalog and credentials in the LLM settings area.
 
-|  |  |  |
-|  :------- | :-------------------------------- | :-------------------------------- |
-| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-5.1</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-5</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/openai.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>GPT-4.1 Mini</span> | <span style={{marginRight: 80}}></span> |
-| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4.5 Opus</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4.5 Sonnet</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 4 Sonnet</span> | <span style={{marginRight: 80}}></span> |
-| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /></span> | <span style={{marginRight: 80}}>Claude 4 Opus</span> | <span style={{marginRight: 80}}></span> |
-| <span><img src="/assets/llm-icons/anthropic.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Claude 3.7 Sonnet</span> | <span style={{marginRight: 80}}></span> |
-| <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0, marginRight: 10 , verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Pro</span> | <span style={{marginRight: 80}}>Recommended</span> |
-| <span><img src="/assets/llm-icons/google.png" width="16" height="16" style={{margin: 0, padding: 0,  marginRight: 10, verticalAlign: 'middle', display: 'inline-block'}} /> </span> | <span style={{marginRight: 80}}>Gemini 2.5 Flash</span> | <span style={{marginRight: 80}}></span> |
+![The current model selector inside a chat session](/images/showcase/model-routing-current.png)
 
-<Note>
-You can integrate any custom LLM as long as it supports OpenAI requests and streaming
+## Route models inside a chat
 
-To use a custom LLM (Ollama, proxy services, etc) - choose the Custom provider and set the base URL (e.g `http://localhost:11434/v1` and an API key (put any character if no API is required))
-</Note>
+The composer shows the model that will handle the next turn. Select it to choose from the models enabled for your organization. The selection stays with the report, so follow-up work uses the intended model unless you change it or use automatic routing.
 
-## Add an LLM Provider
+Use **Auto** when routing is enabled and you want Bag of words to choose from the approved catalog for the task. Use an explicit model when the session needs a predictable reasoning, latency, or cost profile. Organization defaults and fallback behavior still apply if the preferred model is unavailable.
 
-To add a new LLM provider, follow these steps:
+## Add providers and credentials
 
-1.  **Select from existing models**: Choose from a list of pre-configured models that Bag of words natively supports.
-2.  **Add custom model**: If your desired LLM is not listed, you can integrate it by providing the necessary API details.
-![Bring your own LLM](/assets/media/llm/llm.png)
-
-## Set LLM as default
-
-To set a specific LLM as your default:
-
-1.  Navigate to the LLM settings.
-2.  Go to the desired LLM row, and click the elipsis icon on the right
-3.  Click "Make Default"
+1. Open **Settings → LLMs**.
+2. Add an approved provider and its API credentials, or configure an organization endpoint.
+3. Enable the models you want to make available and review their capability metadata.
+4. Set organization-wide defaults, routing, and fallback behavior.
+5. Assign access so people see only the models they are permitted to use.
 
 <Note>
-#### Small Default LLM
-
-You can also set small default LLM for back-office tasks like LLM judge, tests, evals, etc. The agent will use the small model to save costs.
+The exact models shown in the interface depend on your deployment and the providers your administrator has enabled. Keep model and credential access under the same governance standards as your data connections.
 </Note>
 
-## Select LLM in the prompt box
+## Use the right model for the work
 
-While default LLM can be configured only by users with the right permissions (admin), each individual can 
-choose their own LLM when creating reports. 
+Use high-reasoning models for complex investigations and root-cause analysis, faster models for straightforward exploration, and capable multimodal models when the task includes files or images. Agent tools, instructions, data access, and evaluations stay independent of the selected model, so you can improve or change the model layer without rebuilding your agent design.
 
-When using the prompt box:
-
-1.  Click on the LLM selection dropdown.
-2.  Choose the LLM you wish to use for that specific prompt.
-
-![Customize prompt LLM](/assets/media/llm/prompt-box.png)
-
-
+<Card title="Manage agents" icon="users-gear" href="/agents/overview">
+  See how models fit alongside an agent's tools, data, instructions, and evaluations.
+</Card>

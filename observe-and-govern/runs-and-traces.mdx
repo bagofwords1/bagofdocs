@@ -1,0 +1,19 @@
+---
+title: "Runs, traces, and diagnostics"
+description: "Inspect the evidence and decisions behind an agent outcome."
+icon: "git-branch"
+---
+
+Open **Monitoring** to investigate an individual run. A trace shows how the agent turned a request into an outcome: its plan, research steps, tool calls, results, clarifications, approvals, and final artifact.
+
+Use a trace to answer practical questions:
+
+- Which agent, data scope, instruction build, and model handled the request?
+- What did the agent inspect or call in parallel?
+- Which tool, query, source, or approval delayed or failed the run?
+- Which evidence supported the final recommendation?
+- What should be changed to prevent the issue from recurring?
+
+For an incident investigation, traces connect the RCA narrative to the underlying logs, metrics, service tools, and database evidence rather than leaving a conclusion as an unexplained summary.
+
+After diagnosing a recurring issue, add an [eval](/agents/evals) and improve the relevant [instruction](/agents/instructions) or agent configuration.

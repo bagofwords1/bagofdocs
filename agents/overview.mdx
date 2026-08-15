@@ -1,0 +1,51 @@
+---
+title: "Agents"
+description: "Build governed domain agents from scoped connections, knowledge, tools, and access controls."
+icon: "bot"
+---
+
+An agent packages the context and capabilities needed for a business or operational domain. It is not the same thing as a connection: a connection reaches a system, while an agent scopes one or more connections into a governed assistant for work such as Finance, Sales, System Logs, or Procurement.
+
+![Agents connected to Snowflake, Power BI, SQL Server, Oracle, and PostgreSQL](/images/showcase/agents-overview-current.png)
+
+An agent can include:
+
+- One or many connections.
+- Selected tables, semantic objects, files, directories, and tool providers.
+- A description and conversation starters.
+- Instructions shared with other agents or scoped specifically to this agent, a table, or an object.
+- Eval suites that verify the agent’s expected behavior.
+- Members, permissions, credentials, channel availability, and lifecycle status.
+
+## Configure an agent
+
+Open **Agents** from the main navigation and create a new agent, or select an existing one. Configure a clear domain name and description, then attach the data and tools it needs.
+
+Keep the agent’s scope focused. An agent with a small, well-understood set of tables, files, and tools is easier to govern and usually produces better work than an agent attached to every available source.
+
+## Scope data and tools
+
+Use the agent tree to manage its capabilities:
+
+- **Tables and objects** — enable only the database tables, BI objects, or semantic models the agent should use.
+- **Files** — upload reference files or attach file and directory connections.
+- **Tools** — add MCP or Custom API connections, enable the tools that matter, and choose their approval policies.
+- **Instructions** — add or attach reusable knowledge and behavior rules.
+- **Evals** — organize suites and test cases beside the agent they verify.
+
+## Chat and Training modes
+
+Agents can be used in **Chat** mode for production work and **Training** mode for controlled improvement workflows. Instructions can apply to all modes, Chat only, or Training only. Use this distinction to test a new behavior before making it part of regular work.
+
+## Access and delivery
+
+An agent can be private to selected people and groups or made available to everyone in the organization. You can also control which channels can reach it, such as the web app, scheduled work, or external channels.
+
+<CardGroup cols={2}>
+  <Card title="Instructions and knowledge" icon="book-open" href="/agents/instructions">
+    Manage reusable, many-to-many knowledge and behavior rules.
+  </Card>
+  <Card title="Evals and self-improvement" icon="badge-check" href="/agents/evals">
+    Test agent behavior and turn verified failures into reviewed improvements.
+  </Card>
+</CardGroup>

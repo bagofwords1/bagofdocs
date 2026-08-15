@@ -1,72 +1,46 @@
 ---
-title: 'Welcome to Bag of words'
-description: 'Bag of words is the open-source AI Analyst — connect any LLM to any data source with centralized context management, trust, observability, and control.'
-icon: 'book-open'
+title: 'Bag of words'
+description: 'Governed AI agents for any model and any data.'
 ---
 
-<video
-  controls
-  className="w-full aspect-video rounded-xl"
-  src="https://bagofwords.com/demos/hero4.mp4"
-></video>
+Bag of words gives teams a governed **agentic analytics** system: use the LLMs you choose, connect the data you already have, and let agents investigate, validate, and explain work that ranges from a quick question to a deep root-cause analysis.
 
-* **Chat with any data source** 
+![An executive dashboard artifact beside the prompt, validation steps, sharing, and schedule that created it](/images/showcase/executive-dashboard-current.png)
 
-  Ask questions in web, Slack, or else. Create charts, tables, and full beautiful reports/dashboards by chatting with your data—powered by an agentic loop for tool use, reflection, and reasoning.
+Agents can work across databases, services, APIs, tables, semantic objects, documents, and files. They do not just produce a one-shot answer: they plan, use tools in parallel, inspect evidence, reflect on what is missing, and repair their approach when needed—all within the access and policy boundaries you define.
 
-*  **Context-aware & customizable** 
-  
-   Define terms, KPIs, rules and instructions. Ingest from dbt, Tableau, code, AGENTS.md, and have AI continiously maintain and monitor.
-
-* **Any LLM, any data**
-
-   Connect multiple data sources: Snowflake, BigQuery, Redshift, Postgres, dbt, Tableau, and more — then pair with the LLM of your choice (OpenAI, Anthropic, or local models). Swap models/data sources without breaking workflows.
-
-*  **Transparency, trust & deployment**
-
-   Track every AI decision, trace, and feedback. Analyze quality and usage in the console. Deploy fully in your VPC with Docker/Compose, VMs, or Kubernetes. Enterprise-ready with RBAC, SSO (OIDC), audit logs, SMTP.
-
-## Getting Started 
-
-<Columns cols={3}>
-  <Card title="Chat with Data" icon="bot" href="/using-bow/reports">
-    Ask questions, create visualizations, and run deep analysis through natural language
+<CardGroup cols={2}>
+  <Card title="Start with the product" icon="wand-magic-sparkles" href="/quickstart">
+    Sign in, create your workspace, and ask a first question.
   </Card>
-  <Card title="Instructions" icon="box" href="/using-bow/instructions">
-    Guide your AI agent with custom instructions for better, more accurate results
+  <Card title="Connect any data" icon="database" href="/data-sources/overview">
+    Use a catalog connector, a custom MCP server, or a custom API.
   </Card>
-  <Card title="Data Sources" icon="database" href="/data-sources/overview">
-    Connect any data warehouse, database, or data service to Bag of words
+  <Card title="Manage agents" icon="users-gear" href="/agents/overview">
+    Shape agents with data, tools, files, instructions, and evals.
   </Card>
-</Columns>
-<Columns cols={3}>
-  <Card title="Dashboards" icon="chart-pie" href="/using-bow/dashboards">
-    Build visual stories by combining charts, tables, and explanatory text
+</CardGroup>
+
+## From question to defensible result
+
+Bag of words runs a governed agentic loop. An agent plans the investigation, explores independent evidence in parallel, calls only the data and tools it is allowed to use, validates what it finds, and reflects or repairs when the evidence is incomplete. The same system can answer a focused business question or coordinate a challenging financial analysis or production root-cause investigation.
+
+![A current Chat-mode root-cause analysis with parallel tool work, an investigation note, and a Mermaid incident map](/images/showcase/chat-rca-current.png)
+
+Its **Knowledge Harness** is the context that makes the loop useful: scoped connections, tables and semantic objects, files, tools, instructions, identity, permissions, and prior evidence. Evals and feedback close the self-improvement loop, so teams can review and promote better instructions rather than giving an agent unchecked authority to change its own rules.
+
+## What you can build
+
+- **Business analysis:** revenue and financial analysis, operating reviews, and self-serve exploration.
+- **Technical investigation:** production root-cause analysis across observability systems, services, and databases.
+- **Knowledge work:** research and synthesis across structured records and unstructured files.
+- **Repeatable workflows:** training agents with scoped instructions and evaluations, then tracking quality, usage, and cost.
+
+<CardGroup cols={2}>
+  <Card title="Work with agents" icon="comments" href="/work-with-agents">
+    Learn Chat mode, Training mode, and the analysis workflow.
   </Card>
-
-  <Card title="Context" icon="layers" href="/core/context">
-    How Bag of words constructs and manages context for every Agent run
+  <Card title="Observe and govern" icon="shield-halved" href="/observe-and-govern/overview">
+    Inspect runs, traces, quality, usage, and cost.
   </Card>
-  <Card title="Monitoring" icon="activity" href="/core/monitoring">
-    Track accuracy, context quality, and agent behavior across your AI data layer
-  </Card>
-</Columns>
-
-
-## Product Overview
-
-### Chat with any data
-Create reports, deep analysis or quick visuals with an AI interface powered by an agentic-loop with tools, reasoning and reflection built in. 
-![Bag of words](./assets/media/homev2.png)
-
-### Create and customize AI instructions and rules
-Manage your AI rules and instructions with review process and control
-![Bag of words](./assets/media/instructions.png)
-
-### Connect dbt, Tableau, and more for better AI context
-Enrich your AI context with dbt models, Tableau data sources, AGENTS.md and your git repo
-![Bag of words](./assets/media/dbt.png)
-
-### Monitor AI and data operations
-Full observability into queries, feedback, and context — powering self-learning and high quality AI results
-![Bag of words](./assets/media/monitoring.png)
+</CardGroup>
