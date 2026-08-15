@@ -94,21 +94,26 @@ These live in the **Power BI / Fabric Admin portal** → **Tenant settings** (a 
 
 ## Step 3 — Grant workspace and dataset access
 
-Discovery only sees workspaces where the identity holds a workspace **role**. Sharing a single report or dataset directly is **not** enough for it to be discovered.
+For the **service principal**, discovery only sees workspaces where it holds a workspace **role** — sharing a single report or dataset directly is not enough. With **per-user** authentication this is looser: a model shared **directly** with a user (Build permission) is also discovered, even when they have no workspace role at all. That item-level path is exactly what row-level security requires (see the RLS step).
 
 <Steps>
   <Step title="Add the identity as a workspace Member or Contributor">
     In each Power BI workspace → **Manage access** → **Add people or groups**, add the service principal (or the security group containing it), and any per-user accounts, as **Member** or **Contributor**.
 
     <Warning>
-      **Viewer is not enough.** A Viewer can open reports but cannot be discovered or run `executeQueries`. Use **Member** or **Contributor**.
+      For the **service principal** relying on the DAX discovery fallback, **Viewer is not enough** — a Viewer cannot run `executeQueries`. Use **Member** or **Contributor**, or enable the read-only admin APIs above. **Row-level security is the exception:** a per-user identity that must be RLS-filtered should be **Viewer or lower** (Member/Contributor bypass RLS) — see the RLS step below.
     </Warning>
   </Step>
   <Step title="Grant Build permission on the semantic models">
-    To run DAX queries (and to use the DAX discovery fallback), the identity needs **Build** permission on each semantic model. Workspace Member/Contributor typically confers this; otherwise grant Build explicitly on the model.
+    **Build** is the permission that actually lets an identity run DAX (`executeQueries`) — Read alone is not enough. Workspace Member/Contributor typically confers Build; you can also grant it **directly on the model** (the model's **Manage permissions → Add user → Build**). Direct Build with no workspace role is exactly what lets a per-user identity query a model under row-level security (see the next step).
   </Step>
-  <Step title="(Row-level security) Map the identity into an RLS role">
-    If a model uses row-level security, the querying identity must be mapped to an RLS role, or queries return no rows. For a service principal, assign it to the appropriate role on the model's security settings.
+  <Step title="(Row-level security) Use per-user auth and map each user into an RLS role">
+    Row-level security is enforced against the **querying identity**, and two Microsoft rules decide the setup:
+
+    - **A service principal cannot query an RLS model at all.** It cannot be added to an RLS role, so `executeQueries` returns `401` — even if the service principal is a workspace Member. Use **Sign in with Microsoft** (per-user) for any RLS-protected model; the service principal can still index non-RLS models in the same tenant.
+    - **An edit-level workspace role bypasses RLS.** Admin, Member, and Contributor have edit permission, so RLS does **not** apply to them. For RLS to take effect a user must hold at most **Viewer**, or no workspace role with the model shared to them directly.
+
+    So the correct setup for an RLS model is, per user: **Build** permission on the model **and** membership in the appropriate **RLS role**, with **no** edit-level workspace role. Bag of words discovers and queries the model with that user's own token, and Power BI filters the rows to their role.
   </Step>
 </Steps>
 
@@ -150,7 +155,7 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of
 
 <AccordionGroup>
   <Accordion title="The identity is not a Member/Contributor of the workspace">
-    Discovery only sees workspaces where the identity has a role. Add the service principal (or the user) as **Member** or **Contributor** — Viewer and direct report-sharing are not sufficient. Content in **My Workspace** is not discovered.
+    For the **service principal**, discovery only sees workspaces where it has a role — add it as **Member** or **Contributor**, and note that content in **My Workspace** is not discovered. With **per-user** authentication this is looser: a model shared directly with the signed-in user (Build permission) is discovered even with no workspace role, so a direct dataset share **is** sufficient there — which is the setup RLS requires.
   </Accordion>
 
   <Accordion title="The model cannot be introspected (DirectLake / no Build / RLS)">
@@ -162,7 +167,11 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of
   </Accordion>
 
   <Accordion title="A per-user model isn't showing for a signed-in user">
-    With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them.
+    With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them. If access was **just changed** in Power BI, note that Power BI caches user permissions — Bag of words refreshes them on sign-in and on **Reload tables**, so click **Reload** if a newly granted model hasn't appeared yet.
+  </Accordion>
+
+  <Accordion title="A per-user model is discovered but the agent can't query it yet">
+    A model that only a signed-in user can see (for example an RLS model the service principal cannot index) is added to the catalog but starts **unselected**. An admin or the data source owner must enable it on the **Select tables** step before the agent can query it. Until then it appears in the user's table list but not in the agent's context.
   </Accordion>
 
   <Accordion title="The workspaces filter is excluding it">
