@@ -1,0 +1,31 @@
+---
+title: "Evals and self-improvement"
+description: "Verify agent behavior with suites and cases, then improve it through governed feedback loops."
+icon: "badge-check"
+---
+
+Evals make reliability measurable. A suite groups cases that describe expected behavior for an agent or the organization. Each case supplies a prompt and expectations such as the right data use, a required answer property, or an LLM-as-judge criterion.
+
+## Scope evals where they belong
+
+Create **agent-scoped** suites for domain-specific behavior, such as “the Finance agent uses the approved revenue definition.” Create **global** suites for organization-wide behavior that every agent should satisfy.
+
+Suites, cases, runs, and results live in the Agents workspace so the people responsible for an agent can inspect and improve it in context.
+
+## Run and inspect
+
+Run a single suite or multiple suites. Each run records its status, result summary, duration, and the underlying conversation. Use the result detail to distinguish an answer-quality issue from a missing instruction, an unavailable source, a tool failure, or an incorrect expectation.
+
+Test behavior in the mode that matters: Chat for production behavior and Training for controlled improvement work.
+
+## Self-improvement loop
+
+When a case fails, use the evidence to improve the knowledge harness:
+
+1. Inspect the failed run and its context.
+2. Decide whether the missing control is an instruction, data scope, tool policy, model setting, or an eval expectation.
+3. Create or review a proposed instruction change.
+4. Re-run the relevant suite.
+5. Promote the change only when the result is satisfactory.
+
+Self-improvement is therefore governed improvement, not unreviewed autonomous rewriting.

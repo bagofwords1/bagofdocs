@@ -1,0 +1,43 @@
+---
+title: "Instructions and knowledge"
+description: "Manage reusable, governed agent knowledge across agents, data, channels, and modes."
+icon: "book-open"
+---
+
+Instructions capture the business knowledge and operating rules that a schema alone cannot express: canonical metrics, calculation rules, preferred sources, validation checks, tool-use guidance, and domain vocabulary.
+
+![A Training conversation with a pending AI-proposed tracked instruction change](/images/showcase/instruction-review-current.png)
+
+## Instructions are many-to-many
+
+An instruction is not owned by one agent. It can apply:
+
+- Globally across the organization.
+- To one or many agents.
+- To selected tables or semantic objects.
+- To all channels or selected channels.
+- To **all modes**, **Chat only**, or **Training only**.
+
+This lets a finance definition be reused by Finance and Executive Operations agents, while a training-only rule can be tested before affecting production Chat runs.
+
+## Create useful instructions
+
+Write instructions that give an agent an actionable decision rule. State the definition, its scope, and the exception it should handle. For example, specify the canonical revenue table and exclusions rather than saying only “be careful with revenue.”
+
+Use load behavior deliberately:
+
+- **Always** for rules that must affect every applicable run.
+- **Intelligent** for relevant reference knowledge that the agent should retrieve when needed.
+- **Disabled** when preserving a draft or retired rule.
+
+## Organize and review knowledge
+
+The Agents workspace provides global and agent-level instruction views. Use folders, labels, search, and **All Instructions** to manage knowledge across the fleet. Review the pending-changes view to see proposed edits, accept or reject specific changes, and keep the live knowledge base intentional.
+
+Every published change belongs to an instruction build. Builds preserve the active snapshot, history, **tracked diff**, reviewer decision, and rollback path. Reviewers can inspect exactly what the AI proposes to add or remove before a suggestion becomes active.
+
+## Git and generated suggestions
+
+You can synchronize instructions from Git-backed documentation and model metadata, or create them manually. In Training, an agent can clarify an ambiguous rule, use the answer as evidence, and suggest a tracked instruction change. The suggestion remains a draft until a reviewer accepts it; rejected suggestions stay visible in the build history rather than silently changing production knowledge.
+
+For verification, see [Evals and self-improvement](/agents/evals). The home page explains how instructions participate in the Knowledge Harness and the governed self-improvement loop.

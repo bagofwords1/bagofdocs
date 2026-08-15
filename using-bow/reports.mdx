@@ -1,105 +1,69 @@
 ---
 title: 'Chat with your data'
-description: 'Ask questions, create visualizations or run deep analysis'
+description: 'Prompt governed agents for questions, advanced analysis, root-cause investigation, and artifacts.'
 icon: 'bot'
 ---
 
-Reports are where you interact with your data through natural language. Ask questions, iterate on results, and build analysis—all in a conversational interface powered by the [Agent](/core/agent).
-![Bag of words](/assets/media/chat.png)
+Reports are persistent conversations with governed agents. A report keeps your prompts, tool activity, results, artifacts, and follow-up context together so you can refine the work without starting over.
 
-## Asking Questions
+![A detailed root-cause prompt followed by parallel investigation, a note tool, and a Mermaid dependency map](/images/showcase/chat-rca-current.png)
 
-Type your question in the prompt box and hit enter. The agent will analyze your request, pull relevant [context](/core/context), apply [instructions](/using-bow/instructions), and return results.
+## Choose the mode
 
-There are two main types of prompts:
+- **Chat** is for doing production work with approved instructions and access.
+- **Training** is for learning sources, clarifying business rules, and proposing reviewable instruction changes.
 
-* **Query-style**: Direct data requests—get specific metrics, aggregations, or breakdowns
-* **Analysis-style**: Open-ended investigations—explore trends, find root causes, or run deep analysis
+Switch modes in the composer. Training changes do not silently become production behavior; review and accept the proposed instruction edits first.
+
+## Write a strong prompt
+
+A useful prompt states the outcome, evidence boundary, validation standard, and deliverable. You do not need to prescribe every query or tool call.
 
 <AccordionGroup>
-  <Accordion title="Query-Style Prompts" icon="table">
-    Direct requests for specific data or metrics.
-
-    **Examples:**
-    * "Show me total revenue by month"
-    * "Who are our top 10 customers by revenue?"
-    * "What's the average order value for customers in California?"
-    * "Compare Q4 2024 sales to Q4 2023"
-    * "Break down revenue by product category and region"
-    * "List all active subscriptions expiring this month"
+  <Accordion title="Focused data question" icon="table">
+    > Show weekly net revenue retention for enterprise customers in Q2. Use the approved account and fiscal-period definitions, exclude test accounts, compare the result with the Power BI executive measure, and return a table plus a short explanation of any mismatch.
   </Accordion>
 
-  <Accordion title="Analysis & Root Cause Prompts" icon="search-check">
-    Open-ended investigations that require multi-step reasoning.
+  <Accordion title="Advanced financial analysis" icon="chart-line">
+    > Act as a senior finance analyst. Explain why enterprise ARR growth slowed in Q2 despite higher bookings. Compare plan versus actual by region and segment; separate volume, price, churn, timing, and FX effects; identify the five accounts driving the variance; validate every number against Snowflake and Power BI; and finish with an executive summary and recommended actions.
+  </Accordion>
 
-    **Examples:**
-    * "Why did sales drop in March?"
-    * "What's driving the increase in customer churn?"
-    * "Analyze user growth trends over the last 6 months"
-    * "Calculate customer lifetime value by cohort"
-    * "Find patterns in our highest-value customers"
-    * "Investigate why conversion rates are declining"
+  <Accordion title="Production root-cause analysis" icon="diagram-project">
+    > Investigate the checkout failures that began this morning. Correlate deployments, traces, logs, and SQL Server telemetry in parallel. Keep an investigation note, draw the dependency path, quantify impact, rule out plausible alternatives, and finish with the root cause and prevention actions.
+  </Accordion>
+
+  <Accordion title="Create an artifact" icon="layout-dashboard">
+    > Build an executive revenue and retention command center for the weekly operating review. Validate Snowflake against Power BI; show ARR, NRR, expansion, churn risk, trajectory, and regional mix; highlight actionable risks; share it with Finance; and schedule a Monday 08:00 refresh.
   </Accordion>
 </AccordionGroup>
 
-<Note>The agent uses your organization's context—schema, metadata, dbt models, and instructions—to understand your data structure and business logic.</Note>
-## Viewing Results
+## Follow the agentic loop
 
-The agent returns results in multiple formats:
+The run timeline shows how the agent moves from request to result:
 
-* **Data tables**: Raw query results with sortable columns
-* **Visualizations**: Charts automatically generated based on the data (bar, line, pie, etc.)
-* **Code**: View the SQL or Python code that generated the results
-* **Explanations**: The agent explains its approach and reasoning
+1. It plans the investigation and selects scoped context.
+2. It runs independent checks in parallel where possible.
+3. It observes tool results, validates evidence, and records useful intermediate state.
+4. It reflects, retries, or asks for clarification when evidence is incomplete.
+5. It returns a conclusion, data result, or artifact with its work visible.
 
-You can:
-* **Export data**: Download results as CSV or Excel
-* **Edit code**: Modify and re-run the generated code (if enabled in [settings](/using-bow/settings))
-* **Add to dashboard**: Save visualizations to a dashboard
-* **Share**: Share the report with your team
+For complex work, ask for a **note** to maintain hypotheses, open questions, and next actions. Ask for a **Mermaid** diagram to make dependencies, flows, or incident timelines explicit.
 
-## Iterating on Results
+## Iterate without repeating context
 
-Reports are conversational. Keep asking follow-up questions to refine your analysis:
+Follow up in the same report to narrow a period, add a comparison, challenge an assumption, or change the deliverable. Useful follow-ups include:
 
-**Example iteration flow:**
+- “Re-run this at constant currency and explain what changed.”
+- “Rule out the payment provider with trace evidence.”
+- “Turn the conclusion into an executive dashboard artifact.”
+- “Save the clarified service-start rule as a proposed instruction.”
 
-1. **You**: "Show me revenue by month"
-2. **Agent**: Returns monthly revenue chart
-3. **You**: "Exclude test accounts"
-4. **Agent**: Updates query with filter
-5. **You**: "Break it down by product category"
-6. **Agent**: Adds category dimension
-7. **You**: "Only show top 5 categories"
-8. **Agent**: Applies TOP 5 filter
+## Select a model in the conversation
 
-The agent maintains context throughout the conversation, so you don't need to repeat yourself. Each step builds on the previous one.
+The composer shows the active model. Choose another enabled model for the session when you want a different speed, cost, or reasoning profile; automatic routing can select for you when it is enabled by an administrator.
 
-## How the Agent Works
+![The current in-chat model selector with configured reasoning and fast models](/images/showcase/model-routing-current.png)
 
-Behind the scenes, the agent follows a [reasoning loop](/core/agent):
-
-1. **Think**: Plan the approach based on your question
-2. **Act**: Search context, generate queries, create visualizations
-3. **Observe**: Check results, validate data model, catch errors
-4. **Reflect**: Decide if the request is satisfied or needs another iteration
-
-This loop ensures the agent doesn't just guess—it validates, retries, and asks for clarification when needed.
-
-## Tips for Better Results
-
-* **Be specific**: "Active users in Q4" is better than "users"
-* **Provide context**: "Revenue from subscriptions" vs just "revenue"
-* **Use business terms**: The agent understands your [instructions](/using-bow/instructions) and definitions
-* **Iterate freely**: Refine results through conversation rather than crafting the perfect prompt
-* **Add instructions**: When you clarify something, save it as an instruction for future use
-* **Check the code**: Review generated SQL/Python to understand what's happening
-
-## Selecting Your LLM
-
-Choose your preferred model from the dropdown in the prompt box. Different [LLMs](/using-bow/llm) have different strengths:
-
-* **GPT-4.1**: Best for complex reasoning and multi-step analysis
-* **Claude 4 Sonnet**: Strong at code generation and following instructions
-* **Gemini 2.5 Pro**: Fast with good balance of quality and speed
-* **GPT-4.1 Mini**: Lightweight for simple queries
+<Tip>
+Use business language and desired outcomes. The agent uses scoped schemas, semantic objects, files, APIs, tools, and [instructions](/agents/instructions) to determine the implementation details.
+</Tip>
