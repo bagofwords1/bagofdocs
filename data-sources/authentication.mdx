@@ -47,7 +47,7 @@ Which methods a connector offers is set by the connector itself; each connector 
 | Username and password | Credentials stored encrypted, used for every query | Most databases |
 | Key pair / certificate | A private key instead of a password | Snowflake, Salesforce |
 | Service account | A machine identity (JSON key, client secret, PAT) | BigQuery, Power BI, Databricks, Tableau |
-| OAuth (per-user) | Each user signs in with their own account; BOW stores and refreshes their token | Power BI, Fabric, Snowflake, SharePoint, OneDrive, Google Drive, ServiceNow, SAP Datasphere, MCP |
+| OAuth (per-user) | Each user signs in with their own account; BOW stores and refreshes their token | Power BI, Fabric, Snowflake, SharePoint, OneDrive, Google Drive, ServiceNow, Monday, SAP Datasphere, MCP |
 | Kerberos | The service's own ticket, from a keytab on the host | SQL Server |
 | Kerberos delegated (per-user) | The service impersonates the caller via constrained delegation — no stored secret | SQL Server |
 | API key / token | A single header token | Splunk, Zabbix, PostHog, Timbr, MCP, Custom API |

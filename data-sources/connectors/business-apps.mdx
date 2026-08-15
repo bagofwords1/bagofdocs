@@ -1,16 +1,17 @@
 ---
 title: "Business applications"
-description: "Connect Salesforce, NetSuite, ServiceNow and PostHog so the agent can query them as tables"
+description: "Connect Salesforce, NetSuite, ServiceNow, Monday and PostHog so the agent can query them as tables"
 icon: "boxes"
 ---
 
-These connectors reach SaaS applications through their own APIs and present them to the agent as **tables**. The agent writes queries in each platform's native language — SOQL for Salesforce, SuiteQL for NetSuite, a Table API query spec for ServiceNow, HogQL for PostHog — and Bag of words handles discovery, paging and row limits.
+These connectors reach SaaS applications through their own APIs and present them to the agent as **tables**. The agent writes queries in each platform's native language — SOQL for Salesforce, SuiteQL for NetSuite, a Table API query spec for ServiceNow, a board query spec for monday.com, HogQL for PostHog — and Bag of words handles discovery, paging and row limits.
 
 | Connector | Query surface | Auth | Edition |
 | :-- | :-- | :-- | :-- |
-| [Salesforce](#salesforce) | SOQL over the REST API | Connected App (JWT bearer), or username/password | |
-| [NetSuite](#netsuite) | SuiteQL over the REST API | Token-Based Authentication | |
+| [Salesforce](#salesforce) | SOQL over the REST API | Connected App (JWT bearer), or username/password |  |
+| [NetSuite](#netsuite) | SuiteQL over the REST API | Token-Based Authentication |  |
 | [ServiceNow](#servicenow) | Table API query specs | Username/password, or per-user OAuth | Beta |
+| [Monday data](#monday-data) | Board query specs over the GraphQL API | API token, or per-user OAuth | Beta |
 | [PostHog](#posthog) | HogQL | Personal API key | Beta |
 
 ---
@@ -127,7 +128,7 @@ Bag of words queries the ServiceNow **Table API** (`/api/now/table/{table}`). Sc
 | Field | Required | Default | Notes |
 | :-- | :-- | :-- | :-- |
 | `instance_url` | Yes | — | Your instance URL, e.g. `https://acme.service-now.com`. |
-| `tables` | No | — | Comma-separated tables to expose. Blank uses a curated set of common ITSM tables (incident, change_request, problem, task, and so on). |
+| `tables` | No | — | Comma-separated tables to expose. Blank uses a curated set of common ITSM tables (incident, change\_request, problem, task, and so on). |
 | `discover_all` | No | `false` | Discover all business tables, including custom `u_`/`x_` tables, instead of the curated set. |
 | `display_values` | No | `true` | Return human-readable display values for reference and choice fields. |
 
@@ -153,6 +154,55 @@ Register the OAuth app's redirect URI in ServiceNow as:
 ```text
 https://<your-bow-host>/api/connections/oauth/callback
 ```
+
+---
+
+## Monday data
+
+<Note>
+  The Monday data connector is in **beta**.
+</Note>
+
+Bag of words queries the monday.com **GraphQL API** and presents each **board as a table**: board columns become schema columns (named by their titles, with status and dropdown labels surfaced to the agent), items become rows, and connect-boards columns become foreign keys to the linked board. Duplicate board names are disambiguated with the board id.
+
+The agent sends a JSON query spec — board, columns, filter rules, ordering, limit — which Bag of words translates into `items_page` calls with cursor pagination. A single query returns at most 10,000 rows. Filters on status and dropdown columns accept the human-readable label (for example `"Done"`); the connector translates it to the label index that monday's API actually matches on. Values come back typed: numbers as floats, checkboxes as booleans, ratings as integers, everything else as display text.
+
+<Note>
+  This is separate from the **Monday MCP preset**, which exposes monday.com as callable tools (create an item, post an update). Use this connector when you want boards indexed and queryable as data; the two can coexist.
+</Note>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `workspaces` | No | — | Comma-separated workspace names or ids to index. Blank indexes all workspaces the token can see. |
+| `boards` | No | — | Comma-separated board names or ids to index. Blank indexes every visible board. |
+
+### Authentication modes
+
+**API Token — `api_token`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_token` | Yes | A monday.com API token (avatar → **Developers** → **My access tokens**). Use a dedicated service user's token so shared queries don't depend on one person's account. |
+| `oauth_client_id` | No | Client ID of an app created in monday.com's **Developer Center**. Setting it enables per-user sign-in. |
+| `oauth_client_secret` | No | Client secret of that app. |
+
+**Sign in with monday.com — `oauth`** (scope: user, no fields). Each user signs in against `auth.monday.com` with read-only scopes (`me:read boards:read workspaces:read users:read account:read`) — enable exactly these on the app in monday's Developer Center, since monday rejects the authorize request if any requested scope is missing. Queries run with that person's own board permissions. This requires the `oauth_client_id` above to be configured on the connection. monday access tokens do not expire and no refresh token is issued.
+
+<Note>
+  Per-user authentication on a database-style connection requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
+</Note>
+
+Register the OAuth app's redirect URL in monday.com's Developer Center as:
+
+```text
+https://<your-bow-host>/api/connections/oauth/callback
+```
+
+<Warning>
+  Trial and free monday.com accounts have small API rate and daily budgets. Indexing very large accounts or running heavy backfills can exhaust the daily budget, after which the API returns 429 for every request until it resets. The connector absorbs transient throttling automatically.
+</Warning>
 
 ---
 
