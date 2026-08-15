@@ -1,6 +1,6 @@
 ---
 title: "Channels Overview"
-description: "Bring the Bag of words analyst to where your team works — Slack, Teams, Google Chat, WhatsApp, and Email"
+description: "Bring the Bag of words analyst to messaging tools and connect your own applications with OAuth"
 icon: "messages-square"
 ---
 
@@ -30,6 +30,10 @@ Channels connect the Bag of words analyst to the messaging tools your team alrea
   <Card title="MCP" icon="plug" href="/using-bow/mcp">
     Connect Claude, Cursor, or any MCP client to your data via the BOW MCP server.
   </Card>
+
+  <Card title="OAuth Apps" icon="key-round" href="/channels/oauth-apps">
+    Let your own applications sign users in to BOW and call the BOW API on their behalf.
+  </Card>
 </CardGroup>
 
 ## How channels work
@@ -56,5 +60,5 @@ Channels differ in how events reach your BOW server — which matters if your de
 | Email | Outbound SMTP/IMAP to your mail provider | No |
 
 <Note>
-  All chat channels are configured by an admin under **Settings → Integrations** in BOW.
+  All channels and OAuth apps are configured by an admin under **Settings → Channels** in BOW.
 </Note>

@@ -114,7 +114,8 @@
           "channels/teams",
           "channels/google-chat",
           "channels/whatsapp",
-          "channels/email"
+          "channels/email",
+          "channels/oauth-apps"
         ]
       },
       {
