@@ -1,0 +1,92 @@
+---
+title: "SharePoint Lists"
+description: "Query SharePoint lists as tables — every list on a site becomes a queryable table with typed columns and OData filters"
+icon: "microsoft"
+---
+
+Where the [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) connector reads a site's **document libraries as files**, this connector reads the site's **SharePoint lists as tables**. Every list becomes a catalog table with typed columns, and the agent queries it the way it queries a database — filters, ordering and column selection run server-side through Microsoft Graph, and the rest happens in pandas.
+
+<Note>
+  The SharePoint Lists connector is part of the **Enterprise Edition**.
+</Note>
+
+## What the agent sees
+
+The connection points at one site. Every visible list on that site — a site can have many — is discovered as its own table:
+
+- **Columns come from the list's own schema.** Text, choice, number, currency, date, boolean, person and lookup columns are typed accordingly; noise columns (compliance tags, attachments plumbing) are filtered out. `ID`, `Created`, `Modified`, `Created By` and `Modified By` are included.
+- **Display names, not internal names.** A SharePoint column displayed as `2017` may internally be `field_2`; one displayed as `Category` may be `field_1`. The agent sees and filters on the display names it recognizes from the SharePoint UI — the connector translates to internal names on the wire and back in the results.
+- **Document libraries and hidden system lists are excluded.** Libraries belong to the files connector; hidden lists can be opted back in with `include_hidden`.
+
+Queries map 1:1 to Graph list-item calls with OData:
+
+```json
+{"list": "2017_Expense_Data",
+ "filter": "Category ne 'Total Expenses' and 2017 gt 1",
+ "select": ["Category", "2017"],
+ "orderby": "Modified desc",
+ "limit": 1000}
+```
+
+The connector sends the `Prefer: HonorNonIndexedQueriesWarningMayFailRandomly` header so filters work on non-indexed columns, and follows `@odata.nextLink` paging up to the row cap.
+
+## Before you start
+
+The prerequisites are the same as for [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive): a **Microsoft Entra ID app registration** with a client secret, admin consent for the Graph permissions, and your Bag of words base URL for the OAuth redirect URI. If you already registered an app for the SharePoint files connector, **reuse it** — SharePoint Lists needs only `Sites.Read.All`, which that app already has.
+
+| Access path | Graph permission needed |
+| :-- | :-- |
+| Per-user sign-in (recommended) | `Sites.Read.All` **delegated**, plus `User.Read`, `openid`, `profile`, `offline_access` |
+| App-only catalog and queries | `Sites.Read.All` **application** permission with admin consent |
+
+<Note>
+  Unlike Graph _file_ reads, Graph _list_ reads work app-only on standard tenants — so a service-principal-only connection can index and query lists without any user signing in, as long as the application permission is granted. With delegated sign-in, each user sees exactly the lists and items their own account can see.
+</Note>
+
+## Connect in Bag of words
+
+Go to **Data Sources → Add data source** and pick **SharePoint Lists**.
+
+### Config fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `site_url` | Yes | — | Full site URL, e.g. `https://contoso.sharepoint.com/sites/Finance`. |
+| `lists` | No | `*` | `*` exposes **all** qualifying lists on the site. Or a comma-separated set of list names to restrict the connection, e.g. `Expenses 2025, Vendors`. |
+| `include_hidden` | No | `false` | Also expose lists SharePoint marks as hidden (site plumbing). Usually off. |
+| `max_items` | No | `20000` | Safety cap on how many list items a single query may fetch. |
+
+### Authentication modes
+
+Identical to the SharePoint files connector, backed by the same Entra app registration:
+
+- **Entra ID App (Service Principal)** — `tenant_id`, `client_id`, `client_secret` (with optional `oauth_client_id` / `oauth_client_secret` overrides). Backs both the app-only path and the per-user sign-in flow.
+- **Sign in with Microsoft** — each user clicks **Connect** and completes the authorization-code flow; queries then run as that user. Entra SSO deployments also get OBO auto-provisioning, so users who log in with Microsoft are connected automatically.
+
+See [Authentication and access](/data-sources/authentication) for shared vs per-user policies.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A filter fails on a large list">
+    SharePoint rejects `$filter`/`$orderby` on non-indexed columns once a list crosses the 5,000-item view threshold, even with the Prefer header. Either index the column in SharePoint (List settings → Indexed columns), or drop the filter and let the agent filter in pandas — the connector's error message tells the agent to do exactly that.
+  </Accordion>
+
+  <Accordion title="A list is missing from the catalog">
+    Document libraries are excluded by design — use the SharePoint files connector for those. Hidden lists need `include_hidden`. If the connection has a `lists` scope, the list name must match one of the configured names.
+  </Accordion>
+
+  <Accordion title="The catalog is empty after connecting">
+    With a user-required connection and no `Sites.Read.All` application permission, the admin-side crawl legitimately finds nothing — the catalog populates per user after each user signs in with Microsoft.
+  </Accordion>
+
+  <Accordion title="A column is missing from a table">
+    Hidden and read-only system columns are filtered out of the catalog on purpose. Person and lookup columns return display values as strings.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — the same site's document libraries, as files.
+- [Business applications](/data-sources/connectors/business-apps) — other table-shaped application connectors (Salesforce, ServiceNow, NetSuite).
+- [Authentication and access](/data-sources/authentication) — shared vs per-user credentials and OAuth.

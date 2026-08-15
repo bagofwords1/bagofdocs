@@ -1,0 +1,118 @@
+---
+title: "Qlik Sense on-prem"
+description: "Connect Qlik Sense Enterprise on Windows with a QMC certificate and let the agent query its apps with hypercubes"
+icon: "activity"
+---
+
+Bag of words connects to a **Qlik Sense Enterprise on Windows (QSEoW)** site, discovers its streams and apps through the **Qlik Repository Service (QRS)**, and queries them through the **Qlik Engine API (QIX)** — the same hypercube engine the Qlik front end uses. Dimensions, measures, and selections behave exactly as they do inside Qlik, including the associative model.
+
+This is the on-premises sibling of the [Qlik Sense](/data-sources/connectors/qlik-sense) (Qlik Cloud) connector. The two products share the Engine protocol and little else: discovery, authentication, and the grouping concept all differ, so each has its own connector.
+
+|  | Qlik Cloud | Qlik Sense Enterprise on Windows |
+| :-- | :-- | :-- |
+| Discovery | REST `/api/v1/items` | QRS REST on port `4242` |
+| Authentication | Bearer token | Client certificate (mutual TLS) |
+| Grouping | Space | **Stream** |
+| Engine | `wss://tenant/app/{id}` | `wss://host:4747/app/{id}` |
+| Identity | the token's own user | `X-Qlik-User` header |
+
+<Note>
+  The Qlik Sense on-prem connector is part of the **Enterprise Edition**.
+</Note>
+
+## How it works
+
+1. Streams and apps are enumerated over QRS (`/qrs/stream/full`, `/qrs/app/full`) using the client certificate. Unpublished apps — those still in a user's personal work area — are skipped by default.
+2. For each app, Bag of words opens one Engine **WebSocket** session and reads the data model (`GetTablesAndKeys`), the published **master measures with their Qlik expressions**, master dimensions, variables, sheets, and data lineage.
+3. Queries run as QIX hypercubes over a WebSocket to `wss://<host>:4747/app/<appId>`.
+
+Each table inside an app becomes a schema entry named `Stream/App/Table`. Fields tagged `$key` by Qlik become primary keys, and tables sharing a key are linked as relationships. Every app also contributes a `Stream/App/Master Items` entry — not a physical table, but the app's published measures (each carrying its full expression, set analysis included), dimensions, and variables, so the agent reuses the business logic the app's authors agreed on instead of re-deriving it.
+
+<Note>
+  Qlik is queried with **hypercubes, not SQL**. The agent sends dimension field names plus measures written as Qlik expressions (`Sum([Net Sales])`, `Count(distinct [OrderID])`), and filters are applied as **Qlik selections** — they narrow the associative state and propagate across every related table.
+</Note>
+
+The certificate authenticates the _machine_, not a person, so every request also names the account Qlik should evaluate it as (the `X-Qlik-User` header). During discovery each app is opened as its owner, which avoids Section Access refusals; at query time the identity comes from the credential — see [Authentication modes](#authentication-modes).
+
+## Before you start
+
+- **Export the certificates from the QMC**: **Certificates → Export**, machine name of the Bag of words host, format **Platform independent PEM-format**. The bundle contains `client.pem`, `client_key.pem`, and `root.pem`.
+- Outbound access from Bag of words to the Qlik central node on ports **4242** (QRS) and **4747** (Engine). On a default Windows install these are open locally but blocked by Windows Defender Firewall for remote hosts — add an inbound rule for both.
+- The Server URL should be the hostname the certificates were exported for.
+
+<Warning>
+  A Qlik client certificate is **admin-equivalent** — it can act as any user on the site. Treat the PEM files like an admin password: store them only in the connection's credentials, and re-export from the QMC if they ever leak.
+</Warning>
+
+## Connect in Bag of words
+
+Go to **Settings → Data Sources → Add data source → Qlik Sense (on-prem)**. See [Connecting a data source](/data-sources/connecting) for the general flow.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `server_url` | Yes | — | Central node hostname, e.g. `https://qlik.corp.example.com`. Any port in the URL is ignored — QRS and the Engine use the ports below. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Needs `root.pem` pasted in the credentials — see the TLS note below. |
+| `stream_filter` | No | — | Comma-separated stream names or IDs. If empty, every visible stream is crawled. |
+| `published_only` | No | `true` | Skip apps still in a user's personal work area. |
+| `qrs_port` | No | `4242` | Qlik Repository Service port. |
+| `engine_port` | No | `4747` | Qlik Engine Service port. |
+
+**Test Connection** calls `/qrs/about`, lists streams and apps, and reports the Qlik version plus how many of each the credential can see.
+
+<Note>
+  **TLS on a default install.** Qlik signs its service certificates with its own root, issued to the machine's **Windows hostname**. If Bag of words reaches the server by that same name, paste `root.pem` into the Root CA field and keep Verify SSL on. If you connect via a different DNS name (a cloud VM's public hostname, for example), verification can never pass — turn **Verify SSL off and leave Root CA empty**. A pasted Root CA takes precedence over the toggle.
+</Note>
+
+## Authentication modes
+
+### Client Certificate (system)
+
+The workspace-wide credential. All three PEM fields are multi-line — paste the full file contents including the `BEGIN`/`END` lines.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `client_cert` | Yes | — | Contents of `client.pem`. |
+| `client_key` | Yes | — | Contents of `client_key.pem`. |
+| `client_key_password` | No | — | Only if the exported key is password-protected. |
+| `root_ca` | No | — | Contents of `root.pem`, for TLS verification. |
+| `user_directory` | No | `INTERNAL` | Directory of the account Qlik should act as. |
+| `user_id` | No | `sa_repository` | Account Qlik should act as. The default service account sees the whole site; set a real user to have Qlik apply that user's permissions instead. |
+
+### Qlik Identity (per user)
+
+When the connection has **Require user authentication** enabled, each person connects with only their Qlik identity — the certificate stays on the connection and is never handed to users. Their queries then run with **their own stream access and Section Access rules**, which is Qlik's row-level security.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `user_directory` | Yes | — | The user's directory — the part before the backslash in `DOMAIN\user` in the Qlik hub. |
+| `user_id` | Yes | — | The user's Qlik account. |
+
+Per-user credentials require Enterprise — see [Authentication](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Test Connection fails with an SSL certificate verification error">
+    Qlik's service certificate is issued to the machine's Windows hostname. If you connect by any other name — a cloud VM's public DNS name is the usual case — hostname verification fails even with the correct `root.pem`. Turn **Verify SSL off and clear the Root CA field** (a pasted root takes precedence over the toggle), or connect via a hostname the certificate actually covers.
+  </Accordion>
+
+  <Accordion title="Connection refused or timeout on port 4242 or 4747">
+    The services listen on those ports, but Windows Defender Firewall blocks remote connections by default. Add an inbound rule on the Qlik server for TCP 4242 and 4747, and check any network firewall or cloud security group between Bag of words and the server.
+  </Accordion>
+
+  <Accordion title="Connected, but no apps were found">
+    Check `stream_filter` for names or IDs that don't match a real stream, and remember `published_only` (the default) hides apps that were never published to a stream.
+  </Accordion>
+
+  <Accordion title="An app appears in the catalog marked inactive">
+    An entry with an error in its description failed to crawl — usually a permission gap on that app. An entry described as having **no data model** belongs to an app whose load script has never run; it holds no data and cannot be queried, though its master items are still published if it has any.
+  </Accordion>
+
+  <Accordion title="The browser shows 400 'The http request header is incorrect' on the hub">
+    That is Qlik's virtual-proxy **host allow list** rejecting the hostname — a Qlik-side setting for browser access on 443. It does not affect this connector, which talks to QRS and the Engine directly. To fix the hub itself, add the hostname in QMC → Virtual proxies → Advanced → Host allow list.
+  </Accordion>
+
+  <Accordion title="A measure returns nothing">
+    Measures are Qlik expressions, and field names are **case-sensitive**. Names with spaces need square brackets, as in `Sum([Net Sales])`. Prefer the expressions published in the app's `Master Items` entry — they carry the set analysis the app's authors intended.
+  </Accordion>
+</AccordionGroup>

@@ -64,6 +64,7 @@
               "data-sources/connectors/analysis-services",
               "data-sources/connectors/tableau",
               "data-sources/connectors/qlik-sense",
+              "data-sources/connectors/qlik-sense-onprem",
               "data-sources/connectors/sisense",
               "data-sources/connectors/oracle-bi",
               "data-sources/connectors/infor-olap",
@@ -74,6 +75,7 @@
               "data-sources/connectors/s3",
               "data-sources/connectors/sharepoint-onedrive",
               "data-sources/connectors/onenote",
+              "data-sources/connectors/sharepoint-lists",
               "data-sources/connectors/google-drive",
               "data-sources/connectors/mail",
               "data-sources/connectors/file-formats"
