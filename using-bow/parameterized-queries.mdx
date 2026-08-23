@@ -1,0 +1,99 @@
+---
+title: "Parameterized queries"
+description: "Declare inputs on a query so a dashboard can filter it, and bind inputs to the viewer's identity for per-person data."
+icon: "sliders"
+sidebarTitle: "Parameterized queries"
+keywords: ["parameter", "parameterized query", "filter", "options source", "identity parameter", "personalization"]
+---
+
+A parameterized query is a tracked query that declares one or more **inputs**. Instead of hard-coding a region or a customer into the SQL, the query leaves a slot the dashboard fills in — from a control the viewer changes, or from **who the viewer is**. The query re-runs at the source with the new value, so the numbers are always computed on live data, not filtered client-side.
+
+This is the mechanism behind [interactive and personalized dashboards](/using-bow/dashboards#personalize-a-dashboard-per-viewer): a control on the dashboard sets a parameter, and every artifact bound to that parameter re-runs.
+
+## Declaring a parameter
+
+Ask the agent for it in plain language — "make region a filter", "scope this to the signed-in user's team" — and it declares the parameter when it builds the query. You can also review and adjust declarations in the query editor's **Params** panel, beside the SQL.
+
+Each parameter has:
+
+| Field | What it is |
+| --- | --- |
+| **name** | The identifier used in the SQL placeholder, e.g. `region`. |
+| **type** | `string`, `number`, `boolean`, or `list` (a multi-select that binds an array). |
+| **label** | The human label shown on the control. |
+| **required** | Whether a value must be present for the query to run. |
+| **default** | The value used when the viewer hasn't chosen one. |
+| **source** | Where the value comes from — see [the three sources](#where-a-value-comes-from) below. |
+
+## Using a parameter in SQL
+
+Reference a parameter with a colon placeholder — `:region`. Bag of words binds the value safely (never string-substituted), so a parameter can't be used for SQL injection.
+
+```sql
+SELECT id, region, amount
+FROM sales
+WHERE (:region IS NULL OR region = :region)
+```
+
+The `(:region IS NULL OR region = :region)` shape is the idiom for an **optional** filter: when the control is set to a value, only those rows return; when it's cleared (`NULL`), all rows return. A `list` parameter uses `IN` instead:
+
+```sql
+WHERE (:regions IS NULL OR region = ANY(:regions))
+```
+
+<Note>
+  Each connector binds parameters in its own dialect — a DAX measure filter for Power BI, a bound parameter for SQL sources. You write the query in the source's language; the placeholder is the same `:name` everywhere.
+</Note>
+
+## Where a value comes from
+
+Every parameter draws its value from one of three sources. This is the setting that turns an ordinary filter into a personalized one.
+
+<CardGroup cols={3}>
+  <Card title="input" icon="hand-pointer">
+    The viewer sets it from a control on the dashboard. A plain interactive filter.
+  </Card>
+
+  <Card title="identity" icon="user-lock">
+    The value is bound to the viewer's identity and resolved server-side per person. It is never editable and never sent from the browser.
+  </Card>
+
+  <Card title="input_identity_default" icon="user-pen">
+    Defaults to the viewer's identity, but the viewer can override it with a control — personal by default, explorable when allowed.
+  </Card>
+</CardGroup>
+
+An **identity** parameter is what makes one shared dashboard show each person their own slice: bind `team` to the viewer's team and everyone opens the same artifact but sees only their team's rows. Because identity parameters resolve on the server, a viewer cannot read or change another person's value. See [personalization](/using-bow/dashboards#personalize-a-dashboard-per-viewer).
+
+<Warning>
+  An identity parameter scopes data by a value Bag of words resolves from the viewer's profile. It is **not** a substitute for source-enforced security on sources that already model per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security). For those, use a [per-user connection](/data-sources/authentication) so the source filters under each viewer's own credentials.
+</Warning>
+
+## Giving a control its choices
+
+A control that offers a fixed set of values needs to know that set. There are two ways to supply it, and one rule.
+
+- **Static options** — a list you declare on the parameter (`Rock`, `Jazz`, `Classical`).
+- **Options source** — another query in the same report supplies the choices: point the parameter at that query and name its value and label columns. A `Genres` query can feed the genre control of an `Albums by Genre` query.
+
+<Warning>
+  A control must **never** derive its choices from the rows it filters. Selecting a value would then collapse the list to just that value. Always supply choices from a static list or a separate options-source query — the "filter-space" pattern — so the full set of choices stays stable as the viewer selects.
+</Warning>
+
+## What the viewer experiences
+
+On a dashboard, each declared `input` parameter renders as a control at the top of the artifact. Changing it re-runs the consuming queries and refreshes the affected visualizations in place — the rest of the dashboard is untouched. Identity parameters render as a read-only "scoped to you" note rather than a control.
+
+Results are cached per viewer and per set of values, so re-opening a dashboard with the same inputs is instant, while a new combination runs fresh.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Dashboard artifacts" icon="chart-pie" href="/using-bow/dashboards">
+    Interactive controls, per-viewer personalization, and View-as.
+  </Card>
+
+  <Card title="Authentication and Access" icon="lock" href="/data-sources/authentication">
+    Per-user connections, so a source enforces its own row-level security.
+  </Card>
+</CardGroup>
