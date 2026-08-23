@@ -1,0 +1,82 @@
+---
+title: "Quotas and usage limits"
+description: "Cap monthly LLM tokens, spend, queries, and data volume per user, group, or role."
+icon: "gauge"
+---
+
+Usage policies let administrators cap how much a person can consume in a calendar month — LLM tokens, dollar spend, data-source queries, and data volume. Use them to protect budgets, contain runaway automations, and give teams predictable limits without turning agents off.
+
+<Note>
+  Quotas are an **Enterprise** capability (the `usage_limits` license feature). In Community Edition the quota screens are hidden and no limits are enforced. See [License Key](/enterprise/license) to activate Enterprise Edition.
+</Note>
+
+## What you can limit
+
+A usage policy sets an optional monthly cap for each of these metrics. Any field you leave blank is **unlimited** for that metric.
+
+| Limit | Applies to | Unit in the admin UI |
+| --- | --- | --- |
+| Monthly token limit | Total LLM tokens (prompt \+ completion) across all agent activity | Tokens |
+| Monthly spend limit | LLM dollar cost, computed per call from the same per-model rates as the Cost console | USD |
+| Monthly query limit | Number of queries run against data connections | Queries |
+| Monthly data limit | Volume of data read from connections | MB |
+
+### Per-connection overrides
+
+Within a policy you can override the **query** and **data volume** limits for a specific connection. This is useful when one data source is far more expensive than the rest — for example, a small default limit on all connections plus a tighter override on a metered warehouse. When both a policy-wide limit and a connection override apply, the **lower** of the two is enforced for that connection.
+
+## The monthly window
+
+Usage is measured over the current **calendar month in UTC**. The window opens at `00:00 UTC` on the first day of the month and counters reset automatically when the next month begins. There is no rolling window and no manual reset.
+
+## How enforcement works
+
+Limits are checked **before** work runs, so a request that would cross a cap is stopped rather than partially billed:
+
+- Before each LLM call, the agent checks the token and spend caps. When a cap is reached, the run stops with an `HTTP 429` error identifying the metric, the limit, and current usage.
+- Before each data query, the query-count and data-volume caps (including any per-connection override) are checked the same way.
+
+Token and spend usage is metered per agent run and flushed when the run finishes, so a single in-flight run may edge slightly past a cap before the next request is blocked. Once a cap is hit, further requests are blocked until the next monthly window or until an administrator raises the limit.
+
+## Create and assign a policy
+
+Quotas are managed under **Settings → Members → Quotas**. Managing policies requires the **Manage settings** permission.
+
+<Steps>
+  <Step title="Create a policy">
+    In **Settings → Members → Quotas**, choose **New quota**. Give it a name and description, then set any of the monthly limits — tokens, spend (USD), queries, and data (MB). Leave a field blank to keep that metric unlimited.
+  </Step>
+  <Step title="Add connection overrides (optional)">
+    Add a per-connection override to set a different query or data limit for a specific connection within the policy.
+  </Step>
+  <Step title="Assign the policy">
+    Assign the policy to a **user**, **group**, or **role**. A member's usage is then measured against whichever policy applies to them. You can also pre-assign a policy to a pending invite from the **Members** tab or the invite dialog — it is applied automatically when the person registers.
+  </Step>
+</Steps>
+
+## How the effective limit is resolved
+
+A member may be covered by more than one policy — directly, or through their groups and roles. The effective limit is resolved in two steps:
+
+1. **Direct assignment wins.** If one or more policies are assigned directly to the user, only those apply. Group- and role-based policies are ignored.
+2. **Otherwise, inherited policies apply.** If there is no direct assignment, policies assigned to the user's groups and roles are combined.
+
+When several policies apply at the same level, the **most restrictive** value is enforced for each metric independently — the effective cap is the lowest non-blank limit across those policies. A member with no direct, group, or role policy has **no limits** (the default).
+
+<Note>
+  Full administrators are subject to policies assigned to them like any other member. Assign no policy to keep an account unlimited.
+</Note>
+
+## What members see
+
+Each member can review their own consumption for the current month on their profile's **Usage** tab: used, limit, and remaining for each metric, plus a per-day breakdown from the start of the month. This is self-serve — members can see their own usage without an admin permission — and it updates as agents run.
+
+## Auditing
+
+Creating, updating, deleting, and assigning usage policies are recorded in the audit trail (`usage_policy.created`, `usage_policy.updated`, `usage_policy.deleted`, and `usage_policy.assigned`), capturing who made the change and when.
+
+## Related controls
+
+Quotas cap _cumulative monthly_ consumption. To limit _burst_ traffic against a single connection, use per-connection request rate limits (requests per minute, hour, or day), which are configured on the connection itself. The two controls are complementary: rate limits smooth short-term load, quotas bound the monthly total.
+
+See also [Usage, cost, and quality](/observe-and-govern/usage-cost-quality) for the monitoring views that show where spend and volume are going before you decide where to set caps.
