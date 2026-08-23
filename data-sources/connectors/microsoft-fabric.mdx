@@ -14,10 +14,10 @@ The Fabric SQL endpoint is a SQL Server-compatible endpoint. Bag of words acquir
 - **Per-user** — a delegated token for `https://database.windows.net/user_impersonation offline_access`, obtained by user sign-in or by an on-behalf-of exchange from the user's Entra login.
 
 <Warning>
-  The SQL endpoint authenticates with **Azure SQL** tokens, not Fabric API tokens. An app registration granted only Fabric/Power BI API permissions yields tokens the SQL endpoint rejects with login error `18456`. The permission that matters is **Azure SQL Database → user_impersonation** (delegated), with admin consent.
+  The SQL endpoint authenticates with **Azure SQL** tokens, not Fabric API tokens. An app registration granted only Fabric/Power BI API permissions yields tokens the SQL endpoint rejects with login error `18456`. The permission that matters is **Azure SQL Database → user\_impersonation** (delegated), with admin consent.
 </Warning>
 
-Discovery reads `INFORMATION_SCHEMA.COLUMNS` for the configured database, skips the `sys`, `INFORMATION_SCHEMA`, and `queryinsights` schemas, and — importantly — filters to objects the connecting principal actually has `SELECT` on (`HAS_PERMS_BY_NAME`). `INFORMATION_SCHEMA` alone lists objects whose *existence* is visible, which is broader than read access, so without this filter a principal with `DENY SELECT` would still see tables listed. Table and column descriptions come from `MS_Description` extended properties when readable; otherwise a simpler introspection runs.
+Discovery reads `INFORMATION_SCHEMA.COLUMNS` for the configured database, skips the `sys`, `INFORMATION_SCHEMA`, and `queryinsights` schemas, and — importantly — filters to objects the connecting principal actually has `SELECT` on (`HAS_PERMS_BY_NAME`). `INFORMATION_SCHEMA` alone lists objects whose _existence_ is visible, which is broader than read access, so without this filter a principal with `DENY SELECT` would still see tables listed. Table and column descriptions come from `MS_Description` extended properties when readable; otherwise a simpler introspection runs.
 
 Each object is exposed to the agent as `schema.table`.
 
@@ -47,7 +47,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
     **Certificates & secrets → New client secret**. Copy the secret **value** immediately — it is shown only once.
   </Step>
   <Step title="Add the Azure SQL Database permission">
-    **API permissions → Add a permission → APIs my organization uses → Azure SQL Database**, then add the delegated **user_impersonation** permission and **grant admin consent** for the directory. This is what makes the issued token acceptable to the Fabric SQL endpoint.
+    **API permissions → Add a permission → APIs my organization uses → Azure SQL Database**, then add the delegated **user\_impersonation** permission and **grant admin consent** for the directory. This is what makes the issued token acceptable to the Fabric SQL endpoint.
   </Step>
   <Step title="(Per-user only) Add the redirect URI">
     Under **Authentication**, add a **Web** redirect URI:
@@ -76,7 +76,7 @@ Go to **Data Sources → Add data source → Microsoft Fabric** and fill in the 
 | :-- | :-- | :-- | :-- |
 | `server_hostname` | Yes | — | The Fabric SQL endpoint, e.g. `abc123.datawarehouse.fabric.microsoft.com`. |
 | `database` | Yes | — | The Warehouse or Lakehouse name. |
-| `schema` | No | *(empty)* | A schema, or a comma-separated list. Empty discovers all schemas the identity can read. |
+| `schema` | No | _(empty)_ | A schema, or a comma-separated list. Empty discovers all schemas the identity can read. |
 
 **Test Connection** acquires a token, opens the ODBC connection, and runs `SELECT 1`.
 
@@ -107,11 +107,15 @@ To force everyone to use their own account instead of the shared service princip
 
 Fabric uses **T-SQL**, and the agent writes it accordingly: `SELECT TOP n` rather than `LIMIT`, `+` for string concatenation, `GETDATE()`, `ISNULL()`/`COALESCE()`, `DATEPART()`/`DATEADD()`/`DATEDIFF()`, and square brackets around reserved words. Tables are addressed as `schema.table`.
 
+## Personalized dashboards over Fabric permissions
+
+With **per-user** authentication, a dashboard built on Fabric can be shared so each viewer's queries run under **their own** token. The warehouse's own `GRANT`/`DENY SELECT` then applies per person — a viewer without access to a table sees nothing from it, while others see their permitted rows, all from one shared dashboard. Configure this with **Viewer** run identity when sharing; see [personalizing a dashboard](/using-bow/dashboards#personalize-a-dashboard-per-viewer). As with any delegated source, **View-as** previews the target's parameter binding but keeps your token — to confirm exactly what another person can read, have them open the shared dashboard themselves.
+
 ## Troubleshooting
 
 <AccordionGroup>
   <Accordion title="Login error 18456 when a token was obtained">
-    The token has the wrong audience. Add the **Azure SQL Database → user_impersonation** delegated permission to the app registration and grant admin consent; a Fabric/Power BI API scope produces tokens the SQL endpoint rejects.
+    The token has the wrong audience. Add the **Azure SQL Database → user\_impersonation** delegated permission to the app registration and grant admin consent; a Fabric/Power BI API scope produces tokens the SQL endpoint rejects.
   </Accordion>
 
   <Accordion title="Login timeout expired (HYT00) on the first attempt">

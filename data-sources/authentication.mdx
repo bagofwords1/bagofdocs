@@ -82,6 +82,10 @@ This exists so admins can curate a catalog, run indexing, and verify a connectio
   Background work that has no user — scheduled indexing, catalog refresh, warm-up — uses the connection's stored credentials. This is why a per-user connection can still keep a shared catalog current.
 </Note>
 
+## Per-viewer dashboards
+
+A per-user connection is also what powers **personalized dashboards**. When a dashboard is shared with **Viewer** run identity, each viewer's queries run under their own credentials — so a source that enforces row-level security filters per person, and one shared artifact shows each viewer only their own rows. See [personalizing a dashboard](/using-bow/dashboards#personalize-a-dashboard-per-viewer) and [identity parameters](/using-bow/parameterized-queries#where-a-value-comes-from).
+
 ## Access control on top of authentication
 
 Authentication decides _whose_ permissions apply. Two other layers decide who can reach the data source at all:

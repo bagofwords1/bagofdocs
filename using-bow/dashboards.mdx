@@ -1,7 +1,7 @@
 ---
-title: 'Dashboard artifacts'
-description: 'Ask an agent to create, refine, share, and schedule a complete dashboard artifact.'
-icon: 'chart-pie'
+title: "Dashboard artifacts"
+description: "Ask an agent to create, refine, share, and schedule a complete dashboard artifact."
+icon: "chart-pie"
 ---
 
 A dashboard is an **artifact created through the conversation**. Describe the operating view you need, the agent validates the underlying evidence, and the finished dashboard opens beside the chat that produced it.
@@ -39,6 +39,33 @@ Share an artifact with the people who need the operating view and choose the app
 
 When the source data or business definition changes, ask the agent to validate the difference before publishing an updated version. The report preserves the prompt and tool history behind the dashboard.
 
+## Add interactive filters
+
+Ask the agent to make a field a filter — "let the viewer filter by region", "add a customer selector" — and it adds a control to the top of the dashboard backed by a [parameterized query](/using-bow/parameterized-queries). Changing the control re-runs the affected queries at the source and refreshes those visualizations in place; the rest of the dashboard is untouched. Choices for a control come from a fixed list or from another query in the report, never from the rows the control filters.
+
+## Personalize a dashboard per viewer
+
+A dashboard can show each person their own data while everyone opens the same artifact. Bind a filter to the viewer's identity — "scope this to the signed-in user's team" — and it becomes an **identity parameter**: resolved on the server per viewer, never editable, never sent from the browser. One dashboard, and each viewer sees only their slice.
+
+How results and credentials resolve when you share a personalized dashboard:
+
+- **Run identity.** Choose whose credentials the viewer-triggered queries use. **Viewer** (the default for personalized dashboards) runs them under each viewer's own identity — so a source that enforces its own row-level security filters per person. **Creator** runs them under your credentials, for a dashboard everyone should see identically.
+- **Per-viewer results.** Each viewer's data is computed and cached for them. Your saved snapshot is **withheld** from other viewers — no one sees the rows you last ran with.
+- **Fresh on open.** Personalized dashboards re-run for the viewer when opened, so each person lands on their own current data rather than a stale shared snapshot.
+- **Hide the underlying data.** You can hide the **Data** tab on a shared report so viewers see the dashboard without the raw query results behind it.
+
+<Warning>
+  For a source that already models per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security), personalize with a **per-user connection** and **Viewer** run identity, so the source filters under each person's own credentials. An identity parameter alone scopes by a value Bag of words resolves from the profile — use it for application-level slicing, not as a replacement for source-enforced security. See [Authentication](/data-sources/authentication).
+</Warning>
+
+## Preview as another viewer
+
+Before you share, check what someone else will see. **View as** re-renders the dashboard as another organization member — searchable by name or email — or as an anonymous viewer, so you can confirm a personalized dashboard is scoped the way you intended.
+
+<Note>
+  On a **per-user (delegated)** source such as Power BI or Fabric, View-as swaps the identity used for parameter binding but keeps **your** source credentials — using the target's stored token would be impersonation. So the preview shows _your_ source-level rows under their identity binding. To verify the exact rows another person gets from a delegated source, have them open the shared dashboard themselves. Bag of words shows an amber caveat on the control in this case.
+</Note>
+
 <Tip>
-Ask for the “so what,” not only the charts. A strong dashboard prompt requests exceptions, risk signals, decisions, and recommended actions alongside the metrics.
+  Ask for the “so what,” not only the charts. A strong dashboard prompt requests exceptions, risk signals, decisions, and recommended actions alongside the metrics.
 </Tip>

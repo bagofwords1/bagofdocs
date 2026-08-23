@@ -149,6 +149,14 @@ Go to **Settings → Data Sources → Add data source → Power BI** and fill in
 
 Once connected, the AI agent writes and runs **DAX** against your semantic models automatically. Tables are addressed as `Dataset/Table`, and relationships defined in the model are available for joins. You do not need to configure anything further to start asking questions.
 
+## Personalized dashboards over Power BI RLS
+
+With **per-user** authentication, a dashboard built on a Power BI model can be shared so that each viewer's queries run under **their own** token. Power BI's row-level security then filters the rows per person — one shared dashboard, and every viewer sees only what their RLS role allows. Configure this with **Viewer** run identity when sharing; see [personalizing a dashboard](/using-bow/dashboards#personalize-a-dashboard-per-viewer).
+
+<Note>
+  **View-as** on a Power BI (delegated) source previews the target identity's parameter binding but keeps _your_ token, so it shows your source-level rows, not theirs. To confirm the exact rows another person gets under RLS, have them open the shared dashboard themselves.
+</Note>
+
 ## Troubleshooting: a model is missing from the schema
 
 If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of words, work through these in order:
