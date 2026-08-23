@@ -38,6 +38,10 @@ On top of that, **grants** widen access for specific principals — per group an
 
 **Preview as** runs the policy against a member you choose and shows exactly the rows they would get — before the policy is saved. Use it on someone in a narrow department and someone with a wide grant; the two results together tell you whether the binding is doing what you meant.
 
+<Note>
+  **Preview as** here tests an RLS _policy_ on the cached copy. It is not the same as a dashboard's [**View as**](/using-bow/dashboards#preview-as-another-viewer), which previews a shared, personalized artifact as another viewer. Both answer "what would this person see?", but one tests a policy and the other tests a dashboard.
+</Note>
+
 ## Auditing
 
 Policy changes are recorded in the audit log with both the old and the new rule, so a widening is visible after the fact and attributable.
