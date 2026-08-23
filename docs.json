@@ -103,7 +103,8 @@
         "pages": [
           "observe-and-govern/overview",
           "observe-and-govern/runs-and-traces",
-          "observe-and-govern/usage-cost-quality"
+          "observe-and-govern/usage-cost-quality",
+          "observe-and-govern/quotas-and-usage-limits"
         ]
       },
       {
