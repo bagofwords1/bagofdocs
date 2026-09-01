@@ -24,10 +24,21 @@ This guide is for internal tools, trusted admin panels, and backend-proxied prod
 <Note>
   Do **not** include `/api` in the user-facing base URL. Build the API base internally:
 
-  ```ts
+  <CodeGroup>
+
+  ```ts TypeScript
   const bowUrl = inputBowUrl.replace(/\/+$/, "").replace(/\/api$/i, "");
   const apiBase = `${bowUrl}/api`;
   ```
+
+  ```python Python
+  bow_url = input_bow_url.rstrip("/")
+  if bow_url.lower().endswith("/api"):
+      bow_url = bow_url[: -len("/api")]
+  api_base = f"{bow_url}/api"
+  ```
+
+  </CodeGroup>
 </Note>
 
 ## Set up OAuth
@@ -44,7 +55,9 @@ See [OAuth Apps](/channels/oauth-apps) for the complete authorize, callback, tok
 
 A minimal browser redirect looks like this:
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 const state = crypto.randomUUID();
 const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
 const verifier = base64url(verifierBytes);
@@ -77,6 +90,45 @@ function base64url(bytes: Uint8Array) {
     .replace(/=+$/, "");
 }
 ```
+
+```python Python
+import base64
+import hashlib
+import secrets
+from urllib.parse import urlencode
+
+state = secrets.token_urlsafe(32)
+verifier = secrets.token_urlsafe(64)
+challenge = (
+    base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+    .rstrip(b"=")
+    .decode()
+)
+
+# Keep both server-side. You need them again at the callback.
+session["bow_oauth_state"] = state
+session["bow_oauth_verifier"] = verifier
+
+authorize = f"{bow_url}/api/oauth/authorize?" + urlencode(
+    {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": callback_url,
+        "scope": "app",
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    }
+)
+
+return redirect(authorize, code=302)
+```
+
+</CodeGroup>
+
+<Warning>
+  In Python, strip the base64 padding with `.rstrip(b"=")`. BOW compares the challenge against an unpadded base64url digest, and `base64.urlsafe_b64encode` pads by default — leaving the `=` produces a valid-looking authorize request that fails later at the token endpoint with `invalid_grant`.
+</Warning>
 
 At the callback, verify `state` before exchanging the code. A backend application should perform the exchange on its server and keep the access and refresh tokens in the user's encrypted session. A public browser client can exchange without a client secret, but should keep its short-lived tokens in `sessionStorage`, not persistent storage.
 
@@ -163,7 +215,9 @@ Content-Type: application/json
 }
 ```
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 async function createReport(apiBase: string, accessToken: string, dataSourceIds: string[]) {
   const response = await fetch(`${apiBase}/reports`, {
     method: "POST",
@@ -182,6 +236,30 @@ async function createReport(apiBase: string, accessToken: string, dataSourceIds:
   return response.json() as Promise<{ id: string }>;
 }
 ```
+
+```python Python
+import httpx
+
+
+def create_report(api_base: str, access_token: str, data_source_ids: list[str]) -> dict:
+    response = httpx.post(
+        f"{api_base}/reports",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        json={
+            "title": "Embedded Bow Chat",
+            "data_sources": data_source_ids,
+        },
+    )
+
+    response.raise_for_status()
+    return response.json()
+```
+
+</CodeGroup>
 
 ---
 
@@ -211,7 +289,9 @@ Accept: text/event-stream
 }
 ```
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 async function streamCompletion(params: {
   apiBase: string;
   accessToken: string;
@@ -259,6 +339,46 @@ async function streamCompletion(params: {
 }
 ```
 
+```python Python
+from urllib.parse import quote
+
+import httpx
+
+
+def stream_completion(
+    api_base: str,
+    access_token: str,
+    report_id: str,
+    prompt: str,
+    on_event,
+) -> None:
+    # timeout=None matters: a run can think for a long stretch between frames,
+    # and httpx's default read timeout would abort the stream mid-answer.
+    with httpx.Client(timeout=None) as client:
+        with client.stream(
+            "POST",
+            f"{api_base}/reports/{quote(report_id, safe='')}/completions",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            json={
+                "prompt": {"content": prompt, "mentions": [], "mode": "chat"},
+                "stream": True,
+            },
+        ) as response:
+            if response.status_code >= 400:
+                response.read()
+                raise RuntimeError(
+                    f"Completion failed: {response.status_code} {response.text}"
+                )
+
+            parse_sse(response.iter_lines(), on_event)
+```
+
+</CodeGroup>
+
 ---
 
 ## SSE Format
@@ -279,10 +399,21 @@ A blank line ends an event. Multiple `data:` lines belong to the same event and 
 
 The `data:` payload is an envelope — parse it like this:
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 const parsed = JSON.parse(dataString);
 const payload = parsed.data ?? parsed;
 ```
+
+```python Python
+parsed = json.loads(data_string)
+payload = parsed.get("data") if isinstance(parsed, dict) else None
+if payload is None:
+    payload = parsed
+```
+
+</CodeGroup>
 
 `data: [DONE]` means the stream is complete.
 
@@ -290,7 +421,9 @@ const payload = parsed.data ?? parsed;
 
 ## Tiny SSE Parser
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 type BowSseEvent = {
   event: string;
   payload: unknown;
@@ -307,7 +440,14 @@ function createSseParser(onEvent: (event: BowSseEvent) => void) {
   let rawLines: string[] = [];
 
   function dispatch() {
-    if (rawLines.length === 0 && dataLines.length === 0) return;
+    if (dataLines.length === 0) {
+      // Comment-only frames carry no event. BOW sends ": ping" heartbeats
+      // during quiet stretches of a run, and dispatching those would surface
+      // a bogus malformed event on every heartbeat.
+      eventName = "message";
+      rawLines = [];
+      return;
+    }
 
     const dataString = dataLines.join("\n");
     const raw = `${rawLines.join("\n")}\n\n`;
@@ -368,6 +508,92 @@ function createSseParser(onEvent: (event: BowSseEvent) => void) {
 }
 ```
 
+```python Python
+import json
+from datetime import datetime, timezone
+
+
+def parse_sse(lines, on_event) -> None:
+    event_name = "message"
+    data_lines: list[str] = []
+    raw_lines: list[str] = []
+
+    def dispatch() -> None:
+        nonlocal event_name, data_lines, raw_lines
+
+        if not data_lines:
+            # Comment-only frames carry no event. BOW sends ": ping" heartbeats
+            # during quiet stretches of a run, and dispatching those would
+            # surface a bogus malformed event on every heartbeat.
+            event_name = "message"
+            raw_lines = []
+            return
+
+        data_string = "\n".join(data_lines)
+        raw = "\n".join(raw_lines) + "\n\n"
+        received_at = datetime.now(timezone.utc).isoformat()
+
+        if data_string == "[DONE]":
+            on_event({
+                "event": "[DONE]",
+                "payload": "[DONE]",
+                "raw": raw,
+                "received_at": received_at,
+                "done": True,
+            })
+        else:
+            try:
+                parsed = json.loads(data_string)
+                payload = parsed.get("data") if isinstance(parsed, dict) else None
+                if payload is None:
+                    payload = parsed
+                on_event({
+                    "event": event_name,
+                    "payload": payload,
+                    "raw": raw,
+                    "received_at": received_at,
+                })
+            except json.JSONDecodeError as error:
+                on_event({
+                    "event": event_name,
+                    "payload": {"error": str(error), "data": data_string},
+                    "raw": raw,
+                    "received_at": received_at,
+                    "malformed": True,
+                })
+
+        event_name = "message"
+        data_lines = []
+        raw_lines = []
+
+    for line in lines:
+        if line == "":
+            dispatch()
+            continue
+
+        raw_lines.append(line)
+        if line.startswith(":"):
+            continue
+
+        field, _, value = line.partition(":")
+        if value.startswith(" "):
+            value = value[1:]
+
+        if field == "event":
+            event_name = value or "message"
+        elif field == "data":
+            data_lines.append(value)
+
+    # Flush a trailing frame that arrived without a final blank line.
+    dispatch()
+```
+
+</CodeGroup>
+
+<Note>
+  The Python version is shorter because `httpx`'s `iter_lines()` already handles chunk reassembly and `\r\n` line endings, and yields the blank separator lines the framing depends on. The TypeScript version buffers bytes itself, so it has to do that work by hand.
+</Note>
+
 ---
 
 ## Event Reference
@@ -416,6 +642,10 @@ Every frame carries the same envelope — `event`, `data`, `timestamp`, `complet
 ---
 
 ## Rendering a Chat UI
+
+<Note>
+  This section stays in TypeScript whatever your backend is written in. With a backend-for-frontend, your Python service parses the BOW stream and forwards events to the browser, where this reducer runs.
+</Note>
 
 Keep the UI reducer small:
 
