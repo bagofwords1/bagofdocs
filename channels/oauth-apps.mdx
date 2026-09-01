@@ -3,7 +3,12 @@ title: "OAuth Apps"
 sidebarTitle: "OAuth Apps"
 description: "Let your own applications sign users in to BOW and call the BOW API with OAuth 2.1 and PKCE"
 icon: "key-round"
-keywords: ["oauth", "pkce", "entra", "embedded app", "api authentication"]
+keywords:
+  - "oauth"
+  - "pkce"
+  - "entra"
+  - "embedded app"
+  - "api authentication"
 ---
 
 Use Bag of Words as the identity and data backend for your own application. Each person signs in to BOW, your app receives a short-lived user token, and every API request continues to use that person's organization membership and permissions.
@@ -88,11 +93,17 @@ After sign-in:
 
 Always generate and validate `state` to protect the redirect flow.
 
+<Warning>
+  `code_challenge` is the **unpadded** base64url SHA-256 of your verifier. In Python, `base64.urlsafe_b64encode` pads by default — strip it with `.rstrip(b"=")`, or the flow fails later at the token endpoint with `invalid_grant`. See [Set up OAuth](/guides/embed#set-up-oauth) for the full snippet in both languages.
+</Warning>
+
 ## Exchange the authorization code
 
 At the callback, verify `state`, then exchange the short-lived code with the original PKCE verifier:
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 const body = new URLSearchParams({
   grant_type: "authorization_code",
   client_id: CLIENT_ID,
@@ -113,6 +124,28 @@ const response = await fetch(`${BOW_URL}/api/oauth/token`, {
 if (!response.ok) throw new Error(`Token exchange failed: ${response.status}`);
 const tokens = await response.json();
 ```
+
+```python Python
+import httpx
+
+data = {
+    "grant_type": "authorization_code",
+    "client_id": CLIENT_ID,
+    "code": code,
+    "redirect_uri": CALLBACK_URL,
+    "code_verifier": code_verifier,
+}
+
+# Backend clients can also send:
+# data["client_secret"] = CLIENT_SECRET
+
+response = httpx.post(f"{BOW_URL}/api/oauth/token", data=data)
+
+response.raise_for_status()
+tokens = response.json()
+```
+
+</CodeGroup>
 
 The response contains:
 
@@ -146,7 +179,9 @@ See [Embed BOW Chat](/guides/embed) for report creation, streaming completions, 
 
 Use the refresh token before or after the access token expires:
 
-```ts
+<CodeGroup>
+
+```ts TypeScript
 const body = new URLSearchParams({
   grant_type: "refresh_token",
   client_id: CLIENT_ID,
@@ -164,6 +199,25 @@ const response = await fetch(`${BOW_URL}/api/oauth/token`, {
 
 const nextTokens = await response.json();
 ```
+
+```python Python
+import httpx
+
+data = {
+    "grant_type": "refresh_token",
+    "client_id": CLIENT_ID,
+    "refresh_token": refresh_token,
+}
+
+# Backend clients can also send:
+# data["client_secret"] = CLIENT_SECRET
+
+response = httpx.post(f"{BOW_URL}/api/oauth/token", data=data)
+
+next_tokens = response.json()
+```
+
+</CodeGroup>
 
 Refresh tokens last up to one year and rotate on every successful refresh. Replace the stored refresh token atomically; the previous token cannot be reused.
 
