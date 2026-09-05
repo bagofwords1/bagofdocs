@@ -18,7 +18,8 @@
         "pages": [
           "introduction",
           "quickstart",
-          "install"
+          "install",
+          "sign-in-and-sso"
         ]
       },
       {

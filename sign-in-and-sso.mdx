@@ -1,0 +1,144 @@
+---
+title: "Sign-in and SSO"
+description: "Auth modes, OIDC and Entra ID, Google, and LDAP / Active Directory"
+icon: "key-round"
+---
+
+This page is about how people sign in **to Bag of words**. For how a connection authenticates to a *data source* — shared credentials versus per-user sign-in — see [Authentication and Access](/data-sources/authentication).
+
+## Auth modes
+
+One setting decides which sign-in methods the login page offers:
+
+| `auth.mode` | Password form | SSO buttons |
+| --- | --- | --- |
+| `hybrid` | yes | yes |
+| `local_only` | yes | no |
+| `sso_only` | no | yes |
+
+```yaml
+auth:
+  mode: "hybrid"   # local_only | sso_only | hybrid
+```
+
+<Note>
+  **`?local=true` is the escape hatch.** On an `sso_only` deployment, visiting `/users/sign-in?local=true` shows the password form anyway. Keep one local administrator who can use it — otherwise a misconfigured or unreachable identity provider locks everyone out, including you.
+</Note>
+
+### Single-provider auto-start
+
+When the mode is `sso_only` **and exactly one provider is enabled**, there is nothing for the user to choose, so BOW starts the round trip for them: the login page redirects straight to the provider instead of rendering a single button.
+
+The redirect is suppressed when `?local=true` is set, or when the provider bounced back with an error — so a failed sign-in can always show you why, rather than looping.
+
+An embedding application that already knows whose session it is opening can pass `login_hint`, which is forwarded to the provider so a browser holding several accounts doesn't stop on a chooser:
+
+```text
+/users/sign-in?login_hint=person@company.com
+```
+
+## OIDC providers
+
+Any OIDC-compliant provider works. Entra ID (Azure AD) and Okta are the common ones.
+
+```yaml
+oidc_providers:
+  - name: entra
+    enabled: true
+    issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+    client_id: <application-client-id>
+    client_secret: ${BOW_ENTRA_CLIENT_SECRET}
+    scopes: ["openid", "profile", "email"]
+    pkce: true
+    client_auth_method: post
+    discovery: true
+    uid_claim: sub
+```
+
+The `name` is the routing slug, and it determines the callback path — **register this exact URL as a redirect URI on the provider**, or sign-in fails before the login form appears:
+
+```text
+https://<your-bow-host>/api/auth/<name>/callback
+```
+
+The sign-in button shows the provider's real name and logo — "Continue with Microsoft", not "entra". That is derived from the `issuer` URL, not from `name`, so a provider called `corp-sso` pointing at `login.microsoftonline.com` still renders as Microsoft. Issuers that aren't recognised get a neutral lock icon and their configured label.
+
+<Note>
+  Put `client_secret` in an environment variable or a Kubernetes Secret and reference it with `${VAR}`. Never commit it to `bow-config.yaml`.
+</Note>
+
+### Group sync
+
+Set `sync_groups: true` with a `group_claim` to map provider groups onto BOW roles. `resolve_group_names: true` turns group object IDs into readable names where the provider supports it.
+
+## Google
+
+```yaml
+google_oauth:
+  enabled: true
+  client_id: ${BOW_GOOGLE_CLIENT_ID}
+  client_secret: ${BOW_GOOGLE_CLIENT_SECRET}
+```
+
+Google appears alongside the OIDC providers in the same button list and counts toward the single-provider auto-start rule above.
+
+## LDAP and Active Directory
+
+<Note>
+  LDAP requires an **Enterprise license**. See [License Key](/enterprise/license).
+</Note>
+
+LDAP authenticates users against your directory and can keep group membership in sync. It is designed to **fail closed** — every condition below is required, and none of them can be turned off.
+
+```yaml
+ldap:
+  enabled: true
+  url: ldaps://ad.company.com:636
+  bind_dn: cn=service-account,ou=Services,dc=company,dc=com
+  bind_password: ${BOW_LDAP_BIND_PASSWORD}
+  ca_certs_file: /run/bow/directory-ca.pem
+  organization_id: <existing-bow-organization-id>
+  admission_group_dn: cn=BOW Users,ou=Groups,dc=company,dc=com
+  kerberos_realm: COMPANY.COM
+  auto_provision_users: true
+  allow_local_superuser_login: false
+  base_dn: dc=company,dc=com
+```
+
+**A service account is required.** `bind_dn` and `bind_password` must be set — anonymous bind is not accepted. Give the account read-only lookup rights and nothing more.
+
+**TLS is always verified.** Certificate checking cannot be disabled. Use `ldaps://` on 636, or `start_tls: true` on 389 — the connection is verified before either bind is attempted. If your directory presents a private CA, point `ca_certs_file` at the mounted bundle; leave it empty to use the system trust store.
+
+**Admission is explicit.** A user may sign in only if they are a member of `admission_group_dn`, and each deployment admits exactly one BOW organization via `organization_id`. Nested AD group membership is resolved by AD itself, so nested groups work as your directory defines them.
+
+**An LDAP login cannot take over a local account** that happens to share the same email address; the collision is rejected rather than merged.
+
+**There is no password fallback during an outage.** If the directory is unreachable, directory users cannot sign in — BOW will not silently fall back to a local password. `allow_local_superuser_login: true` is the one deliberate recovery path, and it applies only to local superusers that are not linked to a directory identity.
+
+### Group sync
+
+Sync is scoped to the organization named by `organization_id` and only touches memberships it owns. An empty or partial directory response will not delete invited members, and a reconciliation that fails partway rolls back rather than applying half of itself.
+
+### Delegated SQL identity
+
+When a SQL Server connection uses per-user Kerberos delegation, the impersonated principal comes **only from a verified directory identity** — the provider, the account's SID and its subject must all match. It is never inferred from the signed-in user's email address.
+
+`kerberos_realm` sets the AD realm explicitly, so it stays correct when your users' email or UPN suffixes differ from the realm name. See [SQL Server](/data-sources/connectors/sql-server) for the delegation setup itself.
+
+## Sessions
+
+Session tokens are revocable. Signing out, changing or resetting a password, and an administrator's force-signout all invalidate every token already issued to that user.
+
+SSO does not return the session token in the redirect URL. The callback returns a single-use code, valid for 60 seconds, which the application exchanges for the token over POST — so the token never lands in a browser history, a proxy log, or a `Referer` header.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Data source authentication" icon="lock" href="/data-sources/authentication">
+    Shared credentials versus per-user sign-in, for connections rather than logins.
+  </Card>
+
+  <Card title="Deployment Options" icon="server" href="/install">
+    Where `bow-config.yaml` lives, and the Helm values that mirror it.
+  </Card>
+</CardGroup>
