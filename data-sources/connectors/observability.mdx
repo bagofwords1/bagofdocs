@@ -1,6 +1,6 @@
 ---
 title: "Observability and monitoring"
-description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AWS CloudWatch and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
 icon: "activity"
 ---
 
@@ -13,6 +13,8 @@ These connectors let the agent investigate operational data — logs, search ind
 | [OpenSearch](#opensearch) | One object per index or index pattern | Query DSL, SQL | Beta |
 | [Jaeger](#jaeger) | Fixed tables: services, operations, spans, dependencies | Parameterized trace search | Beta |
 | [Zabbix](#zabbix) | Fixed tables: hosts, items, triggers, problems, events, history, trends | JSON-RPC query specs | Enterprise |
+| [Prometheus](#prometheus) | One table per metric, with its labels as columns | PromQL | Beta |
+| [AWS CloudWatch](#aws-cloudwatch) | `log_group::` and `metric::` tables on one connection | Logs Insights, metric queries | Beta |
 | [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
 
 ---
@@ -200,6 +202,106 @@ Both modes support **system** and **user** scope.
 <Note>
   Zabbix's SAML/OIDC SSO governs the **frontend** only — the API never accepts an external identity provider's token. An SSO user should mint a personal API token in the UI and use the token mode.
 </Note>
+
+---
+
+## Prometheus
+
+<Note>
+  The Prometheus connector is in **beta**.
+</Note>
+
+Bag of words talks to the Prometheus HTTP API and queries in **PromQL**. Each metric becomes a table whose columns are that metric's labels, so the agent can filter and group without knowing the label set in advance.
+
+Metric **type** matters for correct queries — a counter read without `rate()` returns a meaningless monotonic total — so each metric carries its type from `/api/v1/metadata`. Histogram and summary components are typed from their base metric: `_bucket` resolves to a histogram (use `histogram_quantile`), `_sum` and `_count` to counters.
+
+Schema discovery is bounded to a recent window rather than the whole retention period, so a long-lived instance does not materialize every series it has ever seen. Widen it with `discovery_lookback_hours` only if a metric is scraped less often than the window.
+
+The connector works against any Prometheus-compatible API, including Thanos, Cortex and Grafana Mimir — set `org_id` for the multi-tenant header those back-ends expect.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `base_url` | Yes | — | Prometheus server URL including scheme and port, e.g. `http://prometheus:9090`. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certs on internal hosts. |
+| `org_id` | No | — | Sent as `X-Scope-OrgID` for multi-tenant back-ends (Thanos, Cortex, Grafana Mimir). |
+| `metric_prefix` | No | — | Bound discovery on a large instance, e.g. `node_` or `http_`. Leave blank to index all metrics. |
+| `discovery_lookback_hours` | No | `1` | How far back discovery looks for a metric's labels. Raise it only if a metric is scraped less often than that and its labels are being missed. |
+| `timeout` | No | `30` | Per-request timeout in seconds for the Prometheus HTTP API. Raise it for a slow or heavily loaded instance. |
+
+### Authentication modes
+
+**No Auth (network-gated) — `none`** (the default; scope: system, no fields). For an instance reachable only over a VPN or internal network.
+
+**Username / Password (Basic) — `basic`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | For HTTP basic auth — typically a reverse proxy in front of Prometheus. |
+| `password` | Yes | That user's password. |
+
+**Bearer Token — `bearer`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | Sent as `Authorization: Bearer <token>`. Used by most hosted or managed Prometheus offerings. |
+
+---
+
+## AWS CloudWatch
+
+<Note>
+  The AWS CloudWatch connector is in **beta**.
+</Note>
+
+Logs and metrics on **one** connection, because an investigation crosses both halves — the function erroring in Logs is the one whose duration lives in Metrics. Splitting them across two connectors would put them on separate connections with no way for the agent to correlate.
+
+Tables are namespaced by prefix, the way Splunk namespaces `index::sourcetype`:
+
+```text
+log_group::/aws/lambda/checkout   @timestamp, @message, @logStream
+                                  + JSON keys sampled from recent events
+metric::AWS/EC2/CPUUtilization    <dimension names> + timestamp + value
+```
+
+Log discovery is schema-on-read: CloudWatch has no field catalog, so a log group's columns come from sampling recent events and parsing JSON out of `@message`. Only the largest groups by stored bytes are sampled; the rest stay thin and the agent inspects them on demand. Metrics are grouped by namespace and metric name, with their dimension names unioned — the API returns one entry per dimension-set variant.
+
+<Warning>
+  Logs Insights bills on bytes **scanned**, and a `limit` clause does not reduce that — the time window is the only real cost control. Keep `discovery_window_hours` tight and set `log_group_prefix` on a busy account.
+</Warning>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `region` | Yes | — | AWS region to read CloudWatch from, e.g. `eu-west-1`. Log groups and metrics are per-region. |
+| `log_group_prefix` | No | — | Only discover log groups whose name starts with this, e.g. `/aws/lambda/`. Strongly recommended on a busy account. |
+| `metric_namespaces` | No | — | Comma-separated namespaces to index as tables, e.g. `AWS/EC2,AWS/RDS`. Leave blank to index all. |
+| `discovery_window_hours` | No | `24` | How far back to sample log events when inferring a log group's columns. Larger windows find more fields and scan more bytes. |
+| `max_sampled_log_groups` | No | `25` | Cap on how many log groups, ranked by stored bytes, get their fields sampled during indexing. |
+
+### Authentication modes
+
+All three modes are **system** scope.
+
+**AWS Access Key — `aws_keys`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key id. |
+| `secret_key` | Yes | AWS secret access key. |
+| `session_token` | No | For temporary credentials. |
+
+**AWS Assume Role (STS) — `aws_role`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `role_arn` | Yes | ARN of the IAM role to assume for CloudWatch access. |
+| `access_key` | No | Used to assume the role. Leave blank to assume it from the instance profile or IRSA. |
+| `secret_key` | No | Secret for the key above. |
+
+**AWS Default Chain — `aws_default`** (no fields). Resolves credentials the way boto3 normally does — environment variables, shared config, EC2 instance profile, or EKS IRSA. This is the mode for a deployment running inside AWS, where no secret should be stored at all.
 
 ---
 
