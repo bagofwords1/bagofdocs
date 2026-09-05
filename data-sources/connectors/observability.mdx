@@ -1,6 +1,6 @@
 ---
 title: "Observability and monitoring"
-description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AWS CloudWatch and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
 icon: "activity"
 ---
 
@@ -14,6 +14,7 @@ These connectors let the agent investigate operational data — logs, search ind
 | [Jaeger](#jaeger) | Fixed tables: services, operations, spans, dependencies | Parameterized trace search | Beta |
 | [Zabbix](#zabbix) | Fixed tables: hosts, items, triggers, problems, events, history, trends | JSON-RPC query specs | Enterprise |
 | [Prometheus](#prometheus) | One table per metric, with its labels as columns | PromQL | Beta |
+| [AWS CloudWatch](#aws-cloudwatch) | `log_group::` and `metric::` tables on one connection | Logs Insights, metric queries | Beta |
 | [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
 
 ---
@@ -245,6 +246,62 @@ The connector works against any Prometheus-compatible API, including Thanos, Cor
 | Field | Required | Notes |
 | :-- | :-- | :-- |
 | `token` | Yes | Sent as `Authorization: Bearer <token>`. Used by most hosted or managed Prometheus offerings. |
+
+---
+
+## AWS CloudWatch
+
+<Note>
+  The AWS CloudWatch connector is in **beta**.
+</Note>
+
+Logs and metrics on **one** connection, because an investigation crosses both halves — the function erroring in Logs is the one whose duration lives in Metrics. Splitting them across two connectors would put them on separate connections with no way for the agent to correlate.
+
+Tables are namespaced by prefix, the way Splunk namespaces `index::sourcetype`:
+
+```text
+log_group::/aws/lambda/checkout   @timestamp, @message, @logStream
+                                  + JSON keys sampled from recent events
+metric::AWS/EC2/CPUUtilization    <dimension names> + timestamp + value
+```
+
+Log discovery is schema-on-read: CloudWatch has no field catalog, so a log group's columns come from sampling recent events and parsing JSON out of `@message`. Only the largest groups by stored bytes are sampled; the rest stay thin and the agent inspects them on demand. Metrics are grouped by namespace and metric name, with their dimension names unioned — the API returns one entry per dimension-set variant.
+
+<Warning>
+  Logs Insights bills on bytes **scanned**, and a `limit` clause does not reduce that — the time window is the only real cost control. Keep `discovery_window_hours` tight and set `log_group_prefix` on a busy account.
+</Warning>
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `region` | Yes | — | AWS region to read CloudWatch from, e.g. `eu-west-1`. Log groups and metrics are per-region. |
+| `log_group_prefix` | No | — | Only discover log groups whose name starts with this, e.g. `/aws/lambda/`. Strongly recommended on a busy account. |
+| `metric_namespaces` | No | — | Comma-separated namespaces to index as tables, e.g. `AWS/EC2,AWS/RDS`. Leave blank to index all. |
+| `discovery_window_hours` | No | `24` | How far back to sample log events when inferring a log group's columns. Larger windows find more fields and scan more bytes. |
+| `max_sampled_log_groups` | No | `25` | Cap on how many log groups, ranked by stored bytes, get their fields sampled during indexing. |
+
+### Authentication modes
+
+All three modes are **system** scope.
+
+**AWS Access Key — `aws_keys`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key id. |
+| `secret_key` | Yes | AWS secret access key. |
+| `session_token` | No | For temporary credentials. |
+
+**AWS Assume Role (STS) — `aws_role`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `role_arn` | Yes | ARN of the IAM role to assume for CloudWatch access. |
+| `access_key` | No | Used to assume the role. Leave blank to assume it from the instance profile or IRSA. |
+| `secret_key` | No | Secret for the key above. |
+
+**AWS Default Chain — `aws_default`** (no fields). Resolves credentials the way boto3 normally does — environment variables, shared config, EC2 instance profile, or EKS IRSA. This is the mode for a deployment running inside AWS, where no secret should be stored at all.
 
 ---
 
