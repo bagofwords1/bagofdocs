@@ -1,0 +1,85 @@
+---
+title: "SharePoint Server (on-prem)"
+description: "Read and search on-premises SharePoint Server document libraries over the REST API with NTLM or Kerberos — no Microsoft Graph or Entra app required"
+icon: "microsoft"
+---
+
+<Note>
+  The SharePoint Server connector is part of the **Enterprise Edition**.
+</Note>
+
+This connector reads document libraries from a **self-hosted SharePoint Server** farm over SharePoint's own REST API. It is separate from [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) and [SharePoint Lists](/data-sources/connectors/sharepoint-lists), which both go through Microsoft Graph and need an Entra app registration. Here there is no Graph and no app registration — the backend authenticates to the farm directly with Windows credentials or Kerberos.
+
+The connection is **read-only**. The agent browses, searches, and reads documents; it never writes to SharePoint. Report attachments and saved queries live in Bag of words, not in the source library.
+
+## What the agent sees
+
+A searchable file catalog, scoped to what you configure:
+
+- **Library scope** — all visible document libraries, one named library, or the site's default library. With all libraries, returned paths include the library name.
+- **Folder scope** — a folder path, recursive or not, narrowed further with include globs and allowed extensions.
+- **File handling** — CSV/TSV and XLS/XLSX load as dataframes; PDF, DOCX, PPTX and text files are extracted for reading; JSON is parsed; anything else can be downloaded as its original binary.
+
+Scope is enforced on every read, including when a read is given an absolute server-relative path, and search hits outside the configured origin, site, library, folder or globs are rejected and re-authorized live.
+
+<Warning>
+  Content search depends on the farm's own crawl. A newly uploaded document is matched by **filename** immediately, but its **contents** are only searchable once SharePoint's Search Service Application has crawled it — indexing the catalog in Bag of words does not trigger that crawl.
+</Warning>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `site_url` | Yes | — | Site URL including the `/sites/<name>` path. **Not** the Central Administration URL. Must be reachable from the backend, and should match your SharePoint alternate access mappings. |
+| `drive_name` | No | — | A single document library to expose. Blank uses the site's default library; `*` exposes every visible library. |
+| `folder_path` | No | — | Restrict the catalog to a folder within the library. |
+| `include_globs` | No | — | Glob patterns narrowing which files are cataloged. |
+| `allowed_extensions` | No | — | Restrict the catalog to specific file extensions. |
+| `recursive` | No | `true` | Walk subfolders beneath the configured folder. |
+| `index_mode` | No | — | Index file metadata up front, or list live on demand. |
+| `max_catalog_objects` | No | `5000` | Cap on cataloged files (max `50000`). Narrow the scope instead of raising this for very large libraries. |
+| `max_file_size_mb` | No | `50` | Reject oversized downloads before parsing (max `250`), so files are never silently truncated. |
+| `allow_http` | No | `false` | Permit unencrypted HTTP. An explicit escape hatch for an isolated test lab — use HTTPS with a trusted certificate everywhere else. |
+
+## Authentication modes
+
+**Windows credentials (NTLM) — `ntlm`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | `DOMAIN\username` or `user@domain`. Use a read-only account scoped to the intended libraries. |
+| `password` | Yes | That account's password. |
+
+At **system** scope the whole connection uses one service account. At **user** scope each member supplies their own Windows account, so SharePoint applies that person's permissions — members who have not entered credentials are blocked rather than falling back to the service account.
+
+<Note>
+  Per-user NTLM is credential-based Windows authentication, **not** automatic single sign-on. Each member enters and tests their own domain username and password once.
+</Note>
+
+**Kerberos service account — `kerberos`** (scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `principal` | No | Optional service-account UPN, e.g. `svc_bow@EXAMPLE.COM`. |
+
+Kerberos authenticates as the **service account**, not as the signed-in Bag of words user — it does not impersonate the caller, and end-user delegation is not implemented by this connector. Choose it for a single shared identity, not for per-person permissions.
+
+The keytab is never uploaded through the connection form. A deployment owner mounts it read-only and points the backend at it (`krb5.conf` plus `KRB5_CLIENT_KTNAME`, or a ticket cache). The backend also needs the `kerberos` extra installed — the shipped Docker image already includes the MIT Kerberos runtime.
+
+## Requirements on the SharePoint side
+
+1. A site URL reachable from the backend, with alternate access mappings configured for it.
+2. HTTPS with a trusted certificate. For a private CA, mount a CA bundle and set `REQUESTS_CA_BUNDLE` in the backend environment — certificate validation stays on.
+3. A least-privilege account with read access to the selected site and libraries. No Domain Admin or SQL access is needed.
+4. For content search: a Search Service Application with a working content source and crawl, and search URLs matching the configured access URL. Verify security trimming with both an allowed and a denied test user.
+5. For Kerberos: Windows Integrated Authentication (Negotiate) on the web application, correct unique `HTTP/<site-FQDN>` SPNs for the IIS service identity, working AD DNS and realm configuration, synchronized clocks, and private backend access to the KDC. Kerberos here uses the **HTTP** SPN — not `MSSQLSvc`.
+
+## Not supported
+
+Arbitrary SharePoint lists (use [SharePoint Lists](/data-sources/connectors/sharepoint-lists)), site pages, attachments on list items, any form of write, and Microsoft Graph OAuth. Servers predating the ResourcePath REST API are unverified; the connector is validated against SharePoint Server Subscription Edition.
+
+## Related
+
+- [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) — the Microsoft Graph equivalent for SharePoint Online and OneDrive.
+- [SharePoint Lists](/data-sources/connectors/sharepoint-lists) — lists as queryable tables, over Graph.
+- [Authentication and access](/data-sources/authentication) — shared vs per-user credentials across connectors.

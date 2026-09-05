@@ -1,6 +1,6 @@
 ---
 title: "Observability and monitoring"
-description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
 icon: "activity"
 ---
 
@@ -13,6 +13,7 @@ These connectors let the agent investigate operational data — logs, search ind
 | [OpenSearch](#opensearch) | One object per index or index pattern | Query DSL, SQL | Beta |
 | [Jaeger](#jaeger) | Fixed tables: services, operations, spans, dependencies | Parameterized trace search | Beta |
 | [Zabbix](#zabbix) | Fixed tables: hosts, items, triggers, problems, events, history, trends | JSON-RPC query specs | Enterprise |
+| [Prometheus](#prometheus) | One table per metric, with its labels as columns | PromQL | Beta |
 | [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
 
 ---
@@ -200,6 +201,50 @@ Both modes support **system** and **user** scope.
 <Note>
   Zabbix's SAML/OIDC SSO governs the **frontend** only — the API never accepts an external identity provider's token. An SSO user should mint a personal API token in the UI and use the token mode.
 </Note>
+
+---
+
+## Prometheus
+
+<Note>
+  The Prometheus connector is in **beta**.
+</Note>
+
+Bag of words talks to the Prometheus HTTP API and queries in **PromQL**. Each metric becomes a table whose columns are that metric's labels, so the agent can filter and group without knowing the label set in advance.
+
+Metric **type** matters for correct queries — a counter read without `rate()` returns a meaningless monotonic total — so each metric carries its type from `/api/v1/metadata`. Histogram and summary components are typed from their base metric: `_bucket` resolves to a histogram (use `histogram_quantile`), `_sum` and `_count` to counters.
+
+Schema discovery is bounded to a recent window rather than the whole retention period, so a long-lived instance does not materialize every series it has ever seen. Widen it with `discovery_lookback_hours` only if a metric is scraped less often than the window.
+
+The connector works against any Prometheus-compatible API, including Thanos, Cortex and Grafana Mimir — set `org_id` for the multi-tenant header those back-ends expect.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `base_url` | Yes | — | Prometheus server URL including scheme and port, e.g. `http://prometheus:9090`. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certs on internal hosts. |
+| `org_id` | No | — | Sent as `X-Scope-OrgID` for multi-tenant back-ends (Thanos, Cortex, Grafana Mimir). |
+| `metric_prefix` | No | — | Bound discovery on a large instance, e.g. `node_` or `http_`. Leave blank to index all metrics. |
+| `discovery_lookback_hours` | No | `1` | How far back discovery looks for a metric's labels. Raise it only if a metric is scraped less often than that and its labels are being missed. |
+| `timeout` | No | `30` | Per-request timeout in seconds for the Prometheus HTTP API. Raise it for a slow or heavily loaded instance. |
+
+### Authentication modes
+
+**No Auth (network-gated) — `none`** (the default; scope: system, no fields). For an instance reachable only over a VPN or internal network.
+
+**Username / Password (Basic) — `basic`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | For HTTP basic auth — typically a reverse proxy in front of Prometheus. |
+| `password` | Yes | That user's password. |
+
+**Bearer Token — `bearer`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | Sent as `Authorization: Bearer <token>`. Used by most hosted or managed Prometheus offerings. |
 
 ---
 
