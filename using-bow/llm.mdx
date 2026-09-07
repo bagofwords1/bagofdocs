@@ -35,6 +35,54 @@ Use **Auto** when routing is enabled and you want Bag of words to choose from th
 The exact models shown in the interface depend on your deployment and the providers your administrator has enabled. Keep model and credential access under the same governance standards as your data connections.
 </Note>
 
+## Custom headers and identity forwarding
+
+If your LLM traffic goes through a gateway or proxy (for routing, cost attribution, or audit), each provider can attach extra HTTP headers to every request it sends. Open the provider from **Settings → LLMs** and expand **Custom headers**. The section is not shown on the initial onboarding form — edit the provider after it is created.
+
+There are two kinds of headers:
+
+- **Static headers** are fixed key/value pairs sent on every request to that provider — for example a gateway routing key or a cost-center tag.
+- **Identity forwarding** rules send the signed-in user's identity as headers, so a gateway can attribute cost or apply policy per user. Each rule names a header and picks a source.
+
+Sources are drawn from a fixed list — never arbitrary user input:
+
+| Source | Value |
+| --- | --- |
+| `user.email` | The user's email address |
+| `user.name` | Their display name |
+| `user.id` | Their Bag of words user id |
+| `membership.role` | Their role in the organization |
+| `membership.attr:<key>` | An SSO profile attribute, e.g. `membership.attr:department` |
+| `static:<text>` | A fixed string, with `{...}` placeholders for any of the above, e.g. `static:acme\{membership.attr:employeeId}` |
+
+### SSO profile metadata
+
+`membership.attr:<key>` reads the profile metadata synced from your identity provider when the user signs in. Enable profile sync and choose which fields to store under **Settings → Identity**; only synced fields have a value at request time.
+
+| Identity provider | Fields available |
+| --- | --- |
+| Microsoft Entra ID | `jobTitle`, `department`, `companyName`, `officeLocation`, `employeeId`, `employeeType`, `employeeHireDate`, `employeeOrgData`, `mobilePhone`, `city`, `state`, `country`, `usageLocation`, `preferredLanguage` |
+| Google | `displayName`, `jobTitle`, `department`, `organization`, `location`, `locale`, `hostedDomain` |
+
+For example, to let a gateway split spend by department and person:
+
+```text
+X-User-Email:  user.email
+X-Department:  membership.attr:department
+X-Cost-Center: static:{membership.attr:companyName}/{membership.attr:department}
+```
+
+How the headers are resolved:
+
+- Static headers are applied first, then forwarding rules. A rule that targets the same header name as a static header wins.
+- A rule whose value is empty for the current user (for example, an attribute that was never synced) is left out rather than sent blank.
+- Forwarding rules only resolve inside a user-triggered run. Requests made outside one — testing the connection, scheduled jobs — carry the static headers only.
+- Header names must be valid HTTP tokens, values are trimmed to a single line, and a provider can have at most 24 headers and rules combined.
+
+<Tip>
+  The same identity sources are available for [MCP connections](/data-sources/user-context), so a gateway that already receives them from MCP tool calls can reuse the same header names here.
+</Tip>
+
 ## Use the right model for the work
 
 Use high-reasoning models for complex investigations and root-cause analysis, faster models for straightforward exploration, and capable multimodal models when the task includes files or images. Agent tools, instructions, data access, and evaluations stay independent of the selected model, so you can improve or change the model layer without rebuilding your agent design.
