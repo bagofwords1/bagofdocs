@@ -1,6 +1,6 @@
 ---
 title: "Observability and monitoring"
-description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AWS CloudWatch and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AppDynamics, AWS CloudWatch and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
 icon: "activity"
 ---
 
@@ -16,6 +16,7 @@ These connectors let the agent investigate operational data — logs, search ind
 | [Prometheus](#prometheus) | One table per metric, with its labels as columns | PromQL | Beta |
 | [AWS CloudWatch](#aws-cloudwatch) | `log_group::` and `metric::` tables on one connection | Logs Insights, metric queries | Beta |
 | [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
+| [AppDynamics](#appdynamics) | Fixed tables: applications, tiers, nodes, backends, business transactions, service flows, metrics, events, health-rule violations | JSON query specs | Beta |
 
 ---
 
@@ -329,3 +330,49 @@ Bag of words queries the AWS **Cost Explorer** API (`ce`) so the agent can analy
 | `secret_key` | Yes | AWS secret access key. |
 
 The credential needs permission to call the Cost Explorer read APIs (`ce:GetCostAndUsage` and related). Because the mode is also available at user scope, individual users can supply their own keys instead of sharing the admin's — per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+---
+
+## AppDynamics
+
+<Note>
+  The AppDynamics connector is in **beta**.
+</Note>
+
+Bag of words talks to the Cisco / Splunk AppDynamics **Controller REST API** (`https://<controller>/controller/rest/...`). On-premises controllers are the target deployment — validated against the 21.x API surface, which has been stable since the 4.x era — and SaaS controllers serve the same API.
+
+There is no free-form query language. Queries are JSON specs that map onto a fixed catalog of virtual tables: the topology half (`applications`, `tiers`, `nodes`, `backends`, `business_transactions`, `service_flows`) and the time-bounded activity half (metric data, events, health-rule violations, snapshots). A query returns at most 50,000 rows, and activity tables default to a 60-minute window when the spec gives no time range.
+
+### The service map
+
+AppDynamics has no supported flow-map endpoint — the UI is driven by the unsupported session-auth `/controller/restui/*` API, which this connector deliberately avoids. Instead, the `service_flows` table derives the edge list by enumerating metric **names** (not data) under `Overall Application Performance|<tier>|External Calls|`, where each child name encodes an outbound call such as `Call-HTTP to Discovered backend call "PaymentsGateway"`. That is one cheap metrics-browse call per tier with no metric data fetched, so it stays well under Controller rate limits.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `controller_url` | Yes | — | Controller URL, e.g. `https://appd.acme.com:8090` (on-prem) or `https://acme.saas.appdynamics.com`. |
+| `account_name` | No | `customer1` | The controller account. On-premises single-tenant controllers use `customer1`. |
+| `verify_ssl` | No | `true` | Verify the controller's TLS certificate. Disable only for self-signed or private-CA certs on trusted networks. |
+
+### Authentication modes
+
+Both modes support **system** and **user** scope.
+
+**Username + Password — `userpass`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | The Controller expects the login qualified with the account name (`user@account`). The `account_name` above is appended automatically unless the username already contains `@`. |
+| `password` | Yes | That user's password. |
+
+This is the mode for locked-down on-prem controllers that cannot issue an API client.
+
+**API Client (OAuth) — `api_client`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `client_name` | Yes | Name of an API Client created under **Settings → Administration → API Clients**. |
+| `client_secret` | Yes | That API Client's secret. |
+
+The connector exchanges these for OAuth client-credentials tokens against `/controller/api/oauth/access_token`. Tokens are short-lived (5 minutes by default) and are cached and refreshed automatically. Prefer this mode when you want an auditable service identity rather than a named user's credentials.

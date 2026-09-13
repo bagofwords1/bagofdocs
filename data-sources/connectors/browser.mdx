@@ -1,0 +1,81 @@
+---
+title: "Browser"
+description: "Let an agent read and interact with a specific set of web pages in a real headless browser, scoped to a URL allowlist"
+icon: "globe"
+---
+
+<Note>
+  The Browser connection is in **beta**.
+</Note>
+
+A **Browser** connection lets an agent open web pages in a real (headless) browser — navigate, read content, interact with elements, download files and capture screenshots — confined to a URL allowlist you define. It is useful for data that only lives behind a UI, including internal portals reachable from your deployment.
+
+Unlike every other connector, a Browser connection has **no catalog and no query language**. It is a capability provider: attaching it to an agent adds the browser tools to that agent's tool catalog and carries the allowlist those tools enforce at runtime. The tools appear for an agent only when a browser connection is attached to it.
+
+## The tools it adds
+
+| Tool | What it does |
+| :-- | :-- |
+| `browser_navigate` | Open (or reuse) the report's browser session at a URL and return the page structure. |
+| `browser_snapshot` | Re-read the current page as an accessibility tree with element references. |
+| `browser_act` | Interact with an element from the latest snapshot — click, type, press, hover, select, scroll. |
+| `browser_extract` | Return the readable text of the current page. |
+| `browser_vision` | Screenshot the current page (secrets masked) into the report's files, and read it. |
+
+Elements are addressed by the `ref` from the most recent snapshot. A stale reference returns a typed error so the model re-snapshots rather than blindly retrying.
+
+<Note>
+  `browser_act` is the one **write** tool — it changes state on the page it is pointed at. It only ever operates inside a page the allowlist already permits.
+</Note>
+
+## The allowlist is the security boundary
+
+`url_patterns` is not a starting point or a default — it is the boundary. **Every** request the browser makes is confined to it: top-level navigation, subresources, XHR and redirects alike. There is no unscoped browsing; a pattern must be listed for the agent to reach it.
+
+Pattern rules:
+
+- One glob pattern per line, e.g. `https://portal.vendor.com/**`.
+- A pattern must **name a host**: a hostname, wildcarded subdomains such as `https://*.vendor.com/**`, or a single literal IP.
+- Network-spanning host wildcards such as `http://10.*.*.*/**` are **rejected** — a pattern may not sweep a whole network.
+
+Anything not matched is refused.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url_patterns` | Yes | — | The glob patterns the agent may visit, one per line. |
+| `allow_downloads` | No | `true` | Whether the agent may download files from these pages into the report's file store. |
+
+## Authentication
+
+**No Auth — `none`** (system scope, the only mode). There is nothing to enter. The connection carries no credentials, and the browser does not log in — point it at pages that are readable without a session, or that your network already authorizes.
+
+## Testing the connection
+
+Testing validates the **allowlist itself**, not reachability. There is no server to contact at configuration time: the "server" is whatever public or internal sites the patterns name, and some of them may only be reachable at run time. A well-formed allowlist is therefore a successful test.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A pattern is rejected when saving">
+    It does not name a host, or it wildcards across a network. Use a hostname, `https://*.vendor.com/**`, or a single literal IP.
+  </Accordion>
+
+  <Accordion title="A page loads but its content is missing">
+    The page's subresources or XHR calls are on a host the allowlist does not cover. Those are confined by the same patterns as navigation — add the host they fetch from.
+  </Accordion>
+
+  <Accordion title="The agent has no browser tools">
+    A browser connection has to be attached to that specific agent. The tools do not appear otherwise.
+  </Accordion>
+
+  <Accordion title="An action fails with a stale reference">
+    The page changed since the last snapshot. This is expected and self-correcting — the agent re-snapshots and retries against fresh references.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [MCP connections](/data-sources/mcp) — the other tool-shaped connection type, with per-tool approval policies.
+- [Custom API connections](/data-sources/custom-api) — reach an HTTP API directly instead of its UI.

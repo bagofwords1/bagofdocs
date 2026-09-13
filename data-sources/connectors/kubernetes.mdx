@@ -1,0 +1,117 @@
+---
+title: "Kubernetes"
+description: "Investigate a cluster read-only — workloads, nodes, events, networking, storage, custom resources, live usage and pod logs as tables"
+icon: "server"
+---
+
+<Note>
+  The Kubernetes connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+Bag of words talks to the Kubernetes **API server** directly (`/api/v1/...`, `/apis/<group>/...`). There is no query language: queries are JSON specs that map onto a catalog of virtual tables, the same shape as the Zabbix and Aria Operations connectors.
+
+## What the catalog looks like
+
+Three layers of tables live on **one** connection, because an investigation crosses them — the pod that is `CrashLoopBackOff` in inventory is the one whose last log lines and OOM events explain why.
+
+| Layer | Tables |
+| :-- | :-- |
+| **Fixed** — declared in code, with curated columns and foreign keys wiring the object graph | `namespaces`, `nodes`, `pods`, `containers`, `deployments`, `replicasets`, `statefulsets`, `daemonsets`, `jobs`, `cronjobs`, `horizontal_pod_autoscalers`, `configmaps`, `resource_quotas`, `events`, `services`, `endpoint_slices`, `ingresses`, `ingress_classes`, `network_policies`, `persistent_volume_claims`, `persistent_volumes`, `storage_classes`, `csi_drivers`, `custom_resource_definitions` |
+| **Discovered** — one per *populated* CustomResourceDefinition | `crd::<group>/<Kind>` — Argo, cert-manager, Prometheus Operator and the like become queryable with no vendor-specific code |
+| **Runtime signals** | `pod_metrics` and `node_metrics` (only when the cluster serves `metrics.k8s.io` via metrics-server), and `logs` |
+
+## Security posture
+
+The service-account token is **cluster-wide read-only**, which means the *connector* — not RBAC — is the guard against secrets. Read this before you connect a production cluster:
+
+- There is **no `secrets` table**.
+- The raw-path escape hatch refuses `secrets`, `exec`, `attach`, `portforward` and `proxy` paths.
+- `configmaps` exposes **key names only**, never values.
+- Container environment literals are redacted from raw output.
+- The `kubectl.kubernetes.io/last-applied-configuration` annotation is dropped everywhere, because it embeds the full spec — environment included.
+
+<Warning>
+  RBAC has no "everything except" syntax, so the role the setup manifest creates *can* read Secrets with `kubectl`, even though the connector never does. Treat the token like a database superuser password. It is encrypted at rest, and you rotate it by deleting the token Secret.
+</Warning>
+
+## Before you start
+
+The connect form renders this as a numbered setup guide with copy buttons, so you can follow it in the product rather than from here.
+
+<Steps>
+  <Step title="Grant read access on the cluster">
+    Apply the manifest shown in the connect form with cluster-admin rights. It creates the `bagofwords` namespace, a `bagofwords-reader` service account, a cluster-wide read-only ClusterRole (`get`, `list`, `watch` on `apiGroups: ["*"]` / `resources: ["*"]`, plus `get` on non-resource URLs), its binding, and a long-lived service-account token Secret.
+
+    One wildcard rule covers every built-in kind, every CRD group and every aggregated API (metrics-server), so the manifest does not need editing when the cluster gains an operator.
+  </Step>
+
+  <Step title="Print the access file">
+    Save the `print_access_file.sh` script from the connect form and run it. It waits for the token to be populated, then prints one self-contained document holding the API server URL, the cluster CA and the token.
+
+    Verify it before pasting:
+
+    ```bash
+    kubectl --kubeconfig access.yaml get nodes
+    ```
+
+    If the server URL in the file is private to your network, edit it to the address this Bag of words instance can actually reach.
+  </Step>
+
+  <Step title="Paste it in and test">
+    Paste the whole output into the **Cluster access file** field and click **Test connection**.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `namespaces` | No | _(blank)_ | Comma-separated allowlist, e.g. `payments, inventory`. Leave empty to expose every namespace the token can see. |
+| `discover_crds` | No | `true` | Expose populated CustomResourceDefinitions as `crd::<group>/<Kind>` tables. |
+| `max_crd_tables` | No | `40` | Cap on discovered custom-resource tables. The rest stay queryable by name. |
+| `log_tail_default` | No | `500` | `tail_lines` used when a logs query omits it. |
+| `log_tail_max` | No | `5000` | Hard cap on log lines per pod per query. |
+| `max_log_pods` | No | `10` | Fan-out cap when logs are queried by label selector. |
+| `request_timeout` | No | `60` | Seconds per API call. |
+| `verify_ssl` | No | `true` | Uses the cluster CA from the access file. Disable only for a dev cluster whose CA is missing from the file. |
+
+Most of these are advanced settings and stay hidden in the connect form unless you open them.
+
+## Authentication
+
+**Cluster access file — `access_file`** (system scope, the only mode)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_file` | Yes | The output of `print_access_file.sh` — API server URL, cluster CA and the read-only service-account token in one document. |
+
+There is exactly one mechanism: the bearer token of a long-lived service-account token Secret. The parser accepts only what the script produces — one cluster with `server` and `certificate-authority-data`, one user with `token` — and rejects exec credential plugins, client certificates and auth providers **by name**. Personal kubeconfigs will not work, and there is no per-user scope.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="no token in secret bagofwords/bagofwords-reader-token yet">
+    The script ran before the control plane populated the token Secret, or the manifest was not applied. Apply the manifest first, then re-run the script — it already retries for 30 seconds.
+  </Accordion>
+
+  <Accordion title="Test connection times out, but kubectl works on your laptop">
+    The `server` URL in the access file is the address *your* kubectl uses, which may be private. Edit it to an address the Bag of words backend can reach, then paste the file again.
+  </Accordion>
+
+  <Accordion title="The access file is rejected">
+    It was a personal kubeconfig rather than the script's output. Exec credential plugins, client certificates and auth providers are refused by design — re-run `print_access_file.sh`.
+  </Accordion>
+
+  <Accordion title="No pod_metrics or node_metrics tables">
+    The cluster does not serve `metrics.k8s.io`. Install metrics-server and re-index the connection.
+  </Accordion>
+
+  <Accordion title="A custom resource is missing from the catalog">
+    Only *populated* CRDs are discovered, and discovery stops at `max_crd_tables` (40 by default). Raise the cap, or query the resource by name — uncatalogued CRDs stay queryable.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Observability and monitoring](/data-sources/connectors/observability) — Prometheus, Elasticsearch and CloudWatch alongside the cluster's own state.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

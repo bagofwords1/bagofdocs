@@ -1,0 +1,86 @@
+---
+title: "NetApp ONTAP"
+description: "Investigate storage incidents with read-only ONTAP inventory, topology, performance, events and diagnostic tables"
+icon: "hard-drive"
+---
+
+<Note>
+  The NetApp ONTAP connector ships as **beta**. It has been verified against a simulator, not yet against a customer appliance — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+Bag of words queries an on-premises ONTAP cluster's **REST API** so the agent can investigate storage incidents in place: inventory, topology, performance, events and the rest of the diagnostic surface, presented as tables.
+
+All network I/O is **GET-only**. There is no write path in this connector at all.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog built from the **ONTAP 9.14.1** Swagger contract, exposing several hundred selectable tables — aggregates, volumes, LUNs, SVMs, nodes, network interfaces, snapshots, events, and the per-object metrics tables that go with them.
+
+That catalog is an **execution allowlist, not a claim of availability**: it bounds what the connector is allowed to call, and a given appliance may not serve every resource in it. Pick the tables you need when you set up the connection rather than indexing everything.
+
+A few properties are deliberate, because the output is meant to be evidence:
+
+- **Missing values stay missing.** Nothing is imputed or defaulted.
+- **Source identity and query provenance are preserved** on the rows.
+- **Ceilings fail loudly.** A query that would exceed `max_rows` fails explicitly rather than returning silently truncated results.
+- **FlexGroup constituents are separate.** `volume_constituents` carries the physical layout of FlexGroup members and is excluded from logical volume totals, so a constituent is never double-counted against its parent.
+
+## Before you start
+
+- An ONTAP account with **HTTP application access** and read-only diagnostic permissions. A dedicated read-only account is the right shape here — the connector never needs more.
+- The cluster management LIF must be reachable from the Bag of words backend over HTTPS.
+- If the cluster uses a private CA, have its PEM certificate ready. Certificate verification is **always on**; the certificate field is how you make it succeed, not how you skip it.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | Cluster management origin, e.g. `https://cluster.example:443`. Targets ONTAP 9.14.1. |
+| `ca_certificate` | No | — | PEM CA certificate for the cluster, for a private CA. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | Only for an isolated simulated API. Real clusters should use HTTPS. |
+
+## Authentication
+
+**Username / Password — `userpass`** (system scope, the only mode)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | An ONTAP account with HTTP application access and read-only diagnostic permissions. |
+| `password` | Yes | That account's password. |
+
+There is no per-user scope: one shared read-only identity serves the connection.
+
+## What "beta" means here
+
+The connector was built and verified against an **ONTAP simulator** on the 9.14.1 REST contract. It has not yet been through an acceptance pass on a customer appliance. In practice that means:
+
+- Resources in the catalog may not all exist, or may not all be populated, on your cluster's version and configuration.
+- Validate on a non-production cluster first, and expect to narrow the selected tables to the ones your appliance actually serves.
+- Field names should be treated as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="TLS verification fails">
+    Paste the cluster's CA certificate into `ca_certificate`. Verification is always enabled and there is no switch to turn it off — `allow_http` exists only for an isolated simulator, not as a way around a certificate problem.
+  </Accordion>
+
+  <Accordion title="A query fails instead of returning rows">
+    Check whether it would have exceeded `max_rows`. The connector refuses to return a partial result set silently; narrow the query's scope or time range, or raise the ceiling.
+  </Accordion>
+
+  <Accordion title="A table in the catalog returns nothing">
+    The catalog is an allowlist derived from the 9.14.1 contract, not a statement that your appliance serves every resource in it. Confirm the feature is licensed and configured on the cluster.
+  </Accordion>
+
+  <Accordion title="Volume totals look inflated">
+    Make sure you are querying `volumes` and not `volume_constituents`. The latter is FlexGroup member layout, intentionally excluded from logical totals.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Brocade Fabric OS](/data-sources/connectors/brocade) — the SAN fabric the storage sits behind.
+- [VMware Aria Operations](/data-sources/connectors/aria-operations) — the vSphere estate and its storage management packs.

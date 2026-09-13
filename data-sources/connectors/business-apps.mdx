@@ -1,6 +1,6 @@
 ---
 title: "Business applications"
-description: "Connect Salesforce, NetSuite, ServiceNow, Monday and PostHog so the agent can query them as tables"
+description: "Connect Salesforce, NetSuite, ServiceNow, Monday, PostHog and Priority ERP so the agent can query them as tables"
 icon: "boxes"
 ---
 
@@ -13,6 +13,7 @@ These connectors reach SaaS applications through their own APIs and present them
 | [ServiceNow](#servicenow) | Table API query specs | Username/password, or per-user OAuth | Beta |
 | [Monday data](#monday-data) | Board query specs over the GraphQL API | API token, or per-user OAuth | Beta |
 | [PostHog](#posthog) | HogQL | Personal API key | Beta |
+| [Priority ERP](#priority-erp) | OData v4 over the REST API | Personal Access Token, API user, or per-user OAuth (on-prem) | Beta |
 
 ---
 
@@ -230,3 +231,65 @@ Bag of words queries PostHog with **HogQL** against a fixed catalog that mirrors
 | `api_key` | Yes | A PostHog **Personal API Key** with the `query:read` and `project:read` scopes. Create it under your PostHog user settings. |
 
 Because this mode is available at user scope as well as system scope, each user can supply their own personal API key instead of sharing the admin's. Per-user credentials on a database-style connection require an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+---
+
+## Priority ERP
+
+<Note>
+  The Priority ERP connector is in **beta**.
+</Note>
+
+Bag of words queries Priority Software's **OData v4** REST API, and works against both **Priority Cloud** and **on-premise** installations — the OData surface ships with the on-prem application server, so only the service root and the TLS posture differ.
+
+**Priority forms are tables.** Each form is an OData entity set and each form column a property, so `ORDERS`, `CUSTOMERS` and `PART` become queryable tables. The whole tenant schema comes back from one `$metadata` request rather than a per-object crawl.
+
+Column names alone would be unreadable, so the catalog uses Priority's own business vocabulary: the human label of each column comes from its `Priority.OData.Description` annotation. Those titles follow the environment language — a Hebrew tenant returns Hebrew titles — so form **names** are always the identifiers and titles are only ever descriptions.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `service_root` | Yes | — | Full Priority OData URL, e.g. `https://priority.example.com/odata/Priority/tabula.ini/mycompany`. The host, `tabula.ini` file and company all vary per installation. |
+| `forms` | No | — | Comma-separated forms to expose, e.g. `ORDERS, CUSTOMERS, PART`. Blank uses a curated set of common ERP forms. |
+| `discover_all` | No | `false` | Index every form in `$metadata`, including customer-specific ones, instead of the curated set. |
+| `verify_ssl` | No | `true` | Verify the server's TLS certificate. Disable only for self-signed certs on internal hosts. |
+| `max_calls_per_minute` | No | `100` | Client-side throttle. Priority Cloud allows 100 calls/minute per user and 15 concurrent requests; on-premise has no documented ceiling, so raise it there, or set `0` to disable throttling. |
+
+<Note>
+  Custom fields appear only once REST metadata has been rebuilt for that form inside Priority. If a column you expect is missing, rebuild the form's metadata in Priority and re-index the connection.
+</Note>
+
+### Authentication modes
+
+**Personal Access Token — `pat`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `pat` | Yes | A token from **System Management → System Maintenance → Users → REST Interface Access Tokens**. Sent as the Basic-auth username with the literal password `PAT`. |
+| `oauth_client_id` | No | On-premise only. The **Application ID** of an app registered under **Manage IDs Externally → External Applications**. Setting it enables per-user sign-in. |
+
+This is Priority's own recommendation for server-to-server clients, and the only mode available in **both** Cloud and on-premise. At user scope it is bring-your-own-token: in Priority Cloud there is no OAuth, so it is the only per-user path.
+
+**API Username / Password — `basic`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | The value of the **API User Name** field in the user's Personnel File — not their normal Priority login. |
+| `password` | Yes | That API user's password. |
+
+<Warning>
+  Priority rejects Basic authentication entirely while External ID access is enabled on the installation. Use the PAT mode there.
+</Warning>
+
+**Sign in with Priority (on-prem) — `oauth`** (scope: user, no fields). Per-user delegated OAuth, **on-premise only** — Priority scopes its OAuth 2.0 guide to non-SaaS installations, and it requires the paid External ID module plus an external identity provider. Endpoints are derived per-tenant from the service root. This requires the `oauth_client_id` above to be configured on the connection.
+
+<Note>
+  Per-user authentication on a database-style connection requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
+</Note>
+
+Register the OAuth app's redirect URI in Priority as:
+
+```text
+https://<your-bow-host>/api/connections/oauth/callback
+```
