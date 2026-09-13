@@ -1,0 +1,104 @@
+---
+title: "Brocade Fabric OS"
+description: "Investigate Fibre Channel ports, optics, zoning, congestion and events on a SAN switch with read-only diagnostics"
+icon: "network"
+---
+
+<Note>
+  The Brocade Fabric OS connector is part of the **Enterprise Edition**, and ships as **beta**. It has been verified against a simulator on a 9.1.0b schema baseline, not yet against real hardware — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+Bag of words queries a Brocade SAN switch over its **Fabric OS REST API** so the agent can investigate Fibre Channel problems: port health, counters, optics, congestion, zoning and retained events, presented as tables.
+
+Every vendor request is **explicitly allowlisted** and read-only, over a bounded REST path.
+
+## What the catalog looks like
+
+The default catalog is **12 primary investigation tables**. A further **156 tables** are available opt-in via **Include advanced diagnostic tables**.
+
+| Table | What it holds |
+| :-- | :-- |
+| `switches` | Logical switch identity, firmware and fabric context. |
+| `ports` | Current FC port state and configuration. Neighbors can be one-to-many. |
+| `port_statistics` | Current port observations — rates and cumulative counters, not arbitrary history. |
+| `transceivers` | Local and available peer optical readings. Power is in microwatts. |
+| `connected_devices` | Observed FC registrations and attachments; WWPNs identify endpoints. |
+| `fabric_links` | E/EX ports and observed switch neighbors, including down configured links. Does not infer routes. |
+| `zones` | Zones per defined/effective state. |
+| `zone_members` | Zone membership, preserving member syntax and peer-zone principal roles. |
+| `health` | Component health assessments from MAPS. |
+| `congestion_samples` | Retained port/minute observations for credit stall and oversubscription. |
+| `events` | Retained RASLog and audit events. |
+| `hardware` | Component observations — blades, fans, power supplies, sensors, WWN cards — distinguished by `component_type`. |
+
+### Evidence columns
+
+Every row carries provenance alongside the data, so a finding can be traced back to what was actually observed and when:
+
+| Column | Meaning |
+| :-- | :-- |
+| `_bow_switch_wwn`, `_bow_vf_id` | Which switch and fabric the row came from. |
+| `_bow_retrieved_at` | When the observation was read. |
+| `_bow_source_url`, `_bow_source_resource` | The exact REST resource behind the row. |
+| `_bow_firmware` | The switch firmware that served it. |
+| `_bow_history_coverage`, `_bow_complete` | How much history the switch actually retained, and whether retrieval was complete. |
+
+<Warning>
+  Read the table semantics literally when drawing conclusions. A **defined** zone configuration does not prove active access — check the effective one. **Monitoring-paused is not no-congestion**, so an empty `congestion_samples` window is not evidence of a healthy fabric. And complete retrieval of `events` does not guarantee the switch retained the history you asked for — that is what `_bow_history_coverage` is for.
+</Warning>
+
+## Before you start
+
+- A switch account with **read access to the required fabrics**.
+- The switch's HTTPS management address, reachable from the Bag of words backend.
+- If you run Virtual Fabrics, know which fabric IDs you care about. Every logical-switch query must specify a fabric ID.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | HTTPS management address of the switch. |
+| `vf_ids` | No | _(blank)_ | Comma-separated fabric IDs to restrict queries to. |
+| `include_advanced` | No | `false` | Add the 156 advanced diagnostic tables to the 12 primary ones. |
+| `login_scheme` | No | `Custom_Basic` | `Custom_Basic` or `Basic`, as supported by your switch. |
+| `allow_http` | No | `false` | For a local simulator only — only loopback addresses are accepted over HTTP. |
+
+## Authentication
+
+**Username + Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A switch account with read access to the required fabrics. |
+| `password` | Yes | That account's password. |
+
+Because the mode is available at user scope as well, each analyst can supply their own switch login instead of sharing one. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## What "beta" means here
+
+The connector bundles a **Fabric OS 9.1.0b YANG baseline**, reconciled at connect time against live module discovery on your switch. It has been verified against a simulator; compatibility with customer firmware (9.1.1c and beyond) still requires a real-hardware acceptance pass. Validate on a non-production fabric first, and treat field names as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Login fails against the switch">
+    Switch the `login_scheme` between `Custom_Basic` and `Basic` — Fabric OS versions differ in which they accept.
+  </Accordion>
+
+  <Accordion title="A logical-switch query returns nothing">
+    Every logical-switch query needs a fabric ID. Set `vf_ids` on the connection, or specify the fabric in the query.
+  </Accordion>
+
+  <Accordion title="A diagnostic table you expected is missing">
+    It is probably one of the 156 advanced tables. Turn on **Include advanced diagnostic tables** and re-index.
+  </Accordion>
+
+  <Accordion title="A table is empty but the fabric clearly has activity">
+    Check `_bow_history_coverage` and `_bow_complete` on neighbouring rows. Retention on the switch, or paused monitoring, is the usual explanation — not absence of the condition.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [NetApp ONTAP](/data-sources/connectors/netapp-ontap) — the storage behind the fabric.
+- [VMware Aria Operations](/data-sources/connectors/aria-operations) — the vSphere estate in front of it.

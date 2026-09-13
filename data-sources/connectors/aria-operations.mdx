@@ -1,0 +1,88 @@
+---
+title: "VMware Aria Operations"
+description: "Query the vSphere estate and every installed management pack — inventory, topology, metrics with dynamic thresholds, alerts and symptoms"
+icon: "boxes"
+---
+
+<Note>
+  The VMware Aria Operations connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+Bag of words talks to the Aria Operations **Suite API** (`https://<appliance>/suite-api/api/...`) — formerly vRealize Operations, and VCF Operations in 9.x. It is validated against the official OpenAPI spec (VCF Operations 9.1, the same surface Aria Operations 8.18 serves) and the 8.18 API Programming Guide.
+
+There is no free-form query language: queries are JSON specs that map onto a catalog of virtual tables.
+
+## What the catalog looks like
+
+| Layer | Tables |
+| :-- | :-- |
+| **Fixed** — declared in code | The dictionary (adapter kinds, resource kinds, stat keys), inventory (`resources`, `properties`, `relationships`), time series (`metrics`, `metrics_latest`, `metrics_topn`) and the incident timeline (`alerts`, `symptoms`, `contributing_symptoms`, `alert_definitions`, `custom_groups`) |
+| **Discovered** — one per *populated* resource kind | `metrics::<AdapterKind>/<ResourceKind>`, with that kind's stat keys as columns |
+
+The discovered layer is what makes management packs useful without any vendor-specific code: whatever adapters the customer has installed — Hitachi, NetApp, IBM, NSX — show up as wide, per-kind metric tables.
+
+### Dynamic thresholds are columns, not judgement
+
+Aria learns a normal band for each series. The connector asks for it (`dt=true`) and returns it alongside the data as `dt_min` and `dt_max`, so "was this abnormal?" is something the agent can read off a row rather than estimate.
+
+<Note>
+  **There is no `events` table.** The public Suite API only lets you *push* events (`POST /events`); it has no read endpoint. `alerts` and `symptoms` — with their start, update and cancel timestamps — are the incident timeline.
+</Note>
+
+## Before you start
+
+- A local or LDAP/AD user with at least the **ReadOnly** role on the appliance.
+- The name of its authentication source, if it is not a local user — as configured under **Administration → Authentication Sources**.
+- The appliance reachable over HTTPS from the Bag of words backend. If it uses a private CA, put a PEM bundle on the backend host so verification can stay on.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | The appliance URL, e.g. `https://aria-ops.acme.local`. The `/suite-api/api` path is appended automatically. |
+| `auth_source` | No | `LOCAL` | `LOCAL` for local users, or the name of the LDAP/AD/vIDM source. |
+| `verify_ssl` | No | `true` | Verify the appliance's TLS certificate. Prefer a CA bundle over disabling this. |
+| `ca_bundle` | No | — | Path **on the backend host** to a PEM bundle for a private CA, so verification can stay on. |
+| `history_window_days` | No | `7` | Default lookback for alerts and symptoms when a query gives no explicit time range (1–180). |
+| `max_metric_tables` | No | `40` | How many per-object-type metric tables to discover, largest kinds first. `0` disables discovery. |
+
+## Authentication
+
+**Username + Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A local or LDAP/AD user with at least the ReadOnly role. |
+| `password` | Yes | That user's password. |
+
+The Suite API has no API keys. The connector acquires a session token (`POST /suite-api/api/auth/token/acquire`) and sends it as `Authorization: OpsToken <token>`. Tokens live six hours on a sliding window; they are cached and re-acquired automatically on a 401.
+
+Basic authentication is deprecated and disabled by default on 8.18, so it is not offered.
+
+Because the mode is available at user scope, each analyst can sign in with their own Aria login — and Aria's own RBAC then applies to their queries. Per-user authentication on a database-style connection requires an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication fails for an LDAP or AD user">
+    `auth_source` is still `LOCAL`. Set it to the exact name of the source as it appears under **Administration → Authentication Sources**.
+  </Accordion>
+
+  <Accordion title="A management pack's metrics are missing">
+    Only *populated* resource kinds are discovered, and discovery stops at `max_metric_tables` (40 by default), largest kinds first. Raise the cap and re-index.
+  </Accordion>
+
+  <Accordion title="You are looking for an events table">
+    There isn't one, and it is not an omission — the Suite API has no read endpoint for events. Use `alerts` and `symptoms` instead.
+  </Accordion>
+
+  <Accordion title="TLS verification fails against the appliance">
+    Put the private CA's PEM bundle on the backend host and point `ca_bundle` at it, rather than turning `verify_ssl` off.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [NetApp ONTAP](/data-sources/connectors/netapp-ontap) — storage diagnostics straight from the array.
+- [Brocade Fabric OS](/data-sources/connectors/brocade) — the SAN fabric underneath.
+- [Kubernetes](/data-sources/connectors/kubernetes) — cluster state for workloads running on the estate.

@@ -1,10 +1,10 @@
 ---
-title: "CSV and QVD"
-description: "Turn CSV and Qlik QVD files on the backend host into SQL tables the agent can query"
+title: "CSV, QVD and PBIX"
+description: "Turn CSV, Qlik QVD and Power BI .pbix files on the backend host into SQL tables the agent can query"
 icon: "table"
 ---
 
-The **CSV** and **QVD** connectors expose data files as **SQL tables**. You point each connection at file paths or glob patterns, and every matching file becomes one table the agent can query with SQL, join, and aggregate.
+The **CSV**, **QVD** and **Power BI (.pbix)** connectors expose data files as **SQL tables**. You point each connection at file paths or glob patterns, and every matching file becomes one or more tables the agent can query with SQL, join, and aggregate.
 
 <Tip>
   Use these when the file *is* a dataset. If you want the agent to search and read documents — PDFs, Word files, mixed folders — use [Files and Directories](/data-sources/connectors/files-and-directories) instead, which exposes files as a searchable catalog rather than as tables.
@@ -16,6 +16,7 @@ Both connectors run on **DuckDB** inside Bag of words. Paths are resolved on the
 
 - **CSV** is read natively by DuckDB. There is no conversion or cache: each resolved file is exposed directly as a table at connect time. One file, one table.
 - **QVD** is a proprietary binary format, so each file is converted to a columnar cache on the backend the first time it is indexed, then queried with SQL from there.
+- **Power BI (.pbix)** files carry an embedded semantic model, so one file yields **several** tables — the model's tables, not one table per file.
 
 Glob patterns are expanded at connect time, so adding a file that matches an existing pattern makes it available on the next index without editing the connection.
 
@@ -70,6 +71,26 @@ A single mode, **No Authentication** (`none`), at system scope. Nothing to enter
 
 ---
 
+## Power BI (.pbix)
+
+Go to **Data Sources → Add data source → Power BI (.pbix)**.
+
+Each `.pbix` file contains an embedded semantic model, and every table in that model becomes a queryable table. Unlike CSV and QVD, one file therefore contributes **many** tables rather than one.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `file_paths` | Yes | — | Power BI file paths or glob patterns, one per line, e.g. `/data/*.pbix`. |
+
+<Warning>
+  The data you query is the data that was **last refreshed into the file**, not live data from the Power BI service. A `.pbix` is a point-in-time snapshot: it is as current as whoever last saved it. Connect [Power BI](/data-sources/connectors/power-bi) or [Power BI Report Server](/data-sources/connectors/power-bi-report-server) instead when you need the live semantic model.
+</Warning>
+
+### Authentication
+
+A single mode, **No Authentication** (`none`), at system scope. Nothing to enter — access is whatever the operating system grants the backend process.
+
+---
+
 ## Troubleshooting
 
 <AccordionGroup>
@@ -87,6 +108,10 @@ A single mode, **No Authentication** (`none`), at system scope. Nothing to enter
 
   <Accordion title="Accented or non-Latin characters are mangled">
     Set `encoding` to match the file — `latin-1` is the usual fix for exports from older Windows tools.
+  </Accordion>
+
+  <Accordion title="A .pbix file's numbers are out of date">
+    That is expected. The connector reads the data saved inside the file at its last refresh. Re-save the file after refreshing it in Power BI Desktop, or connect the live [Power BI](/data-sources/connectors/power-bi) semantic model instead.
   </Accordion>
 </AccordionGroup>
 

@@ -1,0 +1,113 @@
+---
+title: "OpenText Documentum"
+description: "Browse, search and read documents from a Documentum repository over REST Services, with the repository's own ACLs applied to every read"
+icon: "folder-open"
+---
+
+<Note>
+  The OpenText Documentum connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+Bag of words reads an OpenText Documentum repository through **Documentum REST Services** (`https://host/dctm-rest`, hypermedia JSON; a D2 REST root also works). Documents become a searchable **file catalog** the agent can grep and read — not tables.
+
+The connector is **read-only**. Documents are addressed by their stable `r_object_id`, and display paths are shown relative to the configured root folder.
+
+## How scope and security work
+
+Two independent limits apply to every call, and both are re-enforced on **every read** rather than only at indexing time:
+
+1. **The connection's scope** — the root folder plus any include patterns. Anything outside it is invisible *and* unreadable.
+2. **Documentum's own ACLs** — every call runs as the authenticated identity, so the repository does the security trimming. Nothing is pre-authorized by Bag of words.
+
+That second point is what makes the per-user modes worth setting up: with OTDS impersonation or OTDS sign-in, each person's session is genuinely theirs, and Documentum evaluates its ACLs against their identity.
+
+## Before you start
+
+- The **REST Services base URL** and the **repository (docbase) name**. One connection reads one repository.
+- An identity to connect as — a repository user, or a confidential OTDS OAuth client.
+- For per-user access: **Allow impersonation** enabled on the OTDS OAuth client *and* on the repository resource.
+- Decide the root folder before connecting. Narrowing scope later means re-indexing.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `rest_url` | Yes | — | Documentum REST Services base URL, e.g. `https://dctm.example.com/dctm-rest`. |
+| `repository` | Yes | — | Repository (docbase) name, e.g. `corp_docs`. |
+| `root_path` | No | `/` | Cabinet or folder path bounding the connection, e.g. `/Finance/Reports`. Everything outside it is invisible and unreadable. |
+| `include_globs` | No | — | Glob patterns relative to the root, comma-separated. When set, **only** matching documents are visible and readable — e.g. `2026/**/*.pdf`, `**/*.xlsx`. `**` crosses subfolders, `*` is one segment. |
+| `object_types` | No | — | Comma-separated document types to expose, e.g. `bow_invoice, dm_document`. Blank (or including `dm_document`) exposes every type. |
+| `recursive` | No | `true` | Enumerate subfolders when listing and indexing. |
+| `index_mode` | No | `metadata` | `metadata` caches the document list on a schedule; `none` caches nothing and the agent lists live every time. **Reads are always live** either way. |
+| `max_catalog_objects` | No | `5000` | Safety cap on documents enumerated into the catalog. Narrow the root folder or include patterns rather than raising this. |
+| `max_file_size_mb` | No | `50` | Oversized downloads are rejected before parsing. Files are never silently truncated. |
+| `allow_http` | No | `false` | Unencrypted HTTP, for an isolated test lab only. |
+
+## Authentication modes
+
+**Username / Password — `userpass`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | Documentum login name (`user_login_name`). On OTDS-backed repositories this is usually the UPN or `userid@partition`. |
+| `password` | Yes | That user's password. |
+
+HTTP Basic against the repository. At user scope this is the bring-your-own-password path.
+
+<Warning>
+  This mode does not work for **Entra-only OTDS users**, who have no password OTDS can validate. Use OTDS impersonation or OTDS sign-in for them.
+</Warning>
+
+**OTDS OAuth client (service identity) — `otds_client`** (system scope only)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `otds_url` | Yes | OpenText Directory Services base URL, e.g. `https://otds.example.com`. The `/otdsws` suffix is optional. |
+| `client_id` | Yes | A confidential OTDS OAuth client. Enable **Allow impersonation** on it (and on the repository resource) if you want per-user access on top. |
+| `client_secret` | Yes | That client's secret. |
+| `partition` | No | Partition the users live in, appended as `userid@partition` when a login carries no `@`. Leave blank if logins already include it. |
+
+A client-credentials grant: the connection acts as the OAuth client's own service user. This is **system scope only** — the client secret is admin-equivalent.
+
+**OTDS impersonation — `otds_impersonation`** (user scope, an overlay)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `documentum_login` | Yes | Your Documentum user (`user_login_name`), e.g. `jane.doe@corp.example.com` or `jdoe@Corp` — usually your work email or UPN. |
+
+The per-user path that stores **no secret per user**. The admin's OTDS client stays on the connection and performs an RFC 8693 token exchange to mint a token *for* each user, so the Documentum session — and its ACL evaluation — is genuinely theirs. It layers over the connection's `otds_client` credentials.
+
+**Sign in with OTDS — `oauth`** (user scope, no fields). Each user completes an OTDS authorization-code flow and Bag of words stores and refreshes their token. Requires the OTDS client to be configured on the connection's system credentials.
+
+<Note>
+  Per-user authentication on file connections does not require an Enterprise license — but the Documentum connector itself does. See [Authentication and access](/data-sources/authentication).
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A document is visible in Documentum but not in Bag of words">
+    It is outside the connection's scope. Check `root_path` first, then `include_globs` — when include patterns are set, anything not matching them is both invisible and unreadable.
+  </Accordion>
+
+  <Accordion title="Fewer documents than expected were indexed">
+    The catalog hit `max_catalog_objects` (5,000 by default). Narrow the root folder or add include patterns instead of raising the cap.
+  </Accordion>
+
+  <Accordion title="Impersonation is refused">
+    **Allow impersonation** has to be enabled on the OTDS OAuth client *and* on the repository resource. Both.
+  </Accordion>
+
+  <Accordion title="An Entra-only user cannot connect with their password">
+    They have no password OTDS can validate. Put them on OTDS impersonation or OTDS sign-in.
+  </Accordion>
+
+  <Accordion title="A large file fails to read">
+    It exceeded `max_file_size_mb` (50 MB by default) and was rejected before parsing, rather than truncated.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SharePoint Server (on-prem)](/data-sources/connectors/sharepoint-server) — the same shape of connection for on-premises SharePoint libraries.
+- [Files and Directories](/data-sources/connectors/files-and-directories) — file shares mounted on the backend host.
