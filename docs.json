@@ -39,7 +39,8 @@
         "pages": [
           "agents/overview",
           "agents/instructions",
-          "agents/evals"
+          "agents/evals",
+          "agents/lists"
         ]
       },
       {
