@@ -40,8 +40,13 @@
           "agents/overview",
           "agents/instructions",
           "agents/evals",
+          "agents/self-improvement",
           "agents/lists"
         ]
+      },
+      {
+        "group": "Users",
+        "pages": []
       },
       {
         "group": "Connect Any Data",
