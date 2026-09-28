@@ -27,7 +27,7 @@ Open **Agents**, select an agent, choose **Lists** in its tree, and click **New 
 
 - **Name and description.** The description tells the agent what one row represents, for example “One row per customer, from the signed agreements and their amendments.”
 - **Fields.** Add one field per value you want. Field names use lowercase letters, digits and `_`. Each field's description is the agent's instruction for that value. Be specific, for example “Current annual fee; annualize monthly fees and say so in the note.”
-- **Required.** The agent must always report this field, even if only to say it wasn't found.
+- **Required.** A new row can't be saved without a value for this field.
 - **Key.** Optional. Choose the field that identifies a row, such as `counterparty`. When the agent sees the same key again, it **updates** that row instead of adding a duplicate. Leave the key empty for lists with many rows per source, such as one row per obligation.
 - **Require a source quote for extracted values.** When on, the agent must quote the source for every value it reports as found or inferred.
 - **Anyone who can use this agent can save rows from chat.** When off (the default), only people who manage the agent can have it save rows. Everyone with access can still view and export the list.
@@ -49,7 +49,7 @@ An agent can have up to 10 lists, and a list up to 40 fields.
 
 ### Change a list later
 
-Open the list, click **⋯** and choose **Edit fields**. Adding fields or options is always safe. Renaming or retyping a field, or removing an option, marks older rows as out of date so you can re-run the extraction.
+Open the list, click **⋯** and choose **Edit fields**. Renaming a field, editing descriptions, adding optional fields or adding options is always safe. Changing a field's type, removing a field or an option, making a field required, or changing the key marks existing rows as out of date (a warning icon in the table), so you know to re-run the extraction.
 
 ## Fill a list from chat
 
@@ -134,7 +134,7 @@ Analysis reads the current values, including your edits. Each row also has `_row
 ## Export as CSV
 
 - **Export CSV** on a list downloads every row.
-- **⋯ → Export with sources** adds each value's status, quote, page and whether the quote was checked, plus who last changed the row.
+- **⋯ → Export with sources** adds each value's status, quote, page and whether the quote was checked, plus the row's report, last update and whether a person edited it.
 - **Download CSV** in the chat downloads only the rows saved in that report.
 
 Files open cleanly in Excel and Google Sheets, including non-English text.
@@ -149,10 +149,6 @@ Files open cleanly in Excel and Google Sheets, including non-English text.
 | Have the agent save rows from chat | People who manage the agent, or anyone who can use it when the list allows it |
 
 Conversations on a shared artifact never write to lists.
-
-## Test extraction with evals
-
-You can check extraction quality with [evals](/agents/evals). A case can assert on what was saved. For example, “`records.0.fields.annual_value.value` equals 135000” fails if the agent reads the amendment wrong.
 
 ## Limits
 
