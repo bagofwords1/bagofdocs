@@ -8,7 +8,7 @@ These connectors let the agent investigate operational data — logs, search ind
 
 | Connector | What the catalog looks like | Query surface | Edition |
 | :-- | :-- | :-- | :-- |
-| [Splunk](#splunk) | One table per `index::sourcetype` | SPL | Enterprise, Beta |
+| [Splunk](#splunk) | One table per `index::sourcetype` | SPL | Beta |
 | [Elasticsearch](#elasticsearch) | One object per index or index pattern | Query DSL, SQL, ES&#124;QL | Beta |
 | [OpenSearch](#opensearch) | One object per index or index pattern | Query DSL, SQL | Beta |
 | [Jaeger](#jaeger) | Fixed tables: services, operations, spans, dependencies | Parameterized trace search | Beta |
@@ -23,7 +23,7 @@ These connectors let the agent investigate operational data — logs, search ind
 ## Splunk
 
 <Note>
-  The Splunk connector is part of the **Enterprise Edition**, and is currently in **beta**.
+  The Splunk connector is available in every edition, and is currently in **beta**.
 </Note>
 
 Bag of words talks to the Splunk REST API on the management port (`https://<host>:8089`). There is no SQL endpoint — queries are **SPL** run as oneshot search jobs.
