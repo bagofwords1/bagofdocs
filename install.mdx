@@ -50,17 +50,14 @@ Run Bag of Words with Docker Compose and Caddy (built-in TLS on port 443). We re
    ```env
    # Domain used by Caddy for HTTPS (must resolve to your server's public IP)
    DOMAIN=yourdomain.com
-
    # PostgreSQL (use stronger values for production)
    POSTGRES_USER=bow
    POSTGRES_PASSWORD=your_secure_pw
    POSTGRES_DB=bagofwords
-
    # Optional but recommended: encryption key (Fernet, 44 chars incl. '=')
    # Generate with OpenSSL: openssl rand -base64 32 | tr '+/' '-_'
    BOW_ENCRYPTION_KEY=
    ```
-
    Generate `BOW_ENCRYPTION_KEY` with OpenSSL:
    ```bash
    openssl rand -base64 32 | tr '+/' '-_'
@@ -399,6 +396,26 @@ When `sync_groups: true`, group memberships from the `groups` claim are synced t
 
 - `group_claim` — the token claim that carries group membership (default `groups`).
 - `resolve_group_names: true` — by default Entra ID emits group **object IDs**, not display names. Enabling this resolves the IDs to human-readable names via Microsoft Graph (requires the app to have the `GroupMember.Read.All` or `Directory.Read.All` permission granted).
+
+## SAML 2.0
+
+For identity providers that require SAML, add a `saml_providers` entry. `base_url` must be an HTTPS origin.
+
+```yaml
+saml_providers:
+- name: company-sso
+  enabled: true
+  label: Company SSO
+  organization_id: <existing-bow-organization-id>
+  idp:
+    metadata_url: https://idp.company.com/app/metadata
+  attributes:
+    subject: name_id
+    email: mail
+    name: displayName
+```
+
+Register `https://your-base-bow-url.com/api/auth/saml/company-sso/acs` as the Reply (ACS) URL and `https://your-base-bow-url.com/saml/company-sso` as the Entity ID. See [Sign-in and SSO](/sign-in-and-sso#saml-2-0) for trust options, admission rules, and troubleshooting.
 
 ## LDAP / Active Directory
 
