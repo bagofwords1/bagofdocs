@@ -1,133 +1,158 @@
 ---
 title: "MCP"
-description: "Connect Claude, Cursor, or any MCP client to query your data via the Bag of words MCP Server"
+description: "Connect Claude, Cursor, ChatGPT, or any MCP client to Bag of words with a personal key or an admin-registered OAuth app"
 icon: "plug"
 ---
 
-## Overview
+Bag of words exposes an MCP (Model Context Protocol) server. Connect Claude, Cursor, or any MCP-compatible client to it, and that assistant can explore your data sources, run tracked queries, build dashboards, and call your agents' tools — all as the signed-in user, under their existing BOW permissions.
 
-Bag of words exposes an MCP (Model Context Protocol) server that allows you to connect external AI tools like Claude Desktop, Cursor, or any MCP-compatible client directly to your data sources. This enables you to query your data using natural language from your favorite AI tools.
+<Note>
+  This page is about BOW acting as an MCP **server**. To give BOW agents tools from an external MCP server (Notion, Linear, an internal service), see [MCP Connections](/data-sources/mcp).
+</Note>
 
-With the MCP Server, you can:
+## Endpoint
 
-* **Query data from Claude Desktop**: Ask questions about your data directly in Claude
-* **Use Cursor for data analysis**: Leverage your IDE's AI capabilities with your connected data sources
-* **Integrate with any MCP client**: Build custom workflows using the standardized MCP protocol
+There is one MCP endpoint per deployment:
 
-## Available Tools
+```text
+https://<YOUR_DOMAIN>/api/mcp
+```
 
-The Bag of words MCP Server exposes the following tools for AI assistants to interact with your data:
+(`https://<YOUR_DOMAIN>/mcp` is served too.) It speaks MCP over Streamable HTTP. The organization comes from the credential, never from a header, so the same URL works for every organization on the deployment.
 
-| Tool Name | Description |
-|-----------|-------------|
-| `create_report` | Creates a new analysis session (report). Call this at the start of a conversation to get a report_id for subsequent tool calls. Auto-attaches all active data sources. |
-| `get_context` | Retrieves available data sources, tables, and metadata resources. Useful for understanding what data is available before running queries. Supports optional regex pattern filtering. |
-| `inspect_data` | Quick, ephemeral data inspection for exploration and debugging. Previews data (head/tail), checks column types, and validates assumptions. Results are logged but not saved as persistent visualizations. Returns a sample of 3 rows. |
-| `create_data` | Creates tracked, reproducible data visualizations (chart or table) with Query/Step/Visualization persistence. Results are saved to the report and can be shared/added to dashboards. Tables are auto-discovered from the prompt if not provided. |
-| `list_instructions` | Lists instructions from the current live build. Instructions are organizational knowledge that guide AI behavior. Supports filtering by status, category, and text search. |
-| `create_instruction` | Creates a new instruction that guides AI code generation and data analysis. Auto-versioned with build integration. Admins get instant approval; non-admins go to pending approval. |
+## Two ways to connect
 
-## Enable MCP Server
+Every MCP request runs as a specific BOW user. There are two ways for that user to authenticate:
 
-Administrators can enable or disable the MCP endpoint from **Settings** → **Integrations**.
+|  | Personal access token | OAuth app |
+| --- | --- | --- |
+| **Who sets it up** | Each user, for themselves | An admin registers the app once; each user then signs in |
+| **What the client sends** | `Authorization: Bearer bow_…` | `Authorization: Bearer bow_oauth_…`, obtained through sign-in and consent |
+| **Best for** | Desktop and IDE clients with a config file (Claude Desktop, Cursor, Claude Code) | Hosted clients with a connector UI (Claude on the web, ChatGPT, internal apps), or orgs that want no long-lived keys in config files |
+| **Revoke** | User deletes the token | User is removed from the org, or the admin deletes the app or changes its access surfaces |
+
+Either way the client acts **as that user**: they see only the agents and data sources they can access, tool policies apply as they do in the web app, and BOW rechecks org membership on every request. Removing someone from the organization stops their tokens immediately.
+
+## Enable the MCP server
+
+The MCP server is on by default. Admins with `manage_settings` can turn it off for the whole organization under **Settings → Channels → BOW MCP Server**. When it is off, every MCP request returns `403 MCP integration is not enabled for this organization`.
 
 ![MCP Server Integration Toggle](/assets/media/mcp-integrations.png)
 
-Toggle the **BOW MCP Server** switch to enable MCP endpoint for integration with AI assistants like Cursor, Claude, or others.
+## Option 1 — Personal access token (per user)
 
-## Getting Started
+Each user generates their own token. Tokens are tied to that user's account in the current organization.
 
-### 1. Access the MCP Configuration
-
-Click **MCP** in the left navigation menu to open the MCP Server configuration popup.
-
-![MCP Server Configuration](/assets/media/mcp-server.png)
-
-### 2. Generate an Access Token
-
-Click **Regenerate Token** to create a new access token. This token authenticates your MCP client with Bag of words.
-
-<Warning>
-Keep your access token secure. Anyone with this token can query your data sources through the MCP server.
-</Warning>
-
-### 3. Configure Your MCP Client
-
-Copy the configuration snippet and add it to your MCP client's configuration file. The configuration looks like this:
+1. Open your profile from the user menu and go to the **MCP Server** tab. (Admins also have **MCP Server** directly in the user menu.)
+2. Select **Generate Token**. Copy it right away — it is shown only once.
+3. Copy the **Configuration** snippet into your MCP client:
 
 ```json
 {
   "mcpServers": {
     "bagofwords": {
-      "url": "https://<YOUR_DOMAIN>/mcp",
+      "url": "https://<YOUR_DOMAIN>/api/mcp",
       "headers": {
-        "Authorization": "Bearer <YOUR_API_KEY>"
+        "Authorization": "Bearer <YOUR_TOKEN>"
       }
     }
   }
 }
 ```
 
-Replace `<YOUR_DOMAIN>` with your Bag of words instance URL and `<YOUR_API_KEY>` with your actual access token.
+![MCP Server Configuration](/assets/media/mcp-server.png)
 
-## Client Configuration
+Where to put it:
 
-### Claude Desktop
+- **Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
+- **Cursor** — your Cursor MCP settings (`.cursor/mcp.json` or the global MCP config).
+- **Any other client** — use the URL and the `Authorization` header shown above. `X-API-Key: <YOUR_TOKEN>` is accepted as well.
 
-Add the configuration to your Claude Desktop settings file:
+**Regenerate Token** creates an additional token; it does not revoke older ones. Use **Manage tokens** to see and delete your tokens. The same tokens also appear under **Profile → API Keys**, which you can use for programmatic access to the BOW API.
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+<Warning>
+  A token carries your access. Anyone holding it can query every data source you can. Delete tokens you no longer use.
+</Warning>
 
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+## Option 2 — OAuth app (admin-registered)
 
-### Cursor
+With OAuth, users never copy a token. The client sends them to BOW to sign in (local account or your SSO provider), they approve access, and the client receives a token scoped to MCP.
 
-Add the configuration to your Cursor MCP settings to enable data querying directly from your IDE.
+BOW does **not** support dynamic client registration for its own MCP server — an admin must register each client app first.
 
-### Custom MCP Clients
+### Admin: register the app
 
-Any client that supports the MCP protocol can connect using the URL and authorization header shown in your configuration panel.
+You need `manage_settings`.
 
-## MCP Reports
+1. Open **Settings → Channels → OAuth Apps** and select **Register app**.
+2. Name it after the client people will recognize, such as "Claude".
+3. Under **Access surfaces**, select **MCP tools**. Add **BOW app** only if the same client also calls the BOW API.
+4. Add the client's exact redirect URIs, one per line. For Claude on the web, use `https://claude.ai/api/mcp/auth_callback`; for other clients, use the callback URL their documentation gives you.
+5. Optionally enable **Trusted** to skip the consent screen. Do this only for software your organization operates.
+6. Save, then copy the **Client ID** and the **Client secret** (shown once) and share them with your users, or enter them in the client's org-wide connector settings.
 
-Reports created through MCP connections are automatically tracked in your Reports page and marked with an MCP icon for easy identification.
+See [OAuth Apps](/channels/oauth-apps) for the full option reference, secret rotation, and revocation.
+
+### User: connect the client
+
+For Claude on the web, for example:
+
+1. Go to **Settings → Connectors → Add custom connector**.
+2. Enter `https://<YOUR_DOMAIN>/api/mcp` as the URL.
+3. Under **Advanced settings**, enter the Client ID and Client secret from your admin.
+4. Select **Connect**. Sign in to BOW if prompted, review the **Authorize access** screen (it requests **MCP tools** — "Use the MCP tool surface under your existing BOW permissions"), and select **Approve**.
+
+Clients discover everything else automatically:
+
+| Metadata | URL |
+| --- | --- |
+| MCP protected resource | `https://<YOUR_DOMAIN>/.well-known/oauth-protected-resource` |
+| Authorization server | `https://<YOUR_DOMAIN>/.well-known/oauth-authorization-server` |
+
+An unauthenticated request to the endpoint returns `401` with a `WWW-Authenticate` header that points the client to this metadata. The flow is OAuth 2.1 authorization code with PKCE (`S256`); refresh tokens rotate on each use. A token issued with only the `mcp` scope cannot call the BOW API, and an `app`-only token cannot call MCP.
+
+## Available tools
+
+| Tool | What it does |
+| --- | --- |
+| `create_report` | Starts an analysis session and returns a `report_id`. Attaches the data sources the user can access that are enabled for MCP. |
+| `get_context` | Lists available data sources, tables, metadata resources, and agent tools. Supports pattern filtering. |
+| `inspect_data` | Quick exploratory query that returns a small sample. Not saved. |
+| `create_data` | Creates a tracked, reproducible query with a chart or table. Saved to the report, so it can be shared and added to dashboards. Returns result rows inline (see below). |
+| `create_artifact` | Builds a dashboard or slide presentation from existing visualizations. |
+| `edit_artifact` | Applies targeted changes to an existing dashboard or presentation. |
+| `list_agent_tools` | Lists the external tools (MCP connections and custom APIs) an agent can run, with their input schemas. |
+| `execute_mcp` | Runs one of those agent tools — for example, searching Notion or creating a Jira issue — with the same tool policies as in the web app. |
+| `send_email` | Emails the current user, and optionally other org members, with up to five attachments. Listed only when outbound email is configured. |
+| `list_instructions` | Lists instructions from the current live build. |
+| `create_instruction` | Creates an instruction. Admins publish immediately; other users submit for approval. Requires `manage_instructions`. |
+| `delete_instruction` | Removes an instruction. Requires `manage_instructions`. |
+
+Tools the user lacks permission for are left out of `tools/list`. Clients that support **MCP Apps** also render charts and dashboards inline from `create_data`, `create_artifact`, and `edit_artifact`.
+
+### Controls
+
+- **Rows returned by `create_data`** — **Settings → AI → MCP data preview rows** (default 1,000, maximum 10,000). A client can ask for fewer rows, never more, and the org's row-count limit still applies.
+- **Per-agent availability** — each agent can be switched off for the MCP channel in the **Channels** section of its settings. Agents switched off are not attached to reports created over MCP.
+- **Agent tools** — turning off MCP tools under **Settings → AI** also stops `execute_mcp`.
+- **Instructions** — instructions can be scoped to the MCP channel, so assistants get guidance that applies only there.
+
+## MCP reports
+
+Every conversation from an MCP client is saved as a report under the user's name, marked with an MCP icon (**Created via MCP**) in the Reports list.
 
 ![MCP Reports](/assets/media/mcp-reports.png)
 
-When you open an MCP-generated report, you'll see a banner indicating it was created via MCP. The report displays the generated data and visualizations from the tool calls made by the external AI assistant.
+Opening one shows the queries, visualizations, and dashboards the assistant created.
 
 ![MCP Report View](/assets/media/mcp-report-view.png)
 
 <Warning>
-**Important**: For MCP-generated reports, the actual LLM completion/prompt content is **not saved**, but all tool usage is **tracked 100%**. 
-
-This means you can see exactly what data was queried and which tools were used, while the conversational context from the external client (Claude, Cursor, etc.) remains private.
+BOW does not see the external assistant's own conversation. It records every tool call — what was queried, with which tool, and the results — but not the client's prompts or model output beyond what was passed into a tool.
 </Warning>
 
-## Managing API Tokens
+## Example uses
 
-You can manage multiple access tokens from the MCP configuration panel:
-
-* **View active tokens**: See all tokens created for your workspace with their creation dates
-* **Regenerate tokens**: Create new tokens when needed
-* **Revoke tokens**: Remove tokens that are no longer needed for security
-
-## Use Cases
-
-### Data Analysis in Claude
-
-Once connected, you can ask Claude questions about your data:
-
-* "What were our top 10 customers by revenue last month?"
-* "Show me the trend of user signups over the past year"
-* "Which products have the highest return rate?"
-
-### Development Workflows in Cursor
-
-Use the MCP integration while coding to:
-
-* Validate data assumptions while building features
-* Generate test data based on production patterns
-* Debug data-related issues with real-time queries
-* Build data models with full context of the data warehouse
-
+* In Claude: "What were our top 10 customers by revenue last month? Build a dashboard and email it to me."
+* In Cursor: validate data assumptions while you write a feature, or check production patterns before writing a migration.
+* In any client: "Open a Linear issue for each failed load in yesterday's pipeline run" — through an agent's tools via `list_agent_tools` and `execute_mcp`.

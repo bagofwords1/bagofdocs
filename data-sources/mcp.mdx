@@ -7,7 +7,7 @@ icon: "plug"
 An **MCP connection** points Bag of words at a Model Context Protocol server. The server's tools become tools the agent can call during a conversation — creating a Monday item, searching Notion, opening a GitHub issue, querying an internal service.
 
 <Note>
-  This is the opposite direction from [the Bag of words MCP server](/using-bow/mcp), which lets Claude or Cursor query *your* data. Here, BOW is the client and the external server provides the tools.
+  This is the opposite direction from [the Bag of words MCP server](/using-bow/mcp), which lets Claude or Cursor query _your_ data. Here, BOW is the client and the external server provides the tools.
 </Note>
 
 <Note>
@@ -23,7 +23,7 @@ For anything else, add a **custom MCP server** and supply the details yourself.
 ## Connection fields
 
 | Field | Required | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `server_url` | Yes | — | The MCP endpoint URL |
 | `transport` | No | `sse` | `sse` or `streamable_http` — must match what the server speaks |
 | `headers` | No | `{}` | Static headers sent on every request |
@@ -32,21 +32,30 @@ For anything else, add a **custom MCP server** and supply the details yourself.
 
 ## Authentication
 
-| Mode | Scope | Fields |
-|---|---|---|
-| None | Shared | — |
-| Bearer token | Shared or per-user | `token` |
-| API key | Shared or per-user | `api_key`, `api_key_header` (default `X-API-Key`) |
-| OAuth app | Shared or per-user | `authorize_url`, `token_url`, `client_id`, `client_secret`, `scopes`, `audience`, `token_endpoint_auth_method` |
-| OAuth (dynamic registration) | Per-user | — (discovered from the server) |
+An MCP connection authenticates in one of two ways: with **one shared credential** that an admin enters once, or with **per-user sign-in**, where each person connects their own account and the agent calls tools as them.
 
-**Dynamic client registration** is the easiest path when a server supports it: BOW discovers the server's OAuth metadata and registers itself automatically, so you supply no client ID or secret at all. Each user then signs in with their own account.
+| Option in the form | Who signs in | What the admin enters |
+| --- | --- | --- |
+| **No Auth** | Nobody (shared) | — |
+| **Bearer Token** | Shared — one token for everyone | `token` |
+| **API Key (Header)** | Shared — one key for everyone | `api_key`, header name (default `X-API-Key`) |
+| **Sign in (auto-register / DCR)** | Each user, with their own account | Nothing — optional scope override |
+| **OAuth (admin-registered app)** | Each user, with their own account | `client_id`, `client_secret`, and the server's authorize/token URLs, scopes, audience |
 
-<Note>
-  Dynamic registration is restricted to an allowlist of known hosts (the preset servers plus their auth domains). A custom server at an arbitrary URL must use an OAuth app, bearer token, or API key instead. This is a deliberate guard against server-side request forgery.
-</Note>
+<Warning>
+  A bearer token or API key is **shared by everyone who uses the connection**. Every tool call runs as that one identity, so the MCP server cannot tell users apart. Use one of the sign-in options when the server should apply each person's own permissions, or forward identity with [User context forwarding](/data-sources/user-context).
+</Warning>
 
-Choosing an OAuth mode makes the connection [per-user](/data-sources/authentication) automatically — each person signs in individually, and the agent calls tools as them. Per-user auth on MCP connections does **not** require an Enterprise license.
+### Per-user sign-in
+
+Both OAuth options make the connection [per-user](/data-sources/authentication): after the admin saves it, each user selects **Sign in** the first time they use it and completes the provider's authorization. BOW stores each user's token encrypted, refreshes it automatically, and sends it on every tool call. Until a user signs in, their tool calls fail with a prompt to connect. Per-user auth on MCP connections does **not** require an Enterprise license.
+
+The two options differ only in where the OAuth client comes from:
+
+- **Sign in (auto-register / DCR)** — BOW reads the server's OAuth metadata and registers itself with **dynamic client registration**, so the admin enters no client ID or secret. It works with any server URL an admin configures, as long as the server advertises a `registration_endpoint`. BOW registers once per connection and requests the scopes the server asks for at each sign-in. Presets use this mode when the provider supports it.
+- **OAuth (admin-registered app)** — for servers without DCR, or when your organization must own the client. The admin registers an OAuth app with the provider once, for the whole organization, and enters its client ID, secret, and endpoints. Users still sign in individually; the admin's app is not a shared identity.
+
+If DCR fails with `does not advertise a registration_endpoint`, the server does not support it — switch to **OAuth (admin-registered app)**.
 
 <Tip>
   When testing an OAuth-based server before anyone has signed in, a `401` or `403` from the server counts as healthy — it proves the endpoint is reachable and challenging for credentials.
@@ -59,16 +68,16 @@ OAuth connects an MCP server without turning a shared secret into a shared ident
 The setup flow is:
 
 1. Add an MCP preset or enter a custom server URL and transport.
-2. Choose **OAuth (dynamic registration)** when the server and host allow it, or provide the metadata for an **OAuth app**.
+2. Choose **Sign in (auto-register / DCR)** when the server supports dynamic registration, or **OAuth (admin-registered app)** and enter your app's client ID, secret, and endpoints.
 3. Save and discover the server's tools.
 4. Each user selects **Sign in** and completes the provider's authorization flow.
 5. Review tool policies and attach the connection to the appropriate agent.
 6. The agent can call approved tools as the signed-in user; expired tokens are refreshed through the configured token endpoint.
 
-Use dynamic registration for supported preset servers when you do not want to create and maintain a client ID. Use an OAuth app for a custom server where you control the authorization URL, token URL, client credentials, scopes, audience, and token-endpoint authentication method.
+Use dynamic registration whenever the server supports it, so you never create or maintain a client ID. Use an admin-registered OAuth app for a custom server where you control the authorization URL, token URL, client credentials, scopes, audience, and token-endpoint authentication method.
 
 <Warning>
-OAuth authenticates the caller; it does not bypass governance. Connection access, agent scope, tool policy, admin denies, and the MCP server's own authorization rules still apply to every call.
+  OAuth authenticates the caller; it does not bypass governance. Connection access, agent scope, tool policy, admin denies, and the MCP server's own authorization rules still apply to every call.
 </Warning>
 
 ## Tool discovery
@@ -84,7 +93,7 @@ Servers that expose MCP **resources** as well as tools get those surfaced too, s
 Every tool carries a policy that decides what happens when the agent wants to call it:
 
 | Policy | Behavior |
-|---|---|
+| --- | --- |
 | `allow` | Runs immediately |
 | `ask` | The user must confirm before it runs |
 | `deny` | Never runs |
@@ -98,7 +107,7 @@ Policies are resolved in three layers, most specific first:
 2. **The agent-level override** — the same tool can be `allow` on one data source and `ask` on another
 3. **The connection default** set by the admin
 
-with one hard rule: **an admin `deny` is absolute** and cannot be relaxed by an agent override or a user preference. Users can only make their own experience *stricter* than the admin's setting, never looser.
+with one hard rule: **an admin `deny` is absolute** and cannot be relaxed by an agent override or a user preference. Users can only make their own experience _stricter_ than the admin's setting, never looser.
 
 Admins set connection defaults and agent overrides; any user with access can set their own preference for a tool they use.
 
@@ -108,7 +117,7 @@ Admins set connection defaults and agent overrides; any user with access can set
 
 ## Per-user identity
 
-Many internal MCP servers need to know *who* is asking — to apply their own permissions or to write audit records. Bag of words can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
+Many internal MCP servers need to know _who_ is asking — to apply their own permissions or to write audit records. Bag of words can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
 
 ## Adding a connection
 
