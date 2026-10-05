@@ -119,8 +119,9 @@ An unauthenticated request to the endpoint returns `401` with a `WWW-Authenticat
 | `get_context` | Lists available data sources, tables, metadata resources, and agent tools. Supports pattern filtering. |
 | `inspect_data` | Quick exploratory query that returns a small sample. Not saved. |
 | `create_data` | Creates a tracked, reproducible query with a chart or table. Saved to the report, so it can be shared and added to dashboards. Returns result rows inline (see below). |
-| `create_artifact` | Builds a dashboard or slide presentation from existing visualizations. |
-| `edit_artifact` | Applies targeted changes to an existing dashboard or presentation. |
+| `create_artifact` | Builds a dashboard, app or slide presentation. Apps can declare record, file and AI resources when Artifact resources is enabled. |
+| `edit_artifact` | Applies targeted interface changes to an existing artifact. |
+| `manage_artifact_resources` | Reads, creates, updates or deletes an artifact's resource definitions and permissions. It manages configuration, not individual app records. |
 | `list_agent_tools` | Lists the external tools (MCP connections and custom APIs) an agent can run, with their input schemas. |
 | `execute_mcp` | Runs one of those agent tools — for example, searching Notion or creating a Jira issue — with the same tool policies as in the web app. |
 | `send_email` | Emails the current user, and optionally other org members, with up to five attachments. Listed only when outbound email is configured. |
@@ -129,6 +130,8 @@ An unauthenticated request to the endpoint returns `401` with a `WWW-Authenticat
 | `delete_instruction` | Removes an instruction. Requires `manage_instructions`. |
 
 Tools the user lacks permission for are left out of `tools/list`. Clients that support **MCP Apps** also render charts and dashboards inline from `create_data`, `create_artifact`, and `edit_artifact`.
+
+For apps with saved data, enable **Artifact resources** in organization AI settings first; it is off by default. Use resource management for schemas and policies, and artifact editing for the interface. Authoring remains subject to report ownership and organization permissions. See [Build apps with artifacts](/using-bow/artifact-apps).
 
 ### Controls
 

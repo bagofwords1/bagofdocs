@@ -36,6 +36,24 @@ The Agents workspace provides global and agent-level instruction views. Use fold
 
 Every published change belongs to an instruction build. Builds preserve the active snapshot, history, **tracked diff**, reviewer decision, and rollback path. Reviewers can inspect exactly what the AI proposes to add or remove before a suggestion becomes active.
 
+## Install and update skills
+
+Skills are reusable playbooks that the agent can load when a task calls for them. Open **Agents → Skills** to see the **Enabled** and **Catalog** tabs.
+
+- **Catalog** shows built-in skills and lets an administrator enable or disable them.
+- **Enabled** shows the skills installed in the organization, including custom skills.
+- Select an installed skill to review its instructions.
+
+An installed catalog skill is an organization-owned copy. A new deployment can ship a newer catalog version without replacing that copy. This preserves your edits and scoping choices.
+
+When a newer version is available, the catalog shows **Update available** and an **Update** action. Review any customization warning before updating: taking the catalog version replaces the installed content. **Reset** restores catalog content when a skill has been customized.
+
+For artifact apps, check **Data apps**. An older installation may be titled **Data app design** and lack guidance for records, uploads and AI streaming. Update that installed skill as well as enabling **Artifact resources** in [AI Settings](/using-bow/settings).
+
+<Note>
+  Enabling a skill provides instructions to the agent. It does not enable platform features or grant access to data. Organization settings and permissions still control what the agent and app can do.
+</Note>
+
 ## Git and generated suggestions
 
 You can synchronize instructions from Git-backed documentation and model metadata, or create them manually. In Training, an agent can clarify an ambiguous rule, use the answer as evidence, and suggest a tracked instruction change. The suggestion remains a draft until a reviewer accepts it; rejected suggestions stay visible in the build history rather than silently changing production knowledge.
