@@ -55,6 +55,8 @@
         "pages": [
           "guides/overview",
           "agents/train-an-agent",
+          "guides/training-tips",
+          "guides/root-cause-analysis",
           "guides/parameterized-dashboard",
           "guides/stateful-dashboard",
           "guides/scheduled-tasks",
