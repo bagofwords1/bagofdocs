@@ -39,6 +39,7 @@
         "pages": [
           "agents/overview",
           "agents/instructions",
+          "agents/train-an-agent",
           "agents/evals",
           "agents/self-improvement",
           "agents/lists"
@@ -47,6 +48,25 @@
       {
         "group": "Users",
         "pages": []
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/overview",
+          "agents/train-an-agent",
+          "guides/parameterized-dashboard",
+          "guides/stateful-dashboard",
+          "guides/scheduled-tasks",
+          "guides/external-triggers",
+          "guides/evals",
+          "guides/usage-analysis",
+          "guides/saved-queries",
+          "guides/agent-routing",
+          "guides/lists-documents",
+          "guides/mcp-clients",
+          "guides/git",
+          "guides/embed"
+        ]
       },
       {
         "group": "Connect Any Data",
@@ -119,7 +139,8 @@
           "observe-and-govern/overview",
           "observe-and-govern/runs-and-traces",
           "observe-and-govern/usage-cost-quality",
-          "observe-and-govern/quotas-and-usage-limits"
+          "observe-and-govern/quotas-and-usage-limits",
+          "observe-and-govern/audit-logs"
         ]
       },
       {
@@ -132,13 +153,6 @@
           "channels/whatsapp",
           "channels/email",
           "channels/oauth-apps"
-        ]
-      },
-      {
-        "group": "Guides",
-        "pages": [
-          "guides/git",
-          "guides/embed"
         ]
       },
       {

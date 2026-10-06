@@ -13,7 +13,7 @@ Reports are persistent conversations with governed agents. A report keeps your p
 - **Chat** is for doing production work with approved instructions and access.
 - **Training** is for learning sources, clarifying business rules, and proposing reviewable instruction changes.
 
-Switch modes in the composer. Training changes do not silently become production behavior; review and accept the proposed instruction edits first.
+Switch modes in the composer. Training changes do not silently become production behavior; review and accept the proposed instruction edits first. For a step-by-step walkthrough, see [Train an agent](/agents/train-an-agent).
 
 ## Write a strong prompt
 
@@ -61,6 +61,8 @@ Follow up in the same report to narrow a period, add a comparison, challenge an 
 ## Select a model in the conversation
 
 The composer shows the active model. Choose another enabled model for the session when you want a different speed, cost, or reasoning profile; automatic routing can select for you when it is enabled by an administrator.
+
+For models that reason, the picker also has a **Faster ↔ Smarter** slider with four stops: **Fast**, **Medium**, **High**, and **Max**. Fast skips reasoning where the model allows it, for the quickest and cheapest answers; Max thinks longest, for hard multi-step analysis. Until you move it, the slider sits on your administrator's default effort for that model (or Fast if none is set). Your choice is saved with the conversation.
 
 ![The current in-chat model selector with configured reasoning and fast models](/images/showcase/model-routing-current.png)
 

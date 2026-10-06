@@ -1,7 +1,15 @@
 ---
 title: "Sign-in and SSO"
-description: "Auth modes, OIDC and Entra ID, Google, and LDAP / Active Directory"
+description: "Auth modes, OIDC and Entra ID, Google, SAML 2.0, and LDAP / Active Directory"
 icon: "key-round"
+keywords:
+  - "sso"
+  - "saml"
+  - "oidc"
+  - "entra"
+  - "okta"
+  - "ldap"
+  - "active directory"
 ---
 
 This page is about how people sign in **to Bag of words**. For how a connection authenticates to a *data source* — shared credentials versus per-user sign-in — see [Authentication and Access](/data-sources/authentication).
@@ -81,6 +89,137 @@ google_oauth:
 ```
 
 Google appears alongside the OIDC providers in the same button list and counts toward the single-provider auto-start rule above.
+
+## SAML 2.0
+
+Any SAML 2.0 identity provider works — Entra ID, Okta, PingFederate, ADFS, or anything else that can be configured to this profile. Like OIDC providers, SAML providers appear as buttons on the login page and count toward the single-provider auto-start rule above.
+
+```yaml
+base_url: https://bow.company.com
+saml_providers:
+  - name: company-sso
+    enabled: true
+    label: Company SSO
+    organization_id: <existing-bow-organization-id>
+    idp:
+      metadata_url: https://idp.company.com/app/metadata
+    attributes:
+      subject: name_id
+      email: mail
+      name: displayName
+    auto_provision_users: false
+```
+
+**`base_url` must be an HTTPS origin.** An enabled SAML provider is rejected at startup if `base_url` is not `https://` or carries a path. The browser posts the assertion to BOW cross-site, which needs a `Secure` cookie.
+
+**Each provider admits exactly one organization.** `organization_id` names an organization that already exists. A valid assertion never admits a user anywhere else.
+
+### Register BOW with your identity provider
+
+For a provider named `company-sso`, give your IdP these values. The `name` must be a lowercase slug, unique across all SAML, OIDC and Google providers.
+
+| Setting | Value |
+| --- | --- |
+| SP metadata | `https://<your-bow-host>/api/auth/saml/company-sso/metadata` |
+| Entity ID / Identifier / Audience | `https://<your-bow-host>/saml/company-sso` |
+| ACS / Reply URL | `https://<your-bow-host>/api/auth/saml/company-sso/acs` |
+| Sign-on URL | `https://<your-bow-host>/users/sign-in` |
+
+Scheme, host, port and path must match exactly. Leave RelayState and the logout URL unset, and assign the users who should have access to the IdP application.
+
+### Identity provider trust
+
+Pick one source of trust under `idp`:
+
+<Tabs>
+  <Tab title="Metadata URL">
+    ```yaml
+    idp:
+      metadata_url: https://idp.company.com/app/metadata
+      entity_id: https://idp.company.com/issuer   # only if the metadata lists several IdPs
+    ```
+
+    Fetched over HTTPS without following redirects, cached for five minutes, and metadata expiry is honoured.
+  </Tab>
+  <Tab title="Metadata file">
+    ```yaml
+    idp:
+      metadata_file: /etc/bow/company-idp.xml
+    ```
+
+    Use this for air-gapped deployments or when the IdP only offers a download.
+  </Tab>
+  <Tab title="Explicit certificates">
+    ```yaml
+    idp:
+      entity_id: https://idp.company.com/issuer
+      sso_url: https://idp.company.com/sso
+      certificates:
+        - ${BOW_SAML_IDP_CERTIFICATE}
+        - ${BOW_SAML_IDP_NEXT_CERTIFICATE}
+    ```
+
+    Certificates are the full public X.509 signing certificates, not fingerprints. To rotate, trust the old and new certificate together, then remove the old one.
+  </Tab>
+</Tabs>
+
+BOW never trusts a certificate just because an incoming assertion carries it, and SHA-1 signatures are rejected.
+
+### Attribute mapping
+
+`attributes` maps assertion attributes to the BOW user. Use the attribute's exact **Name** — including the full URI if your IdP emits one — not its friendly or display name.
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `subject` | `name_id` | The stable account identifier. `name_id` uses the NameID; otherwise name an immutable attribute such as an object ID. Transient NameIDs are rejected. |
+| `email` | `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` | Must hold exactly one valid email address. |
+| `name` | `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` | Optional. Falls back to the part of the email before `@`. |
+
+### Admission and existing accounts
+
+With `auto_provision_users: false`, a person signing in for the first time needs a pending invitation (from the **Members** tab in settings) for their email in that organization, and takes the role the invitation assigns. With `true`, anyone your IdP lets through joins the organization as a member; seat limits still apply.
+
+**A SAML login never takes over an existing account just because the email matches.** To connect an existing member to their SAML identity, approve the link explicitly:
+
+```yaml
+account_links:
+  "<immutable-idp-subject>": person@company.com
+```
+
+The key is the NameID (or the mapped `subject` attribute). The assertion must carry the same email, and the account must already be a member of the organization. Superusers, service accounts and LDAP-bound users can't be linked this way.
+
+Removing someone from the organization, deactivating them, or disabling the provider ends their SAML sessions, and auto-provisioning will not re-admit a member you removed.
+
+### Signed requests and encrypted assertions
+
+Both are optional and need a service provider key pair:
+
+```yaml
+sp:
+  certificate_file: /run/secrets/saml-sp.crt
+  private_key_file: /run/secrets/saml-sp.key
+  sign_requests: true
+  want_assertions_encrypted: true
+```
+
+Import BOW's SP metadata into your IdP after adding the key pair. Neither key material nor IdP metadata is exposed through BOW's public settings.
+
+### What SAML does not cover
+
+- **Start sign-in from BOW.** IdP-initiated (unsolicited) logins are not accepted; an IdP portal tile should link to `/users/sign-in`.
+- **Signing out of BOW ends the BOW session only**, not the IdP session. SAML Single Logout is not supported.
+- **Roles don't come from SAML claims.** Use invitations, SCIM, LDAP group sync, or assign roles in BOW.
+- **No delegated data access.** A SAML assertion is not an OAuth token, so per-user data connections still need their own sign-in — see [Authentication and Access](/data-sources/authentication).
+
+### Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| No SAML button on the login page | `auth.mode` is not `local_only`, the provider is `enabled`, and BOW was restarted after editing the config. |
+| "Configuration unavailable" | The metadata URL or file is reachable and unexpired, and `entity_id` selects the right IdP. |
+| Sign-in fails after the IdP | Start again from BOW — requests expire after five minutes. Make sure BOW is served over trusted HTTPS. |
+| "Missing identity attribute" | The attribute **Name** matches exactly, and the user's email field is populated in the IdP. |
+| Existing user rejected | Add an `account_links` entry for them, or invite them fresh. |
 
 ## LDAP and Active Directory
 

@@ -1,0 +1,130 @@
+---
+title: "Create a scheduled task for recurring analysis"
+sidebarTitle: "Scheduled tasks"
+description: "Run a prompt on a schedule, so a monthly digest or weekly check is ready without anyone asking for it."
+icon: "calendar-clock"
+---
+
+A scheduled task runs a prompt on a schedule. At each run, the agent answers the prompt again on fresh data and adds the answer to a report. Set up a monthly sales digest once and the agent writes it on the first of every month.
+
+![Scheduled tasks on the Automations page](/images/guides/scheduled-tasks/automations-list.png)
+
+## Before you start
+
+- **You can use an agent.** This guide uses the **Music Store** demo agent. Its invoice data ends in December 2025, so the prompts ask for "the latest month in the data" instead of "last month".
+- **Your organization's timezone is set** (optional). Scheduled times use the organization timezone. If no timezone is set, they use UTC. Only an admin can change it (Step 1).
+
+## Step 1: Set the organization timezone
+
+Open **Admin → General**. Under **Organization timezone**, pick your timezone, for example **America/New_York**, and click **Save changes**.
+
+![Organization timezone in Admin → General](/images/guides/scheduled-tasks/org-timezone.png)
+
+A task set to run at 08:00 now runs at 8:00 AM New York time. Times on the task, like **Next run**, are shown in this timezone.
+
+## Step 2: Create the task
+
+Open **Automations** in the sidebar and stay on the **Scheduled** tab. Click **New task**. The **Schedule a task** window opens.
+
+1. **Title:** type a short name, such as _Monthly sales digest_. The title appears in the task list and on the notification.
+2. **Prompt:** click **Auto** at the bottom of the prompt box and choose **Music Store**. Then type the prompt:
+
+   > _For the latest full month in the data, show total revenue, invoice count and average invoice value vs the prior month, plus the top 5 countries by revenue as a bar chart. Keep it to 5 bullets._
+
+3. **Schedule:** choose **Recurring**. Set **Every** to **month**, **at** to **08:00** and **on day** to **1**.
+4. **Results:** keep **This report**.
+
+![The Schedule a task window, filled in](/images/guides/scheduled-tasks/schedule-a-task.png)
+
+The schedule can be **Every** _N_ **minutes** or **hours**, or every **day**, **weekdays**, **week** or **month** at a full hour. For **week**, choose one or more days. For **month**, choose a day from 1 to 28.
+
+**Results** controls where each run goes:
+
+- **This report** adds every run to the same report. The agent can see earlier runs and comment on trends.
+- **New report per run** creates a new, dated report for each run, so every run starts from a clean report.
+
+Click **Schedule**. The task appears on the **Scheduled** tab, with its schedule (**Monthly on day 1 at 8:00 AM**) and a link to its report.
+
+<Note>Use **Recurring** schedules. The **One-time** option doesn't work reliably yet.</Note>
+
+## Step 3: Run it now to check the result
+
+You don't have to wait for the first run. Click the task to open it, then click **Run now**. The run starts right away and the report opens.
+
+Each run appears in the report under a **Scheduled run** heading, with the date and time and the number of steps and queries. Under it you see the prompt, the queries the agent ran, the chart, and the answer.
+
+![A scheduled run in the report, with the task listed in the Summary panel](/images/guides/scheduled-tasks/scheduled-run-in-report.png)
+
+The report's **Summary** panel lists the task under **Scheduled tasks**, with its schedule and status (**Active**).
+
+<Tip>Click **Run now** while you write the prompt, and change the prompt until the answer looks right. In the **Schedule a task** window, **Run now** saves the task and runs it.</Tip>
+
+## Step 4: Check the task
+
+On **Automations**, click the task. The **Scheduled task** window shows:
+
+- The prompt, **Schedule**, **Agents**, **Model** and **Results**.
+- **Next run** and **Last run**, shown in the organization timezone.
+- **Previous runs**. With **This report**, runs are added to one report, so you read them there. With **New report per run**, each run is listed here with a link to its report.
+
+![The Scheduled task window, with the next and last run](/images/guides/scheduled-tasks/task-view.png)
+
+Click **Edit** to change the prompt, schedule or results. When you're done, click **Update**.
+
+## Step 5: Create a task from chat
+
+You can also ask the agent for a schedule in a report. In a report that uses **Music Store**, send:
+
+> _Every Monday at 9am, send me the top 5 genres by revenue for the latest month in the data_
+
+The agent creates the task and shows it as a card in the chat, with its schedule (**Mon at 9:00 AM**) and status (**Active**). The task also appears in the report's **Summary** panel and on **Automations**.
+
+![A scheduled task created from chat](/images/guides/scheduled-tasks/chat-created-task.png)
+
+Tasks you create from chat run at most once an hour. You can also click the clock icon in a report's prompt box (**Schedule a prompt**). It opens the same **Schedule a task** window for that report.
+
+## Step 6: Get the results
+
+When the prompt asks to be told the result ("send me", "notify me"), the agent sends a notification at the end of each run. It appears under **Notifications** in the sidebar. The title and summary are written by the agent.
+
+![A notification sent by a scheduled run](/images/guides/scheduled-tasks/run-notification.png)
+
+If your organization has email set up, the **Schedule a task** window also shows **Email a summary after each run**. Turn it on and add members or email addresses to email them a summary after each run.
+
+## Step 7: Pause, resume or delete a task
+
+On **Automations**, use the switch on the right of a task to pause it or turn it back on. You can also turn **Active** on or off in the **Scheduled task** window. A paused task keeps its prompt and schedule but doesn't run. Use **Active** and **Paused** above the list to filter tasks.
+
+![Paused tasks on the Automations page](/images/guides/scheduled-tasks/automations-paused.png)
+
+To remove a task, open it and click **Delete**, or hover over the task in the list and click the trash icon.
+
+## More prompts to try
+
+| Goal | Prompt |
+| --- | --- |
+| Sales alert | _Every weekday at 8am, compare revenue for the latest month in the data with the month before. If revenue dropped more than 10%, notify me with the top 3 countries behind the drop._ |
+| Customer churn watch | _Every Monday at 9am, list customers who bought in the prior 6 months of the data but not in the latest 3 months, with their country, support rep and lifetime spend. Notify me if the list grows._ |
+| Rep leaderboard | _On the 1st of every month at 8am, rank support reps by revenue from their customers for the latest month in the data, as a bar chart, and say who moved up or down since last run._ |
+
+## Tips
+
+- **Write the prompt for a run with nobody there.** Nobody can answer a follow-up question during a scheduled run. Name the period, the numbers and the format you want.
+- **Say "the latest month in the data"** when your data isn't up to date. "Last month" means the calendar month, which may have no data.
+- **Use This report for trends.** The agent sees earlier runs in the same report and can say what changed. Use **New report per run** when each run should start from scratch.
+- **A task re-runs the whole prompt.** The agent writes new queries and a new answer each time. This is different from refreshing the data in a dashboard.
+- **Rename the report.** A task created from **New task** gets a report named **Scheduled task**. Rename it so it's easy to find in the sidebar.
+
+## Troubleshooting
+
+- **The task runs at the wrong hour.** Check **Organization timezone** in **Admin → General**. If it's not set, schedules use UTC.
+- **There is no Next run.** The task is paused. Turn it back on.
+- **Nobody was notified after a run.** Ask for it in the prompt ("notify me with …"), or turn on **Email a summary after each run** if your organization has email set up.
+
+## Related
+
+- [Reports](/using-bow/reports)
+- [Dashboards](/using-bow/dashboards)
+- [Settings](/using-bow/settings)
+- [Train an agent](/agents/train-an-agent)
+- [Runs and traces](/observe-and-govern/runs-and-traces)

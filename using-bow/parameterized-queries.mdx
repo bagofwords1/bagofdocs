@@ -19,7 +19,7 @@ Each parameter has:
 | Field | What it is |
 | --- | --- |
 | **name** | The identifier used in the SQL placeholder, e.g. `region`. |
-| **type** | `string`, `number`, `boolean`, or `list` (a multi-select that binds an array). |
+| **type** | `string`, `number`, `date`, `date_range`, `id`, or `list` (a multi-select that binds an array). |
 | **label** | The human label shown on the control. |
 | **required** | Whether a value must be present for the query to run. |
 | **default** | The value used when the viewer hasn't chosen one. |
@@ -35,7 +35,7 @@ FROM sales
 WHERE (:region IS NULL OR region = :region)
 ```
 
-The `(:region IS NULL OR region = :region)` shape is the idiom for an **optional** filter: when the control is set to a value, only those rows return; when it's cleared (`NULL`), all rows return. A `list` parameter uses `IN` instead:
+The `(:region IS NULL OR region = :region)` shape is the idiom for an **optional** filter: when the control is set to a value, only those rows return; when it's cleared (`NULL`), all rows return. A `list` parameter matches any of the selected values instead:
 
 ```sql
 WHERE (:regions IS NULL OR region = ANY(:regions))

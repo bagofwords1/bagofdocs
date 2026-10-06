@@ -1,0 +1,127 @@
+---
+title: "Use saved queries for faster, more reliable answers"
+sidebarTitle: "Saved queries"
+description: "Save a reviewed query once, and the agent loads it instead of writing new SQL every time someone asks the same question."
+icon: "bookmark"
+---
+
+A saved query is a query you have checked and published to an agent's catalog. When someone asks a question it answers, the agent loads the saved query instead of writing new SQL. People get the same reviewed numbers every time, and the answer comes back faster.
+
+![The agent answers from a saved query](/images/guides/saved-queries/reuse-created-from-entity.png)
+
+## Before you start
+
+- **You can publish to the agent.** This guide uses an admin account. When you save, the dialog says **As an admin, your query will be published directly.**
+- **The agent has data.** The examples use the **Music Store** demo agent.
+
+## Step 1: Ask for the data you want to save
+
+Start a new report with the agent and ask a question.
+
+> _Show total revenue by genre_
+
+Check the result. Open the **Data** and **Code** tabs and make sure the numbers and the logic are right. Whatever you save here is what the agent will serve later.
+
+## Step 2: Save the query
+
+Under the chart, click **Save Query**.
+
+![Save Query under a result](/images/guides/saved-queries/save-query-button.png)
+
+Fill in the dialog:
+
+- **Title** – a short name, for example _Revenue by genre_.
+- **Description** – write it with the words people actually type. The agent finds saved queries by matching words in the title and description. For example: _Total revenue (sales) by music genre, highest first. Use for: sales by genre, genre revenue, top genres, best-selling genres._
+- **Agents** – the agents that can use this query. It starts with the agent from your report.
+- **Status** – keep **Published**. The agent only uses published saved queries. The other options are **Draft** and **Archived**.
+
+![The Save Query dialog](/images/guides/saved-queries/save-query-modal.png)
+
+Click **Save Entity**. You see **Query published to the catalog**, and the button under the chart changes to **Saved Query**.
+
+## Step 3: Ask again in a new report
+
+Start a new report with the same agent and ask the question in your own words.
+
+> _Which genres sell the most?_
+
+The agent finds the saved query and loads it instead of writing a new one. While it works you see **Loading from catalog**. When it finishes, the step reads **Created from entity "Revenue by genre"**, and the chart and data come from the saved query.
+
+In our test, this answer took one tool call (load the saved query) and no SQL generation. It finished in 15 seconds, compared with 26 seconds for the first answer that wrote the SQL.
+
+## Step 4: Save a query with a parameter
+
+A parameter lets one saved query answer many versions of a question, like "revenue by country" for any year. Ask for the parameter when you build the query.
+
+> _Show total invoice revenue by billing country for one year at a time. Make the year a parameter I can change later, defaulting to 2025._
+
+Click **Save Query**. The dialog now has a **Parameters** section that lists the parameter and its default, here **Year** · number · = 2025.
+
+![A saved query with a Year parameter](/images/guides/saved-queries/save-query-parameters.png)
+
+Put the parameter name in the title or the description, for example _Revenue by billing country for a year_ and _Parameter: year_. The agent reads the title and description to decide whether a saved query fits. If neither mentions the year, the agent may write a new query instead.
+
+Now ask for a different year in a new report:
+
+> _Which countries brought in the most revenue in 2023?_
+
+The agent loads the saved query with your value. The result shows a **Year** box with **Run**, and **ran with year = 2023**. Type another year and click **Run** to change it without asking again.
+
+![The saved query loaded with year 2023](/images/guides/saved-queries/reuse-with-parameter.png)
+
+## Step 5: Find and run your saved queries
+
+Open **Agents**, expand the agent, and click **Queries**. The number next to it is how many saved queries the agent has. Use **Search entities…** to filter the list, or **New query** to write one yourself.
+
+![The agent's saved queries](/images/guides/saved-queries/agent-queries-list.png)
+
+Click a query to open it. You see the title, description, a **Parameterized** badge if it has parameters, and the **Visual**, **Data**, and **Code** tabs. Use **Edit** to change it, **Delete** to remove it, and **Refresh Data** to update its stored result.
+
+For a query with parameters, type a value and click **Run**. The query runs right away with no AI involved, and the page shows **ran with year = 2024**.
+
+![Running a saved query with a different year](/images/guides/saved-queries/query-detail-run.png)
+
+## Step 6: Point the agent to a saved query with @
+
+You can tell the agent exactly which saved query to use. In the prompt box, type **@** and choose **Queries**, or keep typing the name. Pick the query and finish the prompt.
+
+> _Show @Revenue by billing country for a year for 2024_
+
+![Mention a saved query with @](/images/guides/saved-queries/mention-picker.png)
+
+The agent loads that query with the value you gave, here 2024.
+
+## More prompts to try
+
+| Goal | Prompt |
+| --- | --- |
+| Reuse a saved query | _Which genres sell the most?_ |
+| Pass a parameter | _Which countries brought in the most revenue in 2023?_ |
+| Name the query | _Show @Revenue by genre and list the top 3._ |
+
+## Tips
+
+- **Check before you save.** A saved query is served as-is. Review the **Data** and **Code** tabs first.
+- **Describe it the way people ask.** Add the phrases people type ("sales by genre", "top genres") to the description. That is how the agent finds it.
+- **Name the parameters.** Mention each parameter in the title or description, such as _for a year_ or _Parameter: year_.
+- **Keep one query per question.** If you change a saved query, edit it from **Agents → Queries** instead of saving a second copy.
+
+## Troubleshooting
+
+**The agent wrote new SQL instead of using my saved query.**
+Check that the query's status is **Published** and that it is attached to the agent you are chatting with. Then add the words from your question to its description. To force it, mention the query with **@**.
+
+**The agent ignored the parameter and built a new query.**
+Mention the parameter in the title or description (for example _Parameter: year_), or mention the query with **@** and give the value in the prompt.
+
+## Saved queries and custom queries
+
+Saved queries are reviewed answers the agent loads in chat. [Custom queries](/bow-fast/custom-queries) are something else: admin-defined SQL on a connection that is turned into a table on a schedule, which the agent then queries like any other table.
+
+## Related
+
+- [Reports](/using-bow/reports)
+- [Parameterized queries](/using-bow/parameterized-queries)
+- [Dashboards](/using-bow/dashboards)
+- [Train an agent](/agents/train-an-agent)
+- [Custom queries](/bow-fast/custom-queries)

@@ -1,0 +1,176 @@
+---
+title: "Analyze documents with Lists"
+sidebarTitle: "Lists for documents"
+description: "Point an agent at a folder of contracts, have it fill a typed list with a source quote for every value, review and fix the rows, re-run after a change, then chart and export the results."
+icon: "file-search"
+---
+
+In this guide you give an agent a folder of contracts, define a **Contracts** list, and have the agent fill it with one row per customer. Every value keeps the quote it came from. Then you fix a value by hand, re-run the extraction after an amendment arrives, chart the results, and export them.
+
+![The Contracts list filled from six contracts](/images/guides/lists-documents/list-rows.png)
+
+## Before you start
+
+- **You can create agents and connections.** This guide uses an admin account. If you don't see **New → Agent** on the **Agents** page, ask an admin.
+- **The documents are in a folder the Bag of Words server can read**, such as a local folder or a mounted network share. To follow along, download the [sample contracts](https://raw.githubusercontent.com/bagofwords1/bagofdocs/main/images/guides/lists-documents/sample-contracts.zip) (six fictional contracts and one amendment) and unzip them into that folder. Keep `acme_logistics_amendment_1.pdf` aside until Step 6.
+
+## Step 1: Create an agent that reads the folder
+
+1. Open **Agents**, click **New**, and choose **Agent**.
+2. Enter a **Name**, for example `Contract Desk`.
+3. Click **Create new connection**, search for `Files`, and choose **Files and Directories**.
+4. Fill in the form:
+   - **Connection Name**: `Contracts folder`
+   - **Directory Path**: the absolute path of the folder, for example `/mnt/contracts`
+   - **Include Patterns (globs)**: `**/*.pdf`, so the agent only sees PDFs
+5. Click **Connect**. The status panel shows **Connection saved** and how many files it discovered, for example **Discovered 6 files**. Click **Done**.
+
+![The Files and Directories connection, with six files discovered](/images/guides/lists-documents/files-connection.png)
+
+6. Make sure **Contracts folder** is selected under **Connections**, then click **Save & Continue**.
+7. The **Configure knowledge** step lists every file in scope. Check that all six contracts are there, then click **Save & Continue**.
+
+![The files the agent can read](/images/guides/lists-documents/agent-files.png)
+
+8. On **Set Context**, wait for the agent to write its overview instruction, then click **Save & Continue**. The agent opens on the **Agents** page.
+
+<Tip>
+No shared folder? Click **+ Upload files** on the **Configure knowledge** step to attach the PDFs to the agent instead. The rest of the guide is the same.
+</Tip>
+
+## Step 2: Define the Contracts list
+
+In the agent's tree, choose **Lists**, then click **New list**.
+
+1. **Name**: `Contracts`. **Description**: `One row per customer, from the signed agreements and their amendments.`
+2. Add one field per value. The description is the agent's instruction for that field, so be specific.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `counterparty` | Text, **Required**, **Key** | The customer's legal name, as written in the contract. |
+| `contract_type` | Choice: `MSA, Order Form, SOW` | The kind of agreement. |
+| `annual_value` | Number | Current annual fee. Annualize monthly fees and say so in the note. Use the latest amendment if one changes the fee. |
+| `currency` | Choice: `USD, EUR, GBP` | Currency of the annual fee. |
+| `renewal_date` | Date | Date the current term ends. |
+| `auto_renew` | Yes / No | Does the contract renew automatically? |
+| `notice_days` | Whole number | Days of written notice needed to stop renewal or to terminate. |
+| `governing_law` | Text | The law that governs the contract, for example "State of New York". |
+
+3. Turn on **Require a source quote for extracted values**.
+4. Turn on **Keep people's edits: the agent won't overwrite a value someone changed by hand**. You need this for Step 5.
+5. Click **Create list**.
+
+![The New list editor with the eight Contracts fields](/images/guides/lists-documents/new-list-editor.png)
+
+`counterparty` is the **Key**: when the agent sees the same customer again, it updates that row instead of adding a new one. See [Lists](/agents/lists#field-types) for every field type.
+
+## Step 3: Extract the contracts
+
+Go back to the agent (click **Contract Desk** in the tree), click **New report**, and ask:
+
+> _Read every contract and save each customer to the Contracts list, with the quote for each value._
+
+The agent lists the folder, reads each PDF, and saves the rows. A **Saved to Contracts** card shows what happened, here **6 added**. Click the card to expand it: every value has a status and a ✓ when its quote was found in the file. **Open list** opens the list, and **Download CSV** downloads the rows from this report.
+
+![Saved to Contracts: six rows added, each value with a checked quote](/images/guides/lists-documents/chat-card-saved.png)
+
+## Step 4: Review the rows
+
+Click **Open list**, or open **Lists → Contracts** in the agent's tree. The key field has a key icon, and the header shows the table name you can query, `bow.contract_desk.lists.contracts`.
+
+Click a row to open it. Each field shows its value, its status, the quote, and the file and page it came from. The agent's note explains anything it worked out.
+
+![The Initech row: inferred and not-found values with their quotes and notes](/images/guides/lists-documents/row-panel.png)
+
+In the sample, look at **Initech Corp.**:
+
+- `annual_value` is **Inferred**: the SOW states USD 8,500 per month, so the agent annualized it to 102,000 and said so in the note.
+- `notice_days` is **Not found**: the SOW doesn't state one, so the value stays empty.
+- `governing_law` is **Ambiguous**: the SOW points to a separate Master Agreement that isn't in the folder.
+
+Check **Inferred**, **Ambiguous** and **Not found** values first. They are where a person's judgment matters. The [status reference](/agents/lists#value-statuses) explains each one.
+
+## Step 5: Fix a value by hand
+
+Say you know the Initech Master Agreement is governed by Texas law.
+
+1. In the Initech row, type `State of Texas` in `governing_law`.
+2. Click **Save changes**.
+
+The field now shows **Let the agent update** with a lock, and the table shows a lock next to the value. Expand **History** to see who changed what and when. **Revert** restores an earlier value.
+
+![A hand-edited value with its history](/images/guides/lists-documents/row-edited-history.png)
+
+<Warning>
+Your edit is protected only when the list has **Keep people's edits** turned on (Step 2). With it off, the next extraction overwrites the value with what the agent finds. You can change it later in **⋯ → Edit fields**.
+</Warning>
+
+## Step 6: Re-run after a change
+
+Copy `acme_logistics_amendment_1.pdf` into the folder. The agent lists the folder each time, so there's nothing to re-sync. Start a new report and ask:
+
+> _A new amendment for Acme Logistics was added. Re-check all contracts and update the Contracts list._
+
+Because `counterparty` is the key, the agent updates existing rows instead of adding new ones. The card shows the counts, here **2 updated · 4 unchanged · 1 edit kept**:
+
+- **Acme Logistics Ltd** is updated: `annual_value` is now 135,000, quoted from the amendment.
+- **Initech Corp.** is updated because a value's status changed, but your `State of Texas` edit is kept.
+- The other four rows are unchanged.
+
+![The re-run: two rows updated, four unchanged, one edit kept](/images/guides/lists-documents/chat-card-updated.png)
+
+Open the Acme row: `annual_value` now quotes `acme_logistics_amendment_1.pdf`, and the note says it was USD 120,000 before the amendment.
+
+## Step 7: Analyze the list
+
+A list is also a table the agent can query. In a new report, ask:
+
+> _From the Contracts list, show total annual contract value by currency as a bar chart, and list contracts that renew automatically in the next 12 months._
+
+The agent queries `bow.contract_desk.lists.contracts`, draws the chart, and lists the matching contracts. The results use the current values, including your edits.
+
+![Total annual contract value by currency, built from the Contracts list](/images/guides/lists-documents/analysis-chart.png)
+
+From here you can **Add to Dashboard** or **Save Query** like any other result. See [Reports](/using-bow/reports) and [Dashboards](/using-bow/dashboards).
+
+## Step 8: Export the list
+
+Open the list.
+
+- **Export CSV** downloads every row with its current values.
+- **⋯ → Export with sources** adds, for each field, its status, quote, page and whether the quote was checked, plus the row's report, last update and whether a person edited it.
+
+![The list menu with Export with sources](/images/guides/lists-documents/list-menu.png)
+
+## More prompts to try
+
+| Goal | Prompt |
+| --- | --- |
+| Find gaps | _Which rows in the Contracts list have values that are Not found or Ambiguous? Show the field and the note._ |
+| Upcoming deadlines | _From the Contracts list, which contracts end in the next 90 days, and by when must we give notice?_ |
+| Re-check one document | _Re-check the Pinecrest Health order form and update its row in the Contracts list._ |
+| Break down value | _From the Contracts list, show annual value by contract_type as a bar chart._ |
+
+## Tips
+
+- **Write field descriptions as instructions.** "Annualize monthly fees and say so in the note" gets you an **Inferred** value with an explanation, not a blank.
+- **Name the list in your prompt.** Say "the Contracts list" so the agent saves to the right place.
+- **Pick a stable key.** A key such as `counterparty` lets you re-run the extraction as often as you like without duplicates.
+- **Turn on Keep people's edits** for any list people review by hand.
+- **Use Include Patterns** to limit the connection to the documents you mean, for example `**/*.pdf`.
+
+## Troubleshooting
+
+| Problem | What to do |
+| --- | --- |
+| The agent answers but no rows are saved | Only people who manage the agent can have it save rows, unless the list has **Anyone who can use this agent can save rows from chat** turned on. Ask a manager to turn it on in **⋯ → Edit fields**, or to run the extraction. |
+| The agent overwrote a value you fixed | Turn on **Keep people's edits** in **⋯ → Edit fields**, then open the row, expand **History**, and click **Revert** on the agent's change. |
+| A file is missing from the agent's answers | Check the connection's **Include Patterns** and that the file is inside **Directory Path**. |
+
+## Related
+
+- [Lists](/agents/lists)
+- [Agents overview](/agents/overview)
+- [Train an agent](/agents/train-an-agent)
+- [Reports](/using-bow/reports)
+- [Dashboards](/using-bow/dashboards)
