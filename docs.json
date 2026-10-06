@@ -39,6 +39,7 @@
         "pages": [
           "agents/overview",
           "agents/instructions",
+          "agents/train-an-agent",
           "agents/evals",
           "agents/lists"
         ]
