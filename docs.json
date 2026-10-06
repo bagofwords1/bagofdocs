@@ -41,8 +41,13 @@
           "agents/instructions",
           "agents/train-an-agent",
           "agents/evals",
+          "agents/self-improvement",
           "agents/lists"
         ]
+      },
+      {
+        "group": "Users",
+        "pages": []
       },
       {
         "group": "Guides",

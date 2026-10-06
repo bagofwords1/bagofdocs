@@ -1,0 +1,85 @@
+---
+title: "Check-ins and overnight learning"
+sidebarTitle: "Self-improvement"
+description: "Agents that follow up on their own and learn from repeated feedback overnight, within governed limits."
+icon: "moon"
+---
+
+Two background loops let an agent get better without anyone asking. With **check-ins**, the agent comes back to a conversation later and tells you only when something meaningful changed. With **overnight learning**, the agent turns repeated corrections and feedback into one reviewed improvement each night.
+
+Both run inside the same governance as the rest of the agent: data access is re-checked, limits apply, and every decision is visible in the trace.
+
+## Agent check-ins
+
+After you ask a question, the agent may plan **one** follow-up in the same report, for example _“tell me if the completion rate drops below 30% after Monday’s load”_. You don’t see anything until the follow-up is due.
+
+### How a check-in runs
+
+1. **Planned.** After a turn you typed in a report you own, a small planner model decides whether a follow-up is worth it. If so, it records a note to itself, a reason and a due time. Automatic turns, such as scheduled runs, evals or other check-ins, never plan one.
+2. **Judged.** When the check-in comes due, a small judge model decides whether to run it or skip it, and always records why. It skips a check-in when the question is already resolved, when nothing it depends on can have changed, or when a scheduled task already covers it.
+3. **Run.** The follow-up is a normal turn in the same report, run as you, with your data access re-checked at that moment.
+4. **Notify or stay quiet.** The agent notifies you only when a threshold you asked about was met, a blocked question can now be answered, or a number changed meaningfully. Otherwise the run stays quiet.
+
+### What you see
+
+The report shows a status line for the check-in:
+
+| Status | Meaning |
+| --- | --- |
+| Following up on this conversation… | The follow-up is running now. |
+| Follow-up — notified you | Something changed. The agent's answer is in the report. |
+| Checked back: nothing new | A quiet run. Its reply is collapsed under the line. |
+| Follow-up failed | The run could not complete. |
+
+When the agent notifies you, you get one message: an inbox entry marked **Follow-up** with an **Open report** link, plus one external message on your verified Teams or Slack DM, or by email if neither is set up. A check-in never emails anyone else.
+
+### Limits
+
+Check-ins are deliberately rare:
+
+- The due time is between 2 hours and 14 days after the conversation.
+- Check-ins run only on weekdays, 09:00–18:00 in the organization's time zone.
+- Each person and each report can have at most one pending check-in.
+- **Check-ins per user per week** (default 2) and **Check-in runs per day** for the whole organization (default 50) cap volume and cost.
+- If someone is already working in the report, the check-in waits.
+
+### Turn check-ins on or off
+
+- **For the organization:** in **Settings → AI Settings**, turn on **Agent check-ins** (off by default). The two limits appear under it. Turning it off cancels every pending check-in.
+- **For yourself:** open your profile, choose **General**, and turn off **Agent follow-ups**. This cancels anything pending for you. The toggle appears only when check-ins are on for the organization.
+
+### In the trace
+
+Administrators can open a report's trace and see an **Agent check-in** card: the note to future self, why the agent planned it, the judge's decision and reason, the due time, the cost of the planner and judge calls, and the final status. Skips show their reason, such as a reached limit, an opt-out or lost access. Members without trace access don't see the card.
+
+## Agent overnight learning
+
+During the day, agents collect suggested instruction changes from people's corrections and feedback. Each night, overnight learning reviews them and turns the ones that keep coming back into **one** consolidated suggestion per agent.
+
+### What happens each night
+
+Between 03:00 and 05:00 in the organization's time zone, each agent with learning turned on:
+
+- Groups pending AI suggestions that say the same thing.
+- Proposes one consolidated suggestion only when **at least 3 different people on at least 2 different days** raised it. One person repeating themselves is not enough.
+- May also propose fixing instructions that received repeated downvotes, or archiving AI instructions nobody uses.
+
+Overnight learning never changes an instruction directly and never queries your data. What happens to the consolidated suggestion follows the agent's **Self Learning** setting, exactly like any other suggestion: it waits for review, is approved automatically, or goes through evals first.
+
+Agent managers get one inbox notice, such as _“Finance learned 2 things overnight”_, with a link to the agent and whether the change is waiting for review or was promoted after evals passed.
+
+### Merged and expired suggestions
+
+- Suggestions folded into the nightly one are marked **Merged**. This is not a reviewer's rejection.
+- AI suggestions left unreviewed longer than the organization's expiry are marked **Expired**. They still count as evidence if the same pattern returns. Suggestions written by people never expire.
+
+### Turn overnight learning on or off
+
+- **For the organization:** **Settings → AI Settings → Agent overnight learning** (on by default). Under it, **Expire unreviewed AI suggestions after (days)** sets the expiry (default 30; `0` means never).
+- **For one agent:** in the agent's **Self Learning** settings, turn off **Learn overnight** (on by default). Changing it requires permission to manage the agent.
+
+Overnight work for agents and users shares a budget of 2,000,000 tokens per organization per night.
+
+<Card title="Evals and self-improvement" icon="badge-check" href="/agents/evals">
+  Verify changes with eval suites before they are promoted.
+</Card>
