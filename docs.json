@@ -45,6 +45,25 @@
         ]
       },
       {
+        "group": "Guides",
+        "pages": [
+          "guides/overview",
+          "agents/train-an-agent",
+          "guides/parameterized-dashboard",
+          "guides/stateful-dashboard",
+          "guides/scheduled-tasks",
+          "guides/external-triggers",
+          "guides/evals",
+          "guides/usage-analysis",
+          "guides/saved-queries",
+          "guides/agent-routing",
+          "guides/lists-documents",
+          "guides/mcp-clients",
+          "guides/git",
+          "guides/embed"
+        ]
+      },
+      {
         "group": "Connect Any Data",
         "pages": [
           "data-sources/overview",
@@ -129,13 +148,6 @@
           "channels/whatsapp",
           "channels/email",
           "channels/oauth-apps"
-        ]
-      },
-      {
-        "group": "Guides",
-        "pages": [
-          "guides/git",
-          "guides/embed"
         ]
       },
       {
