@@ -1,0 +1,187 @@
+---
+title: "Use BOW from Claude or another MCP client"
+sidebarTitle: "BOW from Claude (MCP)"
+description: "Connect Claude Code, Claude Desktop, Cursor, or Claude on the web to Bag of Words and ask questions about your data from your assistant."
+icon: "plug"
+---
+
+Connect Claude, Cursor, or any other MCP client to Bag of Words and ask about your data from inside your assistant. BOW runs the queries as you, under your normal permissions, and saves each conversation as a report.
+
+![A report created from Claude Code over MCP](/images/guides/mcp-clients/mcp-report.png)
+
+This guide covers setup. For the full list of tools, controls, and OAuth endpoints, see [MCP](/using-bow/mcp).
+
+## Before you start
+
+- **The BOW MCP server is on.** An admin can check this in **Settings → Channels → BOW MCP Server**. It is on by default.
+- **You can query at least one agent.** Your assistant sees only the agents and data you can see in BOW.
+- **You have an MCP client.** This guide uses Claude Code, Claude Desktop, Cursor, and Claude on the web as examples.
+
+![The BOW MCP Server switch in Settings → Channels](/images/guides/mcp-clients/channels-bow-mcp-server.png)
+
+## Step 1: Open the MCP Server settings
+
+Click your name at the bottom left and choose **Account Settings**, then open the **MCP Server** tab.
+
+The tab shows your organization's MCP server URL and a **Configuration** snippet. The snippet stays a template until you generate a token.
+
+![The MCP Server tab in Account Settings](/images/guides/mcp-clients/account-settings-mcp-server.png)
+
+<Tip>
+Admins have a shortcut: click your name at the bottom left and choose **MCP Server**.
+
+![MCP Server in the user menu](/images/guides/mcp-clients/user-menu-mcp-server.png)
+</Tip>
+
+## Step 2: Generate a token
+
+Click **Generate Token**. BOW fills in the **Configuration** snippet with your token and shows the token under **Access Token**.
+
+Click **Copy** next to **Configuration** now. BOW shows the full token only once. After you close the window, the token shows only as dots and **Copy** no longer works.
+
+![A generated token and the Configuration snippet (token hidden in this screenshot)](/images/guides/mcp-clients/mcp-token-configuration.png)
+
+The snippet looks like this:
+
+```json
+{
+  "mcpServers": {
+    "bagofwords": {
+      "url": "https://<YOUR_BOW_DOMAIN>/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+The token acts as you. Anyone who has it can query every data source you can. Don't commit it to a repository or paste it into a shared chat.
+</Warning>
+
+## Step 3: Add BOW to your client
+
+Use the URL and token from the snippet.
+
+### Claude Code
+
+Run this in a terminal:
+
+```bash
+claude mcp add --transport http --scope user bagofwords https://<YOUR_BOW_DOMAIN>/api/mcp \
+  --header "Authorization: Bearer <YOUR_TOKEN>"
+```
+
+`--scope user` makes BOW available in all your projects. Leave it out to add BOW to the current project only.
+
+Check the connection:
+
+```bash
+claude mcp list
+```
+
+The output should include this line:
+
+```text
+bagofwords: https://<YOUR_BOW_DOMAIN>/api/mcp (HTTP) - √ Connected
+```
+
+Then start `claude` and ask a question. The first time Claude calls a BOW tool, it asks for permission. In non-interactive mode (`claude -p`), allow the BOW tools up front:
+
+```bash
+claude -p "Using Bag of Words, what data do I have access to?" --allowedTools "mcp__bagofwords"
+```
+
+### Cursor
+
+Paste the **Configuration** snippet into `~/.cursor/mcp.json`, or into `.cursor/mcp.json` in a project. If the file already has an `mcpServers` object, add only the `bagofwords` entry to it.
+
+### Claude Desktop
+
+Claude Desktop keeps its config file here:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+How you add a remote server like BOW depends on your Claude Desktop version. Some versions read a URL entry from this file, and others connect remote servers through **Settings → Connectors**. Follow Claude's documentation for your version. If it uses the config file, paste the snippet from BOW exactly as shown. If it uses connectors, ask your admin to register an OAuth app (next section).
+
+### Claude on the web and other hosted clients
+
+Hosted clients sign you in with OAuth instead of a token. An admin registers the client once:
+
+1. Open **Settings → Channels → OAuth Apps** and click **Register app**.
+2. Enter an **App name** your users will recognize, such as "Claude".
+3. Under **Access surfaces**, select **MCP tools**. Clear **BOW app** unless the client also calls the BOW API.
+4. Under **Redirect URIs**, enter the client's callback URL. For Claude on the web, use `https://claude.ai/api/mcp/auth_callback`.
+5. Click **Register app**, then copy the **Client ID** and the client secret. The secret is shown only once.
+
+![Register an OAuth app for Claude with the MCP tools access surface](/images/guides/mcp-clients/oauth-register-app.png)
+
+Each user then adds a custom connector in Claude:
+
+1. Go to **Settings → Connectors** and add a custom connector.
+2. Enter `https://<YOUR_BOW_DOMAIN>/api/mcp` as the URL.
+3. Under **Advanced settings**, enter the Client ID and client secret.
+4. Click **Connect**. Sign in to BOW if asked, then click **Approve** on the **Authorize access** screen.
+
+![The BOW Authorize access screen, requesting MCP tools](/images/guides/mcp-clients/oauth-authorize-access.png)
+
+<Note>
+BOW doesn't support dynamic client registration. If a client can't accept a Client ID and secret, connect it with a personal token instead.
+</Note>
+
+## Step 4: Ask your first question
+
+In your client, mention Bag of Words so the assistant uses its tools:
+
+> _Using Bag of Words, what data do I have access to?_
+
+The assistant starts a report and lists your agents and their tables. Then ask for a chart:
+
+> _Using Bag of Words, start a report titled "Top customers" on the Music Store data and show the top 10 customers by total spend as a bar chart._
+
+The assistant answers with the numbers in your client. In BOW, the same query and chart are saved to a report.
+
+## Step 5: Find the report in BOW
+
+Open **Reports**. Reports created over MCP have the MCP icon next to their title. Hover it to see **Created via MCP**.
+
+![A report created via MCP in the Reports list](/images/guides/mcp-clients/reports-created-via-mcp.png)
+
+Open the report to see each tool call the assistant made and the charts it created. From there, click **Add to Dashboard**, share the report, or keep asking questions in BOW. BOW records the tool calls only. Your assistant's own messages stay in your client.
+
+## More prompts to try
+
+| Goal | Prompt |
+| --- | --- |
+| Explore | _Using Bag of Words, list the tables in the Music Store agent and show me a few sample rows from Invoice._ |
+| Trend | _Using Bag of Words, chart monthly revenue for the Music Store over the last 12 months in the data._ |
+| Break down | _Using Bag of Words, show revenue by genre as a bar chart, sorted from highest to lowest._ |
+| Build a dashboard | _Using Bag of Words, build a dashboard from the charts in my "Top customers" report._ |
+| Check the rules | _Using Bag of Words, list the instructions that apply to the Music Store agent._ |
+
+## Tips
+
+- **Name the source.** Start prompts with "Using Bag of Words" so the assistant calls BOW instead of guessing.
+- **Give the report a title.** Ask for one in your first prompt so you can find the report in BOW later.
+- **One token per client.** **Regenerate Token** creates an extra token and keeps the old ones. Under **Manage tokens**, hover a token and click the trash icon to delete one you no longer use.
+- **Say "the latest month in the data".** If your data isn't up to date, "last month" can return nothing.
+
+## Troubleshooting
+
+| What you see | What to do |
+| --- | --- |
+| `401` / `Not authenticated`, or Claude Code shows `× Failed to connect — Server rejected the configured Authorization header (HTTP 401)` | The token is missing, mistyped, or deleted. Generate a new token, then update the `Authorization` header in your client. Check that the header reads `Bearer ` and then the token. |
+| `403` / `MCP integration is not enabled for this organization` | The BOW MCP server is off. Ask an admin to turn on **Settings → Channels → BOW MCP Server**. |
+| A tool is missing, such as `create_instruction`, `delete_instruction`, or `send_email` | BOW lists only the tools you can use. Instruction tools need permission to manage instructions. `send_email` appears only when your organization has outbound email set up. |
+| The assistant can't see an agent you use in BOW | The agent may be turned off for the MCP channel, or you may not have access to it. Ask the agent's owner. |
+| The assistant answers without calling BOW | Start the prompt with "Using Bag of Words". In Claude Code, allow the BOW tools when asked. |
+
+## Related
+
+- [MCP](/using-bow/mcp)
+- [OAuth Apps](/channels/oauth-apps)
+- [Reports](/using-bow/reports)
+- [Dashboards](/using-bow/dashboards)
+- [Instructions and knowledge](/agents/instructions)

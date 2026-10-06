@@ -49,13 +49,13 @@ A dashboard can show each person their own data while everyone opens the same ar
 
 How results and credentials resolve when you share a personalized dashboard:
 
-- **Run identity.** Choose whose credentials the viewer-triggered queries use. **Viewer** (the default for personalized dashboards) runs them under each viewer's own identity — so a source that enforces its own row-level security filters per person. **Creator** runs them under your credentials, for a dashboard everyone should see identically.
+- **Run on my behalf.** Shown when the dashboard uses per-user data connections. By default, each viewer's queries run with their own connection, so a source that enforces its own row-level security filters per person. Turn on **Run on my behalf** to let viewers' runs use your connection instead; each viewer still sees only their own results. It isn't available when the dashboard uses row-level security.
 - **Per-viewer results.** Each viewer's data is computed and cached for them. Your saved snapshot is **withheld** from other viewers — no one sees the rows you last ran with.
 - **Fresh on open.** Personalized dashboards re-run for the viewer when opened, so each person lands on their own current data rather than a stale shared snapshot.
 - **Hide the underlying data.** You can hide the **Data** tab on a shared report so viewers see the dashboard without the raw query results behind it.
 
 <Warning>
-  For a source that already models per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security), personalize with a **per-user connection** and **Viewer** run identity, so the source filters under each person's own credentials. An identity parameter alone scopes by a value Bag of words resolves from the profile — use it for application-level slicing, not as a replacement for source-enforced security. See [Authentication](/data-sources/authentication).
+  For a source that already models per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security), personalize with a **per-user connection** and leave **Run on my behalf** off, so the source filters under each person's own credentials. An identity parameter alone scopes by a value Bag of words resolves from the profile — use it for application-level slicing, not as a replacement for source-enforced security. See [Authentication](/data-sources/authentication).
 </Warning>
 
 ## Preview as another viewer

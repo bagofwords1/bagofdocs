@@ -14,7 +14,7 @@ Use lists for work you would otherwise copy into a spreadsheet by hand: contract
 
 1. **Define the fields.** Give the list a name and the fields each row should have. Each field has a type and a short description that tells the agent what to look for.
 2. **Ask the agent.** In a report with that agent, say what to extract, for example *“Read every contract and save each customer to the Contracts list.”* The agent reads the sources and saves the rows.
-3. **Review.** Every value shows its status and the quote it came from. Fix anything you disagree with; your edits are kept.
+3. **Review.** Every value shows its status and the quote it came from. Fix anything you disagree with. Turn on **Keep people's edits** to stop later extractions from overwriting your fixes.
 4. **Use the data.** Query the list in a report like any other table, or export it as CSV.
 
 Each list lives on one agent. Every agent can have its own lists, and they appear under **Lists** in the agent’s tree.
@@ -31,6 +31,7 @@ Open **Agents**, select an agent, choose **Lists** in its tree, and click **New 
 - **Key.** Optional. Choose the field that identifies a row, such as `counterparty`. When the agent sees the same key again, it **updates** that row instead of adding a duplicate. Leave the key empty for lists with many rows per source, such as one row per obligation.
 - **Require a source quote for extracted values.** When on, the agent must quote the source for every value it reports as found or inferred.
 - **Anyone who can use this agent can save rows from chat.** When off (the default), only people who manage the agent can have it save rows. Everyone with access can still view and export the list.
+- **Keep people's edits.** When on, the agent won't overwrite a value someone changed by hand. When off (the default), the next extraction can replace a hand-edited value.
 
 ![Editing the fields of the Contracts list](/images/agents/lists/lists-edit-fields.png)
 
@@ -40,8 +41,8 @@ Open **Agents**, select an agent, choose **Lists** in its tree, and click **New 
 | --- | --- | --- |
 | Text | Names, clauses, free text | `governing_law` |
 | Number | Amounts, rates | `annual_value` |
-| Integer | Counts, days | `notice_days` |
-| Yes/No | Flags | `auto_renew` |
+| Whole number | Counts, days | `notice_days` |
+| Yes / No | Flags | `auto_renew` |
 | Date | Dates, saved as `YYYY-MM-DD` | `renewal_date` |
 | Choice | One of a fixed set of options | `currency`: USD, EUR, GBP |
 
@@ -102,7 +103,7 @@ Click a row to open it. For each field you see the value, its status, the quote 
 
 ![A row with an inferred value and its source quote](/images/agents/lists/lists-row-panel.png)
 
-People who manage the agent can edit any value and click **Save changes**. The field is then **locked**: later extractions leave it alone and report it as a kept edit. Click **Let the agent update** on that field to hand it back to the agent.
+People who manage the agent can edit any value and click **Save changes**. When the list has **Keep people's edits** turned on, the field is then **locked**: later extractions leave it alone and report it as a kept edit. Click **Let the agent update** on that field to hand it back to the agent. When **Keep people's edits** is off, the next extraction can overwrite the value.
 
 **History** shows every change, who made it (the agent or a person) and when. Click **Revert** to restore an earlier value.
 
