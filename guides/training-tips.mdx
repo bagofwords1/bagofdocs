@@ -1,0 +1,63 @@
+---
+title: "Tips for training an agent"
+sidebarTitle: "Training tips"
+description: "What to teach an agent, how to write rules it follows, where each rule belongs, and how to keep it working as your data changes."
+icon: "lightbulb"
+---
+
+[Train an agent](/agents/train-an-agent) walks through one training session. This page collects the habits that make training pay off over weeks: what to teach, how to word it, where to put it, and how to keep it working.
+
+## What to teach
+
+- **Start from real questions.** Collect 10 to 20 questions people actually ask. Ask each one in **Chat**, and train on the answers that came back wrong. Training the whole schema up front costs time and teaches rules nobody needs.
+- **Teach what the schema can't say.** The agent already reads table and column names. Teach the rest: business definitions ("an active customer bought in the last 90 days"), what codes and statuses mean, which table is the source of truth, and known gaps in the data.
+- **Let the data teach structure, and you teach procedure.** Ask the agent to sample rows and find relationships itself. It can't learn from the data what to check first when something breaks, or which source to trust when two disagree. Write those steps yourself. [Root cause analysis across observability tools](/guides/root-cause-analysis) shows both in one agent.
+- **Write down the traps.** Joins that double-count, test accounts, timezone quirks, deprecated columns. One rule here prevents many wrong answers.
+
+## Write rules the agent can follow
+
+- **One rule per instruction.** "When the user asks about revenue, use `invoice_items.unit_price * quantity` and exclude refunds" is easy to test and easy to fix. A page of mixed rules is neither.
+- **Be concrete.** Name the table, column, value and formula. "Use the normal revenue" leaves the agent guessing.
+- **Say why.** "Exclude `is_test = true`, because QA accounts inflate counts" helps the agent handle cases the rule didn't spell out.
+- **Keep facts out of rules.** "Order 1234 was refunded" is a fact about one row, not a rule. Training won't save it, and it belongs in the data, a [List](/agents/lists), or a [saved query](/guides/saved-queries).
+
+## Put each rule in the right place
+
+Every instruction has a few settings at the bottom of the editor. Three of them decide where and when a rule applies.
+
+![A new instruction that applies to all agents](/images/guides/training-tips/global-instruction.png)
+
+- **Agents.** Leave it on **All agents** for conventions every agent should follow, such as date formats, the fiscal year, currency and answer style. These show under **Global instructions** on the Agents page. Pick specific agents for knowledge about their data. A simple test: if the rule would also be true for another agent's data, make it global.
+- **Load mode.** **Always** sends the rule with every request. Use it for rules that must never be missed. **Smart** loads the rule only when it's relevant to the question. Use it for reference knowledge that only matters sometimes, so it doesn't crowd out the rules that matter.
+- **Instruction or Skill.** An **Instruction** is a rule. A **Skill** is a longer procedure, such as a step-by-step playbook. The agent sees each skill's title and description, and reads the full text only when the task calls for it. Give a skill a description that says when to use it ("Use when investigating an alert or incident").
+
+Under **Advanced**, **Modes** limits a rule to **Chat** or **Training**, and **Channels** limits it to places like Slack or email. A training-only rule is a safe way to try a change before it reaches everyone.
+
+<Tip>
+Before you add a rule, search for one that already covers it. Two rules that say almost the same thing drift apart over time. Every so often, start a training session with the **Find Instructions Conflicts** starter to find duplicates and contradictions.
+</Tip>
+
+## Keep it working
+
+- **Lock rules in with evals.** For each rule you care about, add an eval question that only passes when the rule is followed. When a later change breaks it, the eval fails. See [Test an agent with evals](/guides/evals).
+- **Train from failures.** Once a week, start a training session with **Show Negative Feedback Responses** or **Show Low Confidence Responses**, and fix the patterns it finds.
+- **Retrain when the data changes.** New tables, renamed fields and new sources make old rules wrong. A short session that starts with "Inspect what changed in the orders schema since last month" is usually enough.
+- **Give each agent an owner.** One person who reviews proposed changes and decides what goes live keeps the rules consistent.
+- **Accept changes deliberately.** Proposed changes stay drafts until someone accepts them, and every accepted change is kept in the agent's history. Read each change before you accept it, and roll back if an answer gets worse.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Train an agent" icon="graduation-cap" href="/agents/train-an-agent">
+    Run a training session from start to finish.
+  </Card>
+  <Card title="Instructions and knowledge" icon="book-open" href="/agents/instructions">
+    How instructions are scoped, loaded and reviewed.
+  </Card>
+  <Card title="Test an agent with evals" icon="badge-check" href="/guides/evals">
+    Write test questions that catch regressions.
+  </Card>
+  <Card title="Root cause analysis" icon="magnifying-glass-chart" href="/guides/root-cause-analysis">
+    Train one agent across Elasticsearch, Prometheus, Kubernetes and Splunk.
+  </Card>
+</CardGroup>
