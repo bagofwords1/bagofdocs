@@ -16,7 +16,7 @@ Use Bag of Words as the identity and data backend for your own application. Each
 BOW supports the OAuth 2.1 Authorization Code flow with PKCE `S256`. Use the `app` scope for reports, completions, artifacts, and the rest of the BOW API.
 
 <Note>
-  OAuth handles both local BOW accounts and configured single sign-on providers. Your application always redirects to BOW; BOW handles the user's local or Microsoft Entra ID sign-in and returns them to your registered callback.
+  OAuth handles both local BOW accounts and configured single sign-on providers. With Authorization Code + PKCE, your application redirects to BOW; BOW handles the user's local or Microsoft Entra ID sign-in and returns them to your registered callback. Applications that already authenticate users with Entra can optionally use [External Entra applications](/guides/external-entra-applications) to exchange a delegated token through their backend without a BOW sign-in screen.
 </Note>
 
 ![OAuth Apps in Settings, showing registered apps, access surfaces, trust, and token activity](https://raw.githubusercontent.com/bagofwords1/bagofwords/codex/oauth-app-coverage/docs/screenshots/pending-changes/oauth-apps/oauth-apps-list.jpg)
