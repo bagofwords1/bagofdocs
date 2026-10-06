@@ -10,6 +10,10 @@ A parameterized query is a tracked query that declares one or more **inputs**. I
 
 This is the mechanism behind [interactive and personalized dashboards](/using-bow/dashboards#personalize-a-dashboard-per-viewer): a control on the dashboard sets a parameter, and every artifact bound to that parameter re-runs.
 
+<Note>
+  Query parameters change the inputs to an analytical query. They do not create persistent app records or upload storage. Use [artifact resources](/using-bow/artifact-apps) for tasks, blog posts and other app-owned data; an artifact can use both.
+</Note>
+
 ## Declaring a parameter
 
 Ask the agent for it in plain language — "make region a filter", "scope this to the signed-in user's team" — and it declares the parameter when it builds the query. You can also review and adjust declarations in the query editor's **Params** panel, beside the SQL.

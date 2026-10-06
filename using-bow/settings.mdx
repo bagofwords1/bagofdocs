@@ -6,8 +6,24 @@ icon: 'cog'
 
 Control how the AI agent behaves across your organization. These settings are available to admins only.
 
+Settings are grouped into collapsible sections. Open **Agent capabilities** to find **Artifact resources**.
+
+## Artifact resources
+
+**Artifact resources** is off by default. Enable it to let artifacts use persistent records, private uploads and approved AI operations with streamed responses.
+
+The setting enables the capability; it does not grant viewers access to every resource. Existing sharing and resource permissions still apply. Disabling it blocks resource access without deleting stored records or files.
+
+The **Allow File Upload** setting below concerns files attached to a conversation. Uploads inside an artifact also require the app's file resource and its permissions.
+
+See [Build apps with artifacts](/using-bow/artifact-apps) for examples and [updating installed skills](/agents/instructions#install-and-update-skills) if an existing organization still has older app-building guidance.
+
+## Other AI settings
+
 * **Allow LLM to See Data**: Enable the AI to view sample data from tables for better context and more accurate analysis.
-<Note>If false, the system will use metadata only </Note>
+  <Note>
+    If false, the system will use metadata only
+  </Note>
 
 * **Allow File Upload**: Let users upload spreadsheets (xls/csv) and PDFs. The AI will parse and incorporate the data into analysis.
    <Note>When file upload is allowed, the LLM will see the data of the file (for indexing) - this cannot be avoided.</Note>
@@ -28,4 +44,3 @@ Control how the AI agent behaves across your organization. These settings are av
 * **Top K schema**: Set how many schema tables are expanded and included in the initial system prompt.
 
 * **Top K metadata resources**: Set how many metadata resources (dbt, markdown, etc.) are expanded and shown in the initial system prompt.
-
