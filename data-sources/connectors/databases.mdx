@@ -62,6 +62,14 @@ Pick the auth mode matching the backing store, not DuckDB itself:
 
 `session_token` is only for temporary AWS credentials. Local paths and `file:/` URIs work with no auth at all.
 
+### ClickHouse
+
+Connects over the HTTP interface — `8123` for plain HTTP, `8443` with `secure` on (the usual setting for ClickHouse Cloud). The password cannot be blank, so create a dedicated user rather than relying on a passwordless `default`.
+
+When `database` lists several databases, queries run against the first one; agents should qualify tables in the others as `db.table`.
+
+ClickHouse supports [custom tables](/bow-fast/custom-queries): scheduled, locally cached query results that agents answer from instead of querying the service each time. On ClickHouse Cloud that lets an idle service stay idle — see [Cut ClickHouse Cloud costs](/bow-fast/clickhouse-cloud-costs). For that, the user needs `SELECT` on the source tables and on `system.parts` (used to estimate scan size), and `KILL QUERY` so an aborted refresh can stop its own query on the server. `Enum` columns are stored in the cached copy as their labels.
+
 ### Trino
 
 `catalog` and `schema` are both required — a Trino connection is scoped to a single catalog/schema pair, so create one data source per pair you want the agent to reach. Set `protocol` to `https` for a TLS-terminated coordinator; the `password` field is only needed in that case.
