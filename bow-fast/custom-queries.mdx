@@ -9,7 +9,7 @@ A custom query is the unit of work in BOW Fast: SQL an admin authors on a connec
 
 ## Creating one
 
-Open a connection's tables page and choose **Add custom query**. The dialog has three tabs.
+Open an agent's tables page and choose **Custom table**. The **New custom table** dialog has three tabs; **Create & cache** saves the query and runs its first refresh.
 
 ### Query
 
@@ -20,6 +20,10 @@ The name is what agents will see, so `revenue_by_region` beats `q1`. It must sta
 **Preview** runs the query bounded to 100 rows and shows the columns you will get. Your SQL is executed exactly as written rather than wrapped in a subquery, so a preview of `ORDER BY amount DESC` shows the rows you actually asked for.
 
 Where the source can say in advance what a query will cost, the preview shows that too — BigQuery reports it exactly and for free, via a dry run — along with a projection of what the schedule you have chosen will scan per day.
+
+On ClickHouse the figure comes from `EXPLAIN ESTIMATE`, which reports how many rows the query will read without running it. ClickHouse reports rows, not bytes, so BOW prices those rows at the table's compressed size per row. That counts every column, so treat it as an upper bound: a query reading two columns of a wide table scans less.
+
+![The New custom table dialog on a ClickHouse connection, showing the preview and the per-refresh scan estimate](/images/bow-fast/clickhouse-custom-table-preview.png)
 
 <Tip>
   **Write the description.** It is the only thing telling an agent what the relation holds. `revenue_summary` on its own does not say whether it is per order, per region, or per month — and an agent that has to guess the grain will get it wrong.
@@ -43,11 +47,15 @@ The schedule is a cost decision, not a freshness preference. Each fire is a full
 | Through the day | A few times a day | Hourly, or daily at a fixed time |
 | Nightly batch | Whenever | Daily, shortly after the batch lands |
 
-If the answer to "how often will anyone ask this?" is "rarely", a daily refresh is almost always right. See the [break-even](/bow-fast/overview#what-it-costs).
+If the answer to "how often will anyone ask this?" is "rarely", a daily refresh is almost always right.
+
+On ClickHouse Cloud, also count wake-ups: every refresh wakes an idle service and keeps it awake until its idle timeout. Four refreshes a day is four wake-ups; an hourly schedule keeps the service up most of the day whether anyone asks or not. See the [break-even](/bow-fast/overview#what-it-costs).
 
 ## Activating it for an agent
 
 A custom query belongs to the **connection**, and one copy is shared by every agent that uses it. Each agent then activates it separately, from its tables page — new agents start with it off.
+
+![A cached ClickHouse custom table activated on an agent's tables page](/images/bow-fast/clickhouse-custom-table-active.png)
 
 That split is deliberate: a single extraction serves many agents, rather than N agents extracting the same data N times on N schedules. It also means the two actions need different permissions — authoring needs `manage_connection` on the connection, while switching an existing query on for one agent needs only `manage` on that agent.
 

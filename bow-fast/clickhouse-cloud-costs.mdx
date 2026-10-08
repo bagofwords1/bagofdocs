@@ -1,0 +1,78 @@
+---
+title: "Cut ClickHouse Cloud costs"
+sidebarTitle: "ClickHouse Cloud costs"
+description: "Let agents answer from cached custom tables so an idle ClickHouse Cloud service stays idle"
+icon: "moon"
+keywords:
+  - "clickhouse"
+  - "clickhouse cloud"
+  - "cost"
+  - "idle"
+  - "custom tables"
+---
+
+ClickHouse Cloud does not bill per byte scanned. It bills **compute for every hour a service is awake**, plus storage. A service that receives no queries scales to zero after its idle timeout and stops billing compute; any query, however small, wakes it.
+
+An agent is the worst kind of client for that model. It explores, retries, and asks the same thing several ways, spread across the day, so the service rarely gets to sleep.
+
+[Custom tables](/bow-fast/custom-queries) change who wakes the service. Agents answer from a cached copy inside BOW, and only the **scheduled refresh** touches ClickHouse.
+
+## How it works
+
+<Steps>
+  <Step title="Define the query once">
+    On the agent's tables page, choose **Custom table** and write the rollup in ClickHouse SQL, for example revenue by region and status over the orders table.
+  </Step>
+  <Step title="Pick a schedule">
+    Each refresh wakes the service, runs your SQL, and streams the result into an encrypted local copy. The service then idles again.
+  </Step>
+  <Step title="Agents answer from the copy">
+    Questions run against the copy in DuckDB SQL. A turn answered from the copy sends no queries to ClickHouse at all, not even a connection check.
+  </Step>
+</Steps>
+
+## What it can save
+
+Compute cost is units × price per unit-hour × hours awake. The figures below are a **projection, not a measurement on a live ClickHouse Cloud service**. They assume a 15-minute idle timeout, four refreshes a day, and Scale-tier pricing of about 0.30 USD per unit-hour; check [ClickHouse's pricing page](https://clickhouse.com/pricing) for current rates.
+
+| Scenario | Awake without custom tables | Awake with custom tables | Compute saved |
+| --- | --- | --- | --- |
+| Agents used in business hours (10 h × 22 days) | ~220 h/month | ~22 h/month | ~90% |
+| Agents used around the clock | ~730 h/month | ~30 h/month | ~96% |
+| Service already awake for ingestion or an application | 730 h/month | 730 h/month | ~0% |
+
+On a 2-unit Scale service, the business-hours case comes to roughly 131 → 13 USD a month; on a 12-unit service used around the clock, roughly 3,400 → 140 USD. Storage is billed the same either way.
+
+<Warning>
+  **The saving only exists if agents are what keeps the service awake.** If ingestion, dashboards, or an application already query it all day, the service never idles and custom tables save little compute, though they still take agent load off it and answer in milliseconds.
+</Warning>
+
+## The schedule decides the bill
+
+Every refresh is a wake-up. With a 15-minute idle timeout:
+
+- **Four refreshes a day** keep the service up about an hour a day.
+- **An hourly refresh** keeps it up about six hours a day, whether or not anyone asks a question. Most of the saving is gone.
+
+Refresh as often as people actually ask, not as often as you wish the data were fresh. Daily, shortly after your batch loads, is right for most rollups. See [Choosing a schedule](/bow-fast/custom-queries#choosing-a-schedule).
+
+## Before you start
+
+- Turn on **Custom tables** under AI settings.
+- Use a connection with shared credentials.
+- Give the ClickHouse user `SELECT` on the source tables and `system.parts`, and `KILL QUERY`. See the [ClickHouse connector notes](/data-sources/connectors/databases#clickhouse).
+
+<Tip>
+  Write rollups, not mirrors. `SELECT * FROM events` on a billion-row table hits the row ceiling and is aborted; a `GROUP BY` that reads the whole table and returns a few thousand rows is exactly what a custom table is for.
+</Tip>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Custom queries" icon="database" href="/bow-fast/custom-queries">
+    Creating, scheduling and activating a custom table.
+  </Card>
+  <Card title="Overview" icon="zap" href="/bow-fast/overview">
+    What BOW Fast is for and which connectors support it.
+  </Card>
+</CardGroup>
