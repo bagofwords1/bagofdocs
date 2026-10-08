@@ -30,6 +30,20 @@ Enabling everything is usually a mistake. A focused set of well-understood table
   Start with the tables that answer your most common questions. Add more as real usage shows what's missing.
 </Tip>
 
+### Choose which columns the agent sees
+
+The same applies inside a table. Expand a table in the list, uncheck the columns the agent doesn't need — internal IDs, audit fields, free-text blobs, personal details — and click **Save**. The table shows a badge such as **9/13 cols**, and **Show all** / **Hide all** reset the selection in one click.
+
+![Choose columns](/assets/media/data-sources/columns.png)
+
+Hidden columns are left out of everything the agent is told about the table: its schema, its keys and relationships, and the results of looking the table up. Fewer distracting columns means fewer wrong joins and filters.
+
+Your selection survives **Reload**. Columns that appear later, after a schema change, are visible until you hide them.
+
+<Warning>
+  Hiding a column changes what the agent is **told**, not what it can **query**. A query like `SELECT *` still returns hidden columns. To restrict data, use [per-user authentication](/data-sources/authentication) or [row-level security](/bow-fast/row-level-security).
+</Warning>
+
 ## Describe what the data means
 
 The schema tells the agent what exists; the description tells it what things *mean*. This is the highest-leverage text you will write.
@@ -92,7 +106,7 @@ Schemas drift. Reload the table list after a migration, and re-run indexing when
 ## Best practices
 
 * **Write a rich description.** More context about your domain means better queries.
-* **Enable only relevant tables.** Don't make the agent sort through unused ones.
+* **Enable only relevant tables and columns.** Don't make the agent sort through unused ones.
 * **Name connections clearly.** "Production DB" beats "postgres-1".
 * **Add instructions for business logic.** Definitions, filters, and calculation rules belong here, not in every user's prompt.
 * **Create conversation starters.** They teach people what the agent is good at.
