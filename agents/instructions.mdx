@@ -56,6 +56,8 @@ For artifact apps, check **Data apps**. An older installation may be titled **Da
   Enabling a skill provides instructions to the agent. It does not enable platform features or grant access to data. Organization settings and permissions still control what the agent and app can do.
 </Note>
 
+Some built-in skills belong to a feature that is off by default. **Create a demo dataset** is installed in every organization, but the agent only sees it while **Demo data generation** is on in [AI Settings](/using-bow/settings). See [Create a demo dataset](/guides/demo-dataset).
+
 ## Git and generated suggestions
 
 You can synchronize instructions from Git-backed documentation and model metadata, or create them manually. In Training, an agent can clarify an ambiguous rule, use the answer as evidence, and suggest a tracked instruction change. The suggestion remains a draft until a reviewer accepts it; rejected suggestions stay visible in the build history rather than silently changing production knowledge. To teach an agent through a Training conversation, see [Train an agent](/agents/train-an-agent).
