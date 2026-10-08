@@ -97,6 +97,8 @@ Authentication decides _whose_ permissions apply. Two other layers decide who ca
 - **Members** — who in your organization can use this data source, set on the data source's settings tab.
 - **Tool policies** — for MCP and Custom API connections, each tool is `allow`, `ask`, or `deny`, resolved per user. See [MCP connections](/data-sources/mcp).
 
+On a per-user connection, what the agent sees for each person is the overlap of two things: what that person's own account can reach, and the [tables and columns](/data-sources/connecting#choose-which-tables-the-agent-sees) the agent's manager enabled. A person never gets more than either allows — broader access in the source doesn't widen the agent, and enabling a table doesn't grant access the person's account lacks. This holds for OAuth sign-in (such as Power BI and Fabric) and for Kerberos delegation.
+
 ## Related
 
 <CardGroup cols={2}>
