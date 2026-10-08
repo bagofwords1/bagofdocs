@@ -56,6 +56,7 @@
           "guides/overview",
           "agents/train-an-agent",
           "guides/training-tips",
+          "guides/demo-dataset",
           "guides/root-cause-analysis",
           "guides/parameterized-dashboard",
           "guides/stateful-dashboard",
@@ -126,7 +127,8 @@
             "pages": [
               "bow-fast/overview",
               "bow-fast/custom-queries",
-              "bow-fast/row-level-security"
+              "bow-fast/row-level-security",
+              "bow-fast/clickhouse-cloud-costs"
             ]
           }
         ]
