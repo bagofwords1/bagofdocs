@@ -63,7 +63,7 @@ A refresh is a full run of your SQL against the source. That makes BOW Fast a tr
 
 Measured against live accounts, the break-even is low — roughly **1.8 agent questions per refresh on BigQuery** and **1.0 on Snowflake**. Past that, the copy is cheaper than the source.
 
-On a source billed by the hour rather than by the scan — ClickHouse Cloud — the trade is in uptime instead: each refresh wakes the service once, and every agent question in between no longer does.
+On a source billed by the hour rather than by the scan — ClickHouse Cloud — the trade is in uptime instead: each refresh wakes the service once, and the agent questions in between no longer do.
 
 Latency, unlike cost, improves unconditionally. Mean time to answer one agent question, six questions per source:
 
