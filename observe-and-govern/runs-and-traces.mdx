@@ -14,6 +14,8 @@ Use a trace to answer practical questions:
 - Which evidence supported the final recommendation?
 - What should be changed to prevent the issue from recurring?
 
+A run that delegated to [sub-agents](/using-bow/sub-agents) has one child run per sub-agent, each linked to the parent run and to the delegate call that launched it. The parent's trace carries the records they returned; a child's trace carries its own steps.
+
 For an incident investigation, traces connect the RCA narrative to the underlying logs, metrics, service tools, and database evidence rather than leaving a conclusion as an unexplained summary.
 
 After diagnosing a recurring issue, add an [eval](/agents/evals) and improve the relevant [instruction](/agents/instructions) or agent configuration.

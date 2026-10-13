@@ -24,6 +24,28 @@ See [Build apps with artifacts](/using-bow/artifact-apps) for examples and [upda
 
 See [Create a demo dataset](/guides/demo-dataset).
 
+## Sub-agents
+
+**Sub-agents** is on by default. When it is on, the agent can delegate independent sub-questions (for example one hypothesis each in a root cause analysis) to bounded background sub-agents that investigate on their own and report back as typed records in one turn. When it is off, the agent never delegates. See [Sub-agents](/using-bow/sub-agents).
+
+<Frame>
+  <img
+    src="/images/sub-agents/settings.png"
+    alt="The Sub-agents section of AI Settings"
+  />
+</Frame>
+
+The section holds the posture, the limits and the model:
+
+- **Sub-agent posture** (Default: `proactive`): `proactive` lets the agent delegate on its own when a request splits into three or more independent sub-questions. `explicit` makes it delegate only when the user or an instruction asks for it.
+- **Sub-agent max steps** (Default: 40): Planner steps one sub-agent may take before it is forced to finish with a partial record. 5 to 200.
+- **Sub-agent deadline (minutes)** (Default: 15): Wall-clock limit for a wave of sub-agents. When it fires, still-running sub-agents are stopped and recorded as timed out, and the agent answers from the records that exist. 2 to 60.
+- **Concurrent sub-agents** (Default: 3): How many sub-agents of one report may run at the same time. The rest wait inside their wave. 1 to 6.
+- **Max sub-agents per wave** (Default: 5): How many sub-agents the agent may launch from one planning step. Extra ones are refused with a note so the agent can plan a second wave. 1 to 10.
+- **Sub-agent model** (Default: `auto`): The model sub-agents plan on. `auto` uses the small default model for investigation and the regular default for validation; `small` or `default` force one; a model id from the LLM page pins it.
+- **Allow sub-agent model override** (Default: on): Let the agent pick a different model for one sub-agent when the user asked for it or an instruction names one. The pick is validated against the models the asking user may use.
+- **Sub-agents may create queries** (Default: off): Let sub-agents create tracked queries whose results the agent can chart and cite. Off, sub-agents are research-only: they describe, inspect, read and take notes.
+
 ## Other AI settings
 
 * **Allow LLM to See Data**: Enable the AI to view sample data from tables for better context and more accurate analysis.
