@@ -121,6 +121,7 @@
           "data-sources/mcp",
           "data-sources/custom-api",
           "data-sources/user-context",
+          "data-sources/dynamic-params",
           {
             "group": "Custom Queries and Row-Level Security",
             "expanded": false,

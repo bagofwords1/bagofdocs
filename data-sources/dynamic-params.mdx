@@ -1,0 +1,118 @@
+---
+title: "Dynamic Params"
+description: "Send per-question values from your app to an MCP server on every tool call"
+icon: "brackets-curly"
+---
+
+Your app often knows things Bag of words doesn't, like the id of the chat a question came from, the message id, or the ticket being discussed. **Dynamic params** let your app send those values with each question. Bag of words then adds them to every MCP tool call made while answering it.
+
+<Note>
+  Available on [MCP connections](/data-sources/mcp), as part of [User context forwarding](/data-sources/user-context).
+</Note>
+
+## How it works
+
+1. An admin lists which keys the connection accepts, with a default for each.
+2. Your app sends values for those keys in `prompt.metadata` when it calls the completions API.
+3. Every MCP tool call for that question carries the values in the metadata argument (`custom_metadata` by default).
+
+For each listed key:
+
+| Situation | Result |
+| --- | --- |
+| Your app sent a value | The sent value is used |
+| Not sent, default is set | The default is used |
+| Not sent, default is `null` | The key is left out |
+| Key isn't in the list | Dropped, never sent |
+| A forwarded field has the same name | The field's value wins |
+
+The model never sees these keys and cannot change their values.
+
+## Set it up
+
+1. Open the MCP connection and expand **Advanced → User context forwarding**.
+2. Under **Tool metadata**, turn on **Dynamic params**.
+3. Enter the allowed keys as a JSON object of `{ "key": default }`:
+
+```json
+{
+  "chat_id": null,
+  "message_id": null,
+  "env": "prod"
+}
+```
+
+4. Save.
+
+## Send values from your app
+
+Add `metadata` to the `prompt` of a completions request. It works the same for streaming and non-streaming requests.
+
+<CodeGroup>
+
+```bash JSON response
+curl -X POST "$BOW_URL/api/reports/$REPORT_ID/completions" \
+  -H "Authorization: Bearer $BOW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": {
+      "content": "What is the status of order 555?",
+      "metadata": { "chat_id": "c-77", "message_id": "m-912" }
+    }
+  }'
+```
+
+```bash Streaming (SSE)
+curl -N -X POST "$BOW_URL/api/reports/$REPORT_ID/completions" \
+  -H "Authorization: Bearer $BOW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "stream": true,
+    "prompt": {
+      "content": "What is the status of order 555?",
+      "metadata": { "chat_id": "c-77", "message_id": "m-912" }
+    }
+  }'
+```
+
+```python Python
+import os, requests
+
+resp = requests.post(
+    f"{os.environ['BOW_URL']}/api/reports/{os.environ['REPORT_ID']}/completions",
+    headers={"Authorization": f"Bearer {os.environ['BOW_API_KEY']}"},
+    json={
+        "prompt": {
+            "content": "What is the status of order 555?",
+            "metadata": {"chat_id": "c-77", "message_id": "m-912"},
+        }
+    },
+)
+resp.raise_for_status()
+```
+
+</CodeGroup>
+
+## What the MCP server receives
+
+With the allow-list above and a locked `user_email` field, each tool call includes:
+
+```json
+"custom_metadata": {
+  "chat_id": "c-77",
+  "message_id": "m-912",
+  "env": "prod",
+  "user_email": "dana@acme.com"
+}
+```
+
+## Limits
+
+- `metadata` must be a JSON object with non-empty keys, up to 8 KB. Anything else returns `422`.
+- The allow-list must be a JSON object, up to 8 KB. An invalid list is rejected when you save.
+- Values are stored with the question. Members of the report can see them through the API; public share links never show them.
+
+<Warning>
+  Values come from your app and aren't verified. Don't use them to decide who the user is. For identity, use a locked [forwarded field](/data-sources/user-context#locked-vs-ai-fields), which always wins over a dynamic param of the same name.
+</Warning>
