@@ -167,6 +167,7 @@ Use training for the other kind of gap: when the agent picks the wrong field, mi
 - **Expect some variation.** The agent writes new queries each run, and one can come back empty. A clear playbook and the "say it is not confirmed" convention keep that visible instead of hidden.
 - **Send alerts automatically.** Give your alerting tool a trigger URL, and each alert starts an investigation like the one above. See [Run an automated analysis from an external trigger](/guides/external-triggers).
 - **Lock it in with evals.** Turn a past incident into an eval, so a later change that breaks the investigation shows up. See [Test an agent with evals](/guides/evals).
+- **Let it fan out.** With [sub-agents](/using-bow/sub-agents) on, a "why" with several candidate causes gets one sub-agent per cause, each following the playbook on its own, and the agent answers from their records. [Root cause analysis with sub-agents](/guides/root-cause-analysis-sub-agents) walks through one on a planted incident.
 
 ## Related
 
