@@ -83,6 +83,45 @@ docker compose pull
 docker compose up -d
 ```
 
+## Air-gapped downloads
+
+Download the bundle on a connected machine, then transfer it to your offline environment. Choose the architecture of the destination Linux host: `amd64` for Intel/AMD or `arm64` for ARM.
+
+Each bundle includes the Bag of Words, PostgreSQL, and Caddy container images, Docker Compose configuration, and an installation README. The destination host needs Docker Engine and Docker Compose v2 installed.
+
+### Download URL pattern
+
+Find a version in [GitHub Releases](https://github.com/bagofwords1/bagofwords/releases/latest). Use the version number without the leading `v` and replace `{arch}` with `amd64` or `arm64`:
+
+```text
+https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/{version}/bagofwords-airgap-{version}-linux-{arch}.tar.gz
+```
+
+Append `.sha256` to the download URL for its checksum file. The architecture-independent source archive uses:
+
+```text
+https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/{version}/bagofwords-source-{version}.tar.gz
+```
+
+The source archive contains tracked source code and a `SOURCE_COMMIT` file identifying the build commit; it does not include Python or Node.js dependencies.
+
+### Example: version 0.0.587
+
+| Package | Archive | Checksum |
+| --- | --- | --- |
+| Linux AMD64 (Intel/AMD) | [Download](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-airgap-0.0.587-linux-amd64.tar.gz) | [SHA256](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-airgap-0.0.587-linux-amd64.tar.gz.sha256) |
+| Linux ARM64 | [Download](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-airgap-0.0.587-linux-arm64.tar.gz) | [SHA256](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-airgap-0.0.587-linux-arm64.tar.gz.sha256) |
+| Source code (all architectures) | [Download](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-source-0.0.587.tar.gz) | [SHA256](https://s3.us-west-2.amazonaws.com/bagofwords.com/releases/0.0.587/bagofwords-source-0.0.587.tar.gz.sha256) |
+
+Download the archive and matching checksum into the same directory, then verify before extracting. For example, on Linux:
+
+```bash
+sha256sum -c bagofwords-airgap-0.0.587-linux-amd64.tar.gz.sha256
+tar -xzf bagofwords-airgap-0.0.587-linux-amd64.tar.gz
+```
+
+Follow the README inside `bagofwords-airgap/` for offline installation and internal TLS configuration.
+
 ## Other configurations
 ---
 
