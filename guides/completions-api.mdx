@@ -1,0 +1,164 @@
+---
+title: "Completions API"
+sidebarTitle: "Completions API"
+description: "Create a conversation, ask questions, and choose the model, reasoning effort and tools it uses"
+icon: "terminal"
+---
+
+Two calls cover most integrations: create a **report** (one conversation), then send a **completion** (one question and answer) to it.
+
+Settings on the report apply to every turn in that conversation. Settings on a message apply to that one turn.
+
+## Authenticate
+
+Send an API key from **Profile → API Keys**, or from **Settings → Service Accounts** for unattended jobs:
+
+```http
+Authorization: Bearer bow_...
+```
+
+`X-API-Key: bow_...` also works. Keep keys server-side. For apps where each person signs in, use OAuth: see [Embed BOW Chat](/guides/embed).
+
+## Quickstart
+
+<Steps>
+  <Step title="Create a report">
+    ```bash
+    curl -X POST "$BOW_URL/api/reports" \
+      -H "Authorization: Bearer $BOW_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"title": "Sales Q&A", "data_sources": ["<agent-id>"]}'
+    ```
+
+    Keep the returned `id`. Agent IDs come from `GET /api/mentions/available?categories=data_sources`.
+  </Step>
+  <Step title="Ask a question">
+    ```bash
+    curl -X POST "$BOW_URL/api/reports/$REPORT_ID/completions" \
+      -H "Authorization: Bearer $BOW_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"prompt": {"content": "Top 5 customers by revenue this month?"}}'
+    ```
+  </Step>
+  <Step title="Read the answer">
+    The response holds the whole conversation. The answer is the last entry in `completions` with `role: "system"`.
+  </Step>
+</Steps>
+
+Send more questions to the same report to continue the conversation. To stream the answer as it is written, add `"stream": true` and see [Embed BOW Chat](/guides/embed#stream-a-completion) for the event format.
+
+## Customize the conversation
+
+Set these when you create the report, or change them later with `PUT /api/reports/{id}`. They apply to every turn on the report.
+
+```json
+{
+  "title": "Sales Q&A",
+  "data_sources": ["<agent-id>"],
+  "model_id": "<model-id>",
+  "reasoning_effort": "low",
+  "follow_ups": false,
+  "suggest_instructions": false,
+  "tools": { "web_fetch": false, "send_email": false }
+}
+```
+
+| Field | What it does |
+| --- | --- |
+| `data_sources` | The agents the conversation can use. |
+| `model_id` | The model to use. Take the `id` from `GET /api/llm/models`. Omit it to use the default. |
+| `reasoning_effort` | How much the model thinks before it answers. See [Reasoning effort](#reasoning-effort). |
+| `follow_ups` | `false` stops suggested next questions. |
+| `suggest_instructions` | `false` stops suggested instructions after a turn. |
+| `tools` | Switch tools off. See [Tools](#tools). |
+
+On `PUT`, a field you leave out stays as it is, and `null` hands it back to the organization's default. `tools` merges by name, so `{"tools": {"web_fetch": null}}` clears only that one.
+
+<Note>
+  These settings can only switch features off. If your organization has turned a feature off, `true` does not turn it back on.
+</Note>
+
+### Reasoning effort
+
+| Value | Meaning |
+| --- | --- |
+| `default` | The model's own default. Same as leaving it out. |
+| `off` | No extended thinking. Fastest. |
+| `minimal` | The least thinking the model allows. |
+| `low` | Quick answers to simple questions. |
+| `medium` | A balance of speed and depth. |
+| `high` | Deeper analysis. Slower and uses more tokens. |
+| `xhigh` | More than `high`, on models that offer it. |
+| `max` | The strongest level the model has. |
+
+Models support different levels. BOW uses the nearest level the model supports, so any value above is safe to send. Any other value returns `422`.
+
+### Tools
+
+Set a tool to `false` to switch it off. The agent won't use it and is told it is unavailable.
+
+| Name | Switches off |
+| --- | --- |
+| `clarify` | Asking you a clarifying question |
+| `create_artifact`, `edit_artifact` | Creating and editing dashboards |
+| `create_doc`, `edit_doc` | Creating and editing documents |
+| `delegate` | Sub-agents |
+| `notify` | Notifications and check-ins |
+| `send_email` | Sending email |
+| `create_scheduled_task` | New scheduled tasks |
+| `wait` | Waiting and resuming later |
+| `web_fetch` | Fetching web pages, including from generated code |
+| `web_search` | Web search |
+| `generate_image` | Image generation |
+| `inspect_data` | Data inspection |
+| `mcp` | All MCP tools |
+| `lists` | Saving to lists |
+
+Tools not in this list are always on. An unknown name returns `422`.
+
+## Customize one message
+
+Set these on `prompt` to change a single turn:
+
+```json
+{
+  "prompt": {
+    "content": "Why did revenue drop in March?",
+    "model_id": "<model-id>",
+    "reasoning_effort": "high",
+    "follow_ups": false
+  }
+}
+```
+
+| Field | What it does |
+| --- | --- |
+| `model_id` | Overrides the report's model for this turn. |
+| `reasoning_effort` | Overrides the report's effort for this turn. Same values as above. |
+| `follow_ups`, `suggest_instructions` | `false` skips them for this turn. |
+| `metadata` | Values your app attaches to the question. See [Dynamic Params](/data-sources/dynamic-params). |
+
+The message setting wins over the report, and the report wins over the defaults.
+
+<Tip>
+  A non-streaming call returns as soon as the answer is saved, before follow-up questions are ready. Send `"follow_ups": true` on the prompt if you need them in the response.
+</Tip>
+
+## Example: a fast, focused bot
+
+```json
+{
+  "title": "Support bot",
+  "data_sources": ["<agent-id>"],
+  "reasoning_effort": "low",
+  "follow_ups": false,
+  "suggest_instructions": false,
+  "tools": {
+    "web_fetch": false,
+    "web_search": false,
+    "send_email": false,
+    "create_scheduled_task": false,
+    "delegate": false
+  }
+}
+```
