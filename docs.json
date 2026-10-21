@@ -72,7 +72,8 @@
           "guides/mcp-clients",
           "guides/git",
           "guides/embed",
-          "guides/external-entra-applications"
+          "guides/external-entra-applications",
+          "guides/completions-api"
         ]
       },
       {
