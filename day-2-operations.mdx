@@ -1,0 +1,263 @@
+---
+title: 'Day 2 Operations'
+icon: 'shield-check'
+description: 'Production guide: backups, high availability, upgrades, monitoring and security for running Bag of Words'
+---
+
+Installing Bag of Words is the easy part. This page is a checklist for the system administrator who keeps it running: what to back up, how to run more than one replica, how to upgrade safely, and what to monitor.
+
+<Info>
+New to deployment? Start with [Deployment Options](/install), then come back here before you go live.
+</Info>
+
+## Production checklist
+
+| Area | Do this before go-live |
+| --- | --- |
+| Database | Use PostgreSQL, not the default SQLite. Change the default password. |
+| Encryption key | Set `BOW_ENCRYPTION_KEY` explicitly and store it in a secrets manager. |
+| Backups | Schedule DB backups, back up the file volumes, the key and `bow-config.yaml`. Test a restore. |
+| Image version | Pin a version tag instead of `latest`. |
+| TLS and URL | Serve over HTTPS and set `base_url` to the public URL. |
+| Reverse proxy | Set `FORWARDED_ALLOW_IPS` if you run behind your own proxy or ingress. |
+| Replicas | Run two replicas if you need availability (see [High availability](#high-availability)). |
+| Monitoring | Probe `/health`, collect container logs, alert on failed runs. |
+| Telemetry | Review anonymous telemetry and disable it if your policy requires. |
+
+## What to back up
+
+Bag of Words keeps its state in five places. Back up all of them. A database backup alone is **not** enough to restore a working system.
+
+| What | Where | Why it matters |
+| --- | --- | --- |
+| **Database** | PostgreSQL (`BOW_DATABASE_URL`), or `/app/backend/db/app.db` on SQLite | Users, agents, instructions, reports, dashboards, evals, audit logs, scheduled jobs and the stored license key. |
+| **Encryption key** | `BOW_ENCRYPTION_KEY` env var, or `/app/backend/data/encryption.key` if it was auto-generated | Encrypts LLM provider API keys, data source credentials and OAuth tokens. |
+| **Uploaded files** | `/app/backend/uploads` | Files users uploaded and the connector file cache. |
+| **Branding assets** | `/app/backend/branding_uploads` | Custom logos and branding. |
+| **Artifact storage** | The path in `BOW_ARTIFACT_STORAGE`, if you use it | Files behind artifact apps. |
+| **Configuration** | `bow-config.yaml`, `.env`, `docker-compose.yaml`, `Caddyfile`, Helm values and Secrets | Everything needed to recreate the deployment. |
+
+### The encryption key is the most important thing to back up
+
+<Warning>
+If `BOW_ENCRYPTION_KEY` is lost or changed, every stored credential becomes undecryptable. You would have to re-enter every LLM API key, data source credential and OAuth connection. The same key also signs login sessions, so changing it signs every user out. There is currently no key rotation tooling.
+</Warning>
+
+- Generate the key once, set it explicitly and keep a copy in your secrets manager (Vault, AWS Secrets Manager, Kubernetes Secret with restricted access, and so on).
+- Store it **separately** from your database backups. Anyone holding both can read your credentials.
+- If you do not set it, the container generates one and writes it to `/app/backend/data/encryption.key`. That path must be on a persistent volume, and the file must be backed up. On Kubernetes, always set the key through a Secret, because the chart does not provide storage for this file.
+
+```bash
+# Generate a key (Fernet, 44 characters)
+openssl rand -base64 32 | tr '+/' '-_'
+```
+
+### Back up the database
+
+<Tabs>
+  <Tab title="Docker Compose">
+    ```bash
+    # Logical backup of the bundled PostgreSQL
+    docker compose exec -T postgres \
+      pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" \
+      > bow-$(date +%F).dump
+
+    # Restore into an empty database
+    docker compose exec -T postgres \
+      pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists \
+      < bow-2026-01-01.dump
+    ```
+  </Tab>
+  <Tab title="Managed PostgreSQL">
+    Use your provider's automated backups (for example RDS or Aurora automated snapshots with point-in-time recovery, Cloud SQL, Azure Database for PostgreSQL). Set retention to match your recovery objectives.
+  </Tab>
+  <Tab title="Kubernetes (bundled PostgreSQL)">
+    The bundled PostgreSQL is convenient but is a single instance. For production, prefer a managed database or an operator that provides backups. If you keep the bundled one, schedule a `pg_dump` CronJob and ship the dumps off the cluster.
+  </Tab>
+</Tabs>
+
+Recommendations:
+
+- Take at least a daily backup, and **always take one immediately before an upgrade**. Migrations run automatically on startup and there are no downgrade migrations, so a backup is your rollback path.
+- Copy backups off the host or cluster, and keep several generations.
+- **Test a restore** into a scratch environment on a schedule. An untested backup is not a backup.
+- Do not use SQLite in production. It is a single file on a single node, and it prevents running more than one replica.
+
+### Back up files and configuration
+
+- Snapshot or copy the Docker volumes `uploads_data`, `branding_data` and `app_data` (Compose), or the equivalent persistent volumes.
+- Keep `bow-config.yaml`, `.env`, the Compose file, the `Caddyfile` and your Helm values in version control. Keep secrets out of Git and in a secrets manager.
+- Do not forget the Caddy certificate volume (`caddy_data`) if you want to avoid re-issuing TLS certificates after a rebuild.
+
+<Note>
+On Kubernetes the Helm chart does not mount a volume for uploads or branding by default. Add them with `extraVolumes` and `extraVolumeMounts`, otherwise uploaded files disappear when a pod is rescheduled.
+</Note>
+
+## High availability
+
+A single container is a single point of failure, and every deploy or restart interrupts users. For production we recommend **two application replicas** in front of a managed or highly available PostgreSQL.
+
+### Requirements for running two replicas
+
+<Steps>
+  <Step title="Use PostgreSQL">
+    Multiple replicas cannot share a SQLite file. Use PostgreSQL, ideally managed, with its own backups and failover.
+  </Step>
+  <Step title="Use the same encryption key everywhere">
+    Every replica must receive an identical `BOW_ENCRYPTION_KEY`. Without it each replica generates its own key and cannot read credentials written by the other, and sessions break between replicas.
+  </Step>
+  <Step title="Share file storage">
+    Uploaded files, the file cache and artifact storage live on local disk. Mount a shared (ReadWriteMany) volume for `/app/backend/uploads`, and for `BOW_ARTIFACT_STORAGE` if you use it, so both replicas see the same files.
+  </Step>
+  <Step title="Budget your database connections">
+    Each worker process keeps its own connection pool. The ceiling is:
+
+    ```text
+    (BOW_DB_POOL_SIZE + BOW_DB_MAX_OVERFLOW) × workers per replica × replicas
+    ```
+
+    The defaults are 20 + 20 per worker, and a replica runs 1 to 4 workers (`UVICORN_WORKERS`). Stock PostgreSQL allows 100 connections, so make sure `max_connections` is above this ceiling, or lower the pool settings. If you exceed the limit you will see failed agent runs rather than a clear pool error.
+  </Step>
+  <Step title="Put a load balancer in front">
+    Use your ingress or load balancer to spread traffic across the replicas, and probe `GET /health`. Chat responses stream over SSE, so disable response buffering and use a long idle timeout (at least a few minutes) on the proxy.
+  </Step>
+  <Step title="Decide which replica runs background work">
+    See the next section.
+  </Step>
+</Steps>
+
+### Scheduler and background listeners
+
+Scheduled reports and prompts are stored in the database, and runs are de-duplicated across replicas through a shared claim table, so they are safe with several replicas.
+
+Some background work is elected per container, not per cluster: the email (IMAP) poller, the Slack Socket Mode listener, the Google Chat listener and a few housekeeping jobs. With two replicas each one elects its own leader, so these can run twice.
+
+If you use any of those channels, run them on exactly one replica:
+
+| Setting | Effect |
+| --- | --- |
+| `BOW_SCHEDULER_DISABLED=1` | Turns the scheduler and listeners off on this replica. Set it on all but one replica. |
+| `BOW_SCHEDULER_LEADER=1` | Forces this replica to act as the leader. |
+
+<Tip>
+The simplest pattern is a second Deployment (or Compose service) from the same image with `BOW_SCHEDULER_LEADER=1`, and the user-facing replicas with `BOW_SCHEDULER_DISABLED=1`. Keep all other settings identical.
+</Tip>
+
+### Rolling updates and in-flight work
+
+- Agent runs execute inside the replica that received the request. When a replica is stopped, its in-flight runs end. Give pods a longer `terminationGracePeriodSeconds` than the 30 second default, and deploy during quiet hours.
+- If a browser reconnects to a different replica mid-run, it sees the last saved state of the run rather than the live stream.
+- Every container applies database migrations when it starts. For releases that change the schema, avoid starting several new replicas at once. Scale to one replica (or use the `Recreate` strategy), let it migrate and become healthy, then scale back up.
+- On Kubernetes, enable the PodDisruptionBudget (`podDisruptionBudget.enabled=true`) so node drains never take down both replicas, and spread replicas across nodes or zones.
+
+```yaml
+# values.yaml (excerpt)
+# Note: the chart always pulls the image (imagePullPolicy: Always), so a
+# pinned tag is what protects you from unexpected changes.
+replicaCount: 2
+image:
+  tag: "0.0.587"      # pin a version
+podDisruptionBudget:
+  enabled: true
+terminationGracePeriodSeconds: 120
+config:
+  secretRef: bow-secrets   # holds BOW_ENCRYPTION_KEY, BOW_DATABASE_URL, ...
+  forwardedAllowIps: "*"   # only if the ingress is the sole peer
+```
+
+## Upgrades
+
+<Steps>
+  <Step title="Read the release notes">
+    Review the [release notes](https://github.com/bagofwords1/bagofwords/blob/main/CHANGELOG.md) (also available in the app under **What's New**) for breaking changes. Only the latest release receives security fixes, so plan to upgrade regularly.
+  </Step>
+  <Step title="Back up">
+    Take a database backup and confirm your key and config are saved.
+  </Step>
+  <Step title="Test first">
+    If you can, restore the backup into a staging environment and upgrade it first.
+  </Step>
+  <Step title="Upgrade to a pinned version">
+    Change the image tag to the new version number. Do not rely on `latest`, which can change underneath you on any restart.
+  </Step>
+  <Step title="Verify">
+    Check that `/health` responds, you can sign in, a data source connects, and a simple question gets answered.
+  </Step>
+</Steps>
+
+- **Pin versions.** Images are published as `bagofwords/bagofwords:<version>`, `<version>-<date>` and `latest`. The Compose file and Helm chart default to `latest` with always-pull. Override this in production.
+- **Migrations are automatic.** On start, the container runs the database migrations and exits if they fail after three attempts. Because there is no downgrade path, rolling back means restoring the pre-upgrade database backup and redeploying the previous image tag.
+- **Helm chart 2.0.0** changed the Deployment selector labels. Upgrading from chart 1.x fails with `field is immutable: spec.selector`. Delete the Deployment (`kubectl delete deployment <release> -n <namespace>`) and run the upgrade again.
+- **Air-gapped installs** upgrade by loading the new bundle's images and running `docker compose up -d --pull never`. See [Air-gapped downloads](/install#air-gapped-downloads).
+
+## Monitoring
+
+### Health checks
+
+`GET /health` returns `{"status":"ok"}`. It confirms the process is running but does **not** check the database. Use it for liveness and load balancer probes, and add your own database monitoring alongside it. The container image and Helm chart already use it.
+
+### Logs
+
+The application logs JSON lines to stdout (errors to stderr). Collect them with your platform's log pipeline (Docker logging driver, Fluent Bit, Promtail, CloudWatch, and so on) and set a retention period. Nothing is written to log files inside the container.
+
+### Traces
+
+OpenTelemetry tracing is built in and off by default. Enable it in `bow-config.yaml`:
+
+```yaml
+otel:
+  enabled: true
+  service_name: bagofwords-backend
+  traces_endpoint: http://otel-collector:4317
+  protocol: grpc
+```
+
+### What to alert on
+
+- `/health` failing, or containers restarting repeatedly.
+- Database: connection count approaching `max_connections`, disk usage, replication lag, failed backups.
+- Disk usage on the uploads and artifact volumes.
+- Spikes in failed agent runs. Use [Runs and traces](/observe-and-govern/runs-and-traces) to investigate.
+- LLM spend and errors. Track them in [Usage, cost and quality](/observe-and-govern/usage-cost-quality) and set [quotas](/observe-and-govern/quotas-and-usage-limits).
+- TLS certificate expiry, if you manage certificates yourself.
+
+### Audit logs
+
+[Audit logs](/observe-and-govern/audit-logs) record administrative activity. On the enterprise plan you can stream them to your SIEM (Datadog, Splunk, Microsoft Sentinel, S3, GCS, a webhook or syslog) so they are retained outside the application database.
+
+## Security hardening
+
+- **HTTPS everywhere.** Keep Caddy or your ingress terminating TLS, and set `base_url` to the public `https://` URL. It is used for SSO redirects, and SAML requires HTTPS.
+- **Change default credentials.** Replace the sample PostgreSQL password (`bowpassword` in the Compose file) and restrict who can reach the database port. Do not publish PostgreSQL to the internet.
+- **Keep secrets out of config files.** Reference them as `${VAR}` in `bow-config.yaml` and inject them from Docker secrets, a Kubernetes Secret (`config.secretRef`) or your secrets manager.
+- **Set `FORWARDED_ALLOW_IPS` correctly.** Behind a proxy or ingress, the default (`127.0.0.1`) makes every visitor look like the same client, which breaks per-client rate limiting. Set it to your proxy's address.
+- **Use SSO.** Configure [SSO](/sign-in-and-sso), set `auth.mode` to `sso_only` if you want to disable local passwords, and review who has admin roles. Disable open sign-ups with `allow_uninvited_signups: false`.
+- **Limit network access.** Enable the chart's NetworkPolicy and allow outbound traffic only to your LLM providers, data sources and identity provider. Use `HTTPS_PROXY` and `NO_PROXY` if egress goes through a proxy.
+- **Least-privilege data access.** Give each data source a read-only database user, and use [row-level security](/bow-fast/row-level-security) where users should see different data.
+- **Telemetry.** Anonymous product telemetry is enabled by default. Set `telemetry.enabled: false` in `bow-config.yaml` (Helm: `config.telemetryEnabled=false`) if your policy requires it, and always in air-gapped environments.
+- **Scan and patch.** Pull updated images regularly, scan them in your registry, and patch the host and PostgreSQL on a schedule.
+
+## Capacity and cost
+
+- **Size for concurrency.** Each worker runs up to `BOW_MAX_CONCURRENT_AGENTS` agent runs at once (default 12), and extra runs queue. Watch CPU and memory under real load and adjust workers (`UVICORN_WORKERS`) and resources. The Helm chart requests 2 CPUs and 900Mi by default and sets no memory limit.
+- **Control LLM spend.** Set [usage quotas](/observe-and-govern/quotas-and-usage-limits), and review cost regularly. Keep a second model configured, or use fallback on the enterprise plan, so an outage at one LLM provider does not stop your users.
+- **Protect your data sources.** Add rate limits (enterprise) or use a read replica for analytics so heavy questions cannot slow your production systems.
+- **Retention.** Step payloads are purged automatically (14 days by default). Plan for database growth from reports, traces and audit logs, and monitor disk space.
+
+## Routine operations calendar
+
+| Frequency | Task |
+| --- | --- |
+| Daily | Confirm the backup succeeded. Glance at failed runs and LLM errors. |
+| Weekly | Review audit logs and usage. Check disk and database size. |
+| Monthly | Upgrade to the latest release after testing. Patch hosts and PostgreSQL. Review user access and admin roles. |
+| Quarterly | **Restore test** from backup into a scratch environment. Review secrets, API keys and service accounts. Review quotas and capacity. |
+| Before every upgrade | Back up the database and confirm you have the encryption key. |
+
+## Disaster recovery in short
+
+1. Provision a new environment and deploy the same image version you were running.
+2. Restore the PostgreSQL backup.
+3. Restore the file volumes (`uploads`, `branding_uploads`, artifact storage).
+4. Supply the **original** `BOW_ENCRYPTION_KEY` and your `bow-config.yaml`.
+5. Start the application, point DNS at it, and verify sign-in, a data source and a test question.
