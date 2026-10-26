@@ -1,7 +1,7 @@
 ---
 title: 'Day 2 Operations'
 icon: 'shield-check'
-description: 'Production guide: backups, high availability, upgrades, monitoring and security for running Bag of Words'
+description: 'Production guide: backups, high availability, upgrades and automatic updates, monitoring and security for running Bag of Words'
 ---
 
 Installing Bag of Words is the easy part. This page is a checklist for the system administrator who keeps it running: what to back up, how to run more than one replica, how to upgrade safely, and what to monitor.
@@ -167,28 +167,246 @@ config:
 
 ## Upgrades
 
+There are two ways to keep Bag of Words up to date:
+
+- **Planned upgrades**: you choose the version, back up, upgrade and verify. Recommended for production.
+- **Automatic updates** (Docker Compose only): a cron job pulls new images on a schedule and restarts only the containers that changed. Good for evaluation, internal or low-risk instances. See [Automatic updates with Docker Compose](#automatic-updates-with-docker-compose).
+
+### Before you upgrade
+
+- **Pin versions.** Images are published as `bagofwords/bagofwords:<version>`, `<version>-<date>` and `latest`. The Compose file and Helm chart default to `latest` with always-pull. Override this in production.
+- **Migrations are automatic.** On start, the container runs the database migrations and exits if they fail after three attempts. Because there is no downgrade path, rolling back means restoring the pre-upgrade database backup and redeploying the previous image tag.
+- **Only the latest release gets security fixes**, so plan to upgrade regularly (see the [operations calendar](#routine-operations-calendar)).
+
+### Planned upgrade
+
 <Steps>
   <Step title="Read the release notes">
-    Review the [release notes](https://github.com/bagofwords1/bagofwords/blob/main/CHANGELOG.md) (also available in the app under **What's New**) for breaking changes. Only the latest release receives security fixes, so plan to upgrade regularly.
+    Review the [release notes](https://github.com/bagofwords1/bagofwords/blob/main/CHANGELOG.md) (also available in the app under **What's New**) for breaking changes.
   </Step>
   <Step title="Back up">
-    Take a database backup and confirm your key and config are saved.
+    Take a database backup and confirm your encryption key, file volumes and config are saved. See [What to back up](#what-to-back-up).
   </Step>
   <Step title="Test first">
     If you can, restore the backup into a staging environment and upgrade it first.
   </Step>
   <Step title="Upgrade to a pinned version">
-    Change the image tag to the new version number. Do not rely on `latest`, which can change underneath you on any restart.
+    Change the image tag to the new version number and redeploy. Do not rely on `latest`, which can change underneath you on any restart. The commands for each deployment type are below.
   </Step>
   <Step title="Verify">
     Check that `/health` responds, you can sign in, a data source connects, and a simple question gets answered.
   </Step>
 </Steps>
 
-- **Pin versions.** Images are published as `bagofwords/bagofwords:<version>`, `<version>-<date>` and `latest`. The Compose file and Helm chart default to `latest` with always-pull. Override this in production.
-- **Migrations are automatic.** On start, the container runs the database migrations and exits if they fail after three attempts. Because there is no downgrade path, rolling back means restoring the pre-upgrade database backup and redeploying the previous image tag.
+<Tabs>
+  <Tab title="Docker Compose">
+    Set the new tag in `docker-compose.yaml`:
+
+    ```yaml
+    services:
+      bagofwords:
+        image: bagofwords/bagofwords:0.0.587   # the new version
+    ```
+
+    Then pull and recreate:
+
+    ```bash
+    docker compose pull
+    docker compose up -d
+    docker compose logs -f bagofwords   # watch the migrations and startup
+    ```
+
+    `docker compose up -d` only recreates containers whose image or configuration changed. PostgreSQL and Caddy keep running.
+  </Tab>
+  <Tab title="Kubernetes (Helm)">
+    ```bash
+    helm repo update
+    helm upgrade <release> bow/bagofwords -n <namespace> \
+      --reuse-values \
+      --set image.tag=0.0.587
+    kubectl rollout status deployment/<release> -n <namespace>
+    ```
+
+    For releases that change the schema, scale to one replica first (or use the `Recreate` strategy) so only one pod runs migrations. See [Rolling updates and in-flight work](#rolling-updates-and-in-flight-work).
+  </Tab>
+  <Tab title="Single Docker container">
+    ```bash
+    docker pull bagofwords/bagofwords:0.0.587
+    docker stop bagofwords && docker rm bagofwords
+    # Re-run your original `docker run` command with the new tag,
+    # keeping the same volumes and environment variables.
+    ```
+  </Tab>
+  <Tab title="Air-gapped">
+    Download and verify the new version's bundle, load its images as described in the README inside `bagofwords-airgap/`, update the image tag, then start without pulling:
+
+    ```bash
+    docker compose up -d --pull never
+    ```
+
+    See [Air-gapped downloads](/install#air-gapped-downloads).
+  </Tab>
+</Tabs>
+
+### Rolling back
+
+1. Stop the application.
+2. Restore the database backup you took before the upgrade.
+3. Set the image tag back to the previous version and redeploy.
+
+Redeploying an older image against an already migrated database is not supported. Always restore the database first.
+
+### Upgrade notes
+
 - **Helm chart 2.0.0** changed the Deployment selector labels. Upgrading from chart 1.x fails with `field is immutable: spec.selector`. Delete the Deployment (`kubectl delete deployment <release> -n <namespace>`) and run the upgrade again.
-- **Air-gapped installs** upgrade by loading the new bundle's images and running `docker compose up -d --pull never`. See [Air-gapped downloads](/install#air-gapped-downloads).
+
+### Automatic updates with Docker Compose
+
+For Docker Compose installs, a small script keeps the deployment on the newest image. It is meant to run from cron. Each run:
+
+1. Pulls the latest images for every service in the Compose file.
+2. Recreates only the containers whose image changed. Services with unchanged images keep running without interruption. The updated containers restart, so expect a short interruption of Bag of Words while the new container starts and runs migrations.
+3. Removes dangling images to free disk space.
+
+The script follows the tags in your Compose file. With `bagofwords/bagofwords:latest` it moves to every new release. With a pinned tag such as `0.0.587` it only picks up a rebuild of that same tag, so to move to a new version you still change the tag yourself.
+
+<Warning>
+Automatic updates skip the review, backup and testing steps of a [planned upgrade](#planned-upgrade). Migrations run as soon as the new container starts, and there is no downgrade. Before enabling this:
+
+- Schedule database backups to run **before** each update window (for example, a backup cron job 30 minutes earlier). See [Back up the database](#back-up-the-database).
+- Know that the script prunes the previous image once it is untagged. To roll back you will pull the previous version by its version tag and restore the database backup.
+- For business-critical production, prefer pinned versions and planned upgrades.
+</Warning>
+
+#### The script
+
+Save this as `version-auto-update.sh` on the Docker host, for example in `/opt/bagofwords/`. It is also available in the repository at [`scripts/version-auto-update`](https://github.com/bagofwords1/bagofwords/tree/main/scripts/version-auto-update).
+
+```bash version-auto-update.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 -c <compose-command> -f <docker-compose-file>"
+  echo "  -c  Docker compose command (e.g. 'docker compose' or 'docker-compose')"
+  echo "  -f  Path to docker-compose.yaml file"
+  exit 1
+}
+
+COMPOSE_CMD=""
+COMPOSE_FILE=""
+
+while getopts "c:f:" opt; do
+  case "$opt" in
+    c) COMPOSE_CMD="$OPTARG" ;;
+    f) COMPOSE_FILE="$OPTARG" ;;
+    *) usage ;;
+  esac
+done
+
+[[ -z "$COMPOSE_CMD" || -z "$COMPOSE_FILE" ]] && usage
+
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  echo "Error: file not found: $COMPOSE_FILE"
+  exit 1
+fi
+
+COMPOSE="$COMPOSE_CMD -f $COMPOSE_FILE"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') Pulling latest images..."
+$COMPOSE pull
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') Recreating containers with updated images..."
+$COMPOSE up -d
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') Removing unused images..."
+docker image prune -f
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') Done."
+```
+
+#### Usage
+
+```bash
+./version-auto-update.sh -c <compose-command> -f <docker-compose-file>
+```
+
+| Flag | Description | Example |
+| --- | --- | --- |
+| `-c` | Docker Compose command | `"docker compose"` or `"docker-compose"` |
+| `-f` | Path to `docker-compose.yaml` | `/opt/bagofwords/docker-compose.yaml` |
+
+```bash
+# Docker Compose v2 plugin
+./version-auto-update.sh -c "docker compose" -f /opt/bagofwords/docker-compose.yaml
+
+# Legacy standalone docker-compose
+./version-auto-update.sh -c "docker-compose" -f /opt/bagofwords/docker-compose.yaml
+```
+
+Run it once by hand to confirm it works before you schedule it.
+
+#### Schedule it with cron
+
+<Steps>
+  <Step title="Make the script executable">
+    ```bash
+    chmod +x /opt/bagofwords/version-auto-update.sh
+    ```
+  </Step>
+  <Step title="Open the crontab">
+    ```bash
+    # For the current user (must be able to run docker)
+    crontab -e
+
+    # For root, if Docker requires root access
+    sudo crontab -e
+    ```
+  </Step>
+  <Step title="Add the job">
+    This runs twice a day, at 6:00 and 18:00, and appends the output to a log file. Use full paths, because cron runs with a minimal environment.
+
+    ```text
+    0 6,18 * * * /opt/bagofwords/version-auto-update.sh -c "docker compose" -f /opt/bagofwords/docker-compose.yaml >> /var/log/version-auto-update.log 2>&1
+    ```
+
+    Save and exit the editor.
+  </Step>
+  <Step title="Verify the job">
+    ```bash
+    crontab -l
+    ```
+  </Step>
+</Steps>
+
+Other schedules:
+
+| Schedule | Cron expression |
+| --- | --- |
+| Twice a day (6:00 and 18:00) | `0 6,18 * * *` |
+| Every 6 hours | `0 */6 * * *` |
+| Once a day at midnight | `0 0 * * *` |
+| Every hour | `0 * * * *` |
+
+<Tip>
+Pick a quiet time, since the Bag of Words container restarts whenever a new image is found. Once a day outside working hours is enough for most teams.
+</Tip>
+
+#### Logs
+
+Every run appends timestamped output to `/var/log/version-auto-update.log`:
+
+```bash
+tail -f /var/log/version-auto-update.log
+```
+
+After an update, check `/health` and the container logs (`docker compose logs bagofwords`) to confirm migrations finished.
+
+#### Notes
+
+- Cron jobs persist across reboots, and the cron daemon starts automatically on boot.
+- The user running the job needs permission to run Docker, either root or a member of the `docker` group.
+- The log file must be writable by that user. If you run the job as a non-root user, point the log at a path it owns.
 
 ## Monitoring
 
@@ -248,7 +466,7 @@ otel:
 
 | Frequency | Task |
 | --- | --- |
-| Daily | Confirm the backup succeeded. Glance at failed runs and LLM errors. |
+| Daily | Confirm the backup succeeded. Glance at failed runs and LLM errors. If automatic updates are on, check `/var/log/version-auto-update.log`. |
 | Weekly | Review audit logs and usage. Check disk and database size. |
 | Monthly | Upgrade to the latest release after testing. Patch hosts and PostgreSQL. Review user access and admin roles. |
 | Quarterly | **Restore test** from backup into a scratch environment. Review secrets, API keys and service accounts. Review quotas and capacity. |
