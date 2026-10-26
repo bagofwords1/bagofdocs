@@ -387,6 +387,8 @@ Other schedules:
 | Every 6 hours | `0 */6 * * *` |
 | Once a day at midnight | `0 0 * * *` |
 | Every hour | `0 * * * *` |
+| Once a week (Sunday at midnight) | `0 0 * * 0` |
+| Once a month (1st of the month at midnight) | `0 0 1 * *` |
 
 <Tip>
 Pick a quiet time, since the Bag of Words container restarts whenever a new image is found. Once a day outside working hours is enough for most teams.
