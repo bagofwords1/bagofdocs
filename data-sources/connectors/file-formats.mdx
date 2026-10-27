@@ -12,7 +12,7 @@ The **CSV**, **QVD** and **Power BI (.pbix)** connectors expose data files as **
 
 ## How it works
 
-Both connectors run on **DuckDB** inside Bag of words. Paths are resolved on the **backend host**, exactly like the Files and Directories connector, so a local folder or an already-mounted SMB/NFS share both work. There are no credential fields — access is whatever the operating system grants the backend process.
+Both connectors run on **DuckDB** inside BOW. Paths are resolved on the **backend host**, exactly like the Files and Directories connector, so a local folder or an already-mounted SMB/NFS share both work. There are no credential fields — access is whatever the operating system grants the backend process.
 
 - **CSV** is read natively by DuckDB. There is no conversion or cache: each resolved file is exposed directly as a table at connect time. One file, one table.
 - **QVD** is a proprietary binary format, so each file is converted to a columnar cache on the backend the first time it is indexed, then queried with SQL from there.
@@ -22,8 +22,8 @@ Glob patterns are expanded at connect time, so adding a file that matches an exi
 
 ## Before you start
 
-- The files exist on the **Bag of words backend host** and are readable by the process that runs it.
-- For a network share, mount it with the OS first. If Bag of words runs in a container, the mount must be visible inside the container.
+- The files exist on the **BOW backend host** and are readable by the process that runs it.
+- For a network share, mount it with the OS first. If BOW runs in a container, the mount must be visible inside the container.
 - Give each file a stable, meaningful filename — the filename becomes the table name the agent sees.
 
 ---

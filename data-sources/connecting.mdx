@@ -12,15 +12,15 @@ Connecting a data source takes a few minutes. Making it *good* — so the agent 
 2. Pick the connector. Use the category chips or search; Enterprise-only connectors show a lock if you have no license.
 3. Fill in the connection fields and credentials. Every connector's fields are documented on its own page — see the [catalog](/data-sources/overview).
 4. Decide whether this connection uses shared credentials or [per-user authentication](/data-sources/authentication).
-5. **Test** the connection, then save. Bag of words validates the credentials before storing them, so a saved connection is a working one.
+5. **Test** the connection, then save. BOW validates the credentials before storing them, so a saved connection is a working one.
 
 <Note>
-  Nothing is copied. Bag of words queries your data where it lives, every time, using the credentials you configured.
+  Nothing is copied. BOW queries your data where it lives, every time, using the credentials you configured.
 </Note>
 
 ## Choose which tables the agent sees
 
-Once connected, Bag of words reads the schema and lists what it found. Enable the tables (or files, or tools) the agent should use.
+Once connected, BOW reads the schema and lists what it found. Enable the tables (or files, or tools) the agent should use.
 
 ![Select Tables](/assets/media/data-sources/tables.png)
 
@@ -87,7 +87,7 @@ Instructions encode business logic the schema can't express — how revenue is d
 * **Markdown** — any documentation file in the repo, such as `AGENTS.md`
 * **Code** — SQL and Python files
 
-Point Bag of words at the repo and it syncs automatically. See [Instructions](/using-bow/instructions) for how they are managed, versioned, and scoped, and [Git Workflow](/guides/git) for the repository setup.
+Point BOW at the repo and it syncs automatically. See [Instructions](/using-bow/instructions) for how they are managed, versioned, and scoped, and [Git Workflow](/guides/git) for the repository setup.
 
 ![Context](/assets/media/data-sources/context.png)
 

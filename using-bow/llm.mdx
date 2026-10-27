@@ -3,7 +3,7 @@ title: 'Models and LLM providers'
 description: 'Bring your preferred models, route work intentionally, and keep a reliable fallback path.'
 ---
 
-Bag of words is model-flexible. Add the providers and models your organization approves, configure credentials, set access, and choose how the platform selects a model for each task.
+BOW is model-flexible. Add the providers and models your organization approves, configure credentials, set access, and choose how the platform selects a model for each task.
 
 ## Choose a model strategy
 
@@ -21,7 +21,7 @@ The active model is visible in the chat experience. Administrators manage the ca
 
 The composer shows the model that will handle the next turn. Select it to choose from the models enabled for your organization. The selection stays with the report, so follow-up work uses the intended model unless you change it or use automatic routing.
 
-Use **Auto** when routing is enabled and you want Bag of words to choose from the approved catalog for the task. Use an explicit model when the session needs a predictable reasoning, latency, or cost profile. Organization defaults and fallback behavior still apply if the preferred model is unavailable.
+Use **Auto** when routing is enabled and you want BOW to choose from the approved catalog for the task. Use an explicit model when the session needs a predictable reasoning, latency, or cost profile. Organization defaults and fallback behavior still apply if the preferred model is unavailable.
 
 ## Add providers and credentials
 
@@ -50,7 +50,7 @@ Sources are drawn from a fixed list — never arbitrary user input:
 | --- | --- |
 | `user.email` | The user's email address |
 | `user.name` | Their display name |
-| `user.id` | Their Bag of words user id |
+| `user.id` | Their BOW user id |
 | `membership.role` | Their role in the organization |
 | `membership.attr:<key>` | An SSO profile attribute, e.g. `membership.attr:department` |
 | `static:<text>` | A fixed string, with `{...}` placeholders for any of the above, e.g. `static:acme\{membership.attr:employeeId}` |

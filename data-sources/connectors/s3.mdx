@@ -4,7 +4,7 @@ description: "Expose an S3 bucket (or a prefix within it) to the agent as a sear
 icon: "aws"
 ---
 
-The **Amazon S3** connector points Bag of words at a bucket, optionally scoped to a key prefix. The agent lists objects, greps them, and reads them — including inside PDF, Word, PowerPoint, Excel and CSV — and can attach an object to a report. Objects too large to load whole can be read in byte-range windows.
+The **Amazon S3** connector points BOW at a bucket, optionally scoped to a key prefix. The agent lists objects, greps them, and reads them — including inside PDF, Word, PowerPoint, Excel and CSV — and can attach an object to a report. Objects too large to load whole can be read in byte-range windows.
 
 <Note>
   This connector is in **beta**. Fields and behavior may change between releases.
@@ -16,7 +16,7 @@ The **Amazon S3** connector points Bag of words at a bucket, optionally scoped t
 
 ## How it works
 
-Bag of words builds a file catalog from the bucket. It uses the same parsing and search pipeline as [Files and Directories](/data-sources/connectors/files-and-directories), with object-store-appropriate limits:
+BOW builds a file catalog from the bucket. It uses the same parsing and search pipeline as [Files and Directories](/data-sources/connectors/files-and-directories), with object-store-appropriate limits:
 
 - **`list_files`** — a bounded `ListObjectsV2` under the prefix.
 - **`read_file`** — `GetObject`, with `.csv`/`.tsv`/`.xlsx`/`.xls` parsed into tables and `.pdf`/`.docx`/`.pptx` text-extracted.
@@ -34,7 +34,7 @@ Everything is confined to `bucket` + `prefix`. A file id is the key **relative t
 - For a non-AWS store (MinIO, Cloudflare R2, Wasabi), you have its endpoint URL and a matching access key pair.
 - For **AWS Default Chain** or a role assumed without static keys, the backend host must already carry credentials — an instance profile, IRSA, or the standard environment/config files.
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Amazon S3** and fill in the form.
 
@@ -80,7 +80,7 @@ The default. Static IAM credentials.
 
 ### AWS Assume Role (STS) (`aws_role`)
 
-Bag of words calls `sts:AssumeRole` and uses the returned temporary credentials.
+BOW calls `sts:AssumeRole` and uses the returned temporary credentials.
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
@@ -90,7 +90,7 @@ Bag of words calls `sts:AssumeRole` and uses the returned temporary credentials.
 
 ### AWS Default Chain (`aws_default`)
 
-No fields. Bag of words uses the standard AWS credential chain on the backend host — environment variables, shared config, instance profile, or IRSA. Use this when the deployment already has an AWS identity and you do not want to store keys in the product.
+No fields. BOW uses the standard AWS credential chain on the backend host — environment variables, shared config, instance profile, or IRSA. Use this when the deployment already has an AWS identity and you do not want to store keys in the product.
 
 ## Troubleshooting
 

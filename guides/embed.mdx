@@ -5,7 +5,7 @@ icon: "code-2"
 sidebarTitle: "Embed BOW Chat"
 ---
 
-Use the Bag of Words API to add a BOW-powered chat or completion panel to your own product. Your UI creates or reuses a report, streams a completion with `fetch`, and renders Server-Sent Events as they arrive.
+Use the BOW API to add a BOW-powered chat or completion panel to your own product. Your UI creates or reuses a report, streams a completion with `fetch`, and renders Server-Sent Events as they arrive.
 
 This guide is for internal tools, trusted admin panels, and backend-proxied production apps.
 
@@ -15,7 +15,7 @@ This guide is for internal tools, trusted admin panels, and backend-proxied prod
 
 ## What You Need
 
-- A Bag of Words base URL — for example `https://bow.example.com`
+- A BOW base URL — for example `https://bow.example.com`
 - An OAuth app registered with the `app` scope
 - An exact callback URL controlled by your application
 - Optional data source or agent IDs to attach to the report
@@ -149,7 +149,7 @@ A regular OAuth app shows consent after sign-in. A **Trusted** internal app skip
 Use a backend-for-frontend for production applications:
 
 ```text
-Browser UI → Your backend → Bag of Words API
+Browser UI → Your backend → BOW API
 ```
 
 Your backend should:

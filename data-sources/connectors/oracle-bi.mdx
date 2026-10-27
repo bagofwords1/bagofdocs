@@ -4,7 +4,7 @@ description: "Connect Oracle BI subject areas and query them with Logical SQL"
 icon: "database"
 ---
 
-Bag of words connects to **Oracle Business Intelligence** — OBIEE 11g/12c, Oracle Analytics Server, and Oracle Analytics Cloud — through the BI Web Services SOAP API. It discovers the subject areas the credential can see, reads their presentation tables and columns, and runs **Logical SQL** against the BI Server, so every query goes through your semantic model rather than around it.
+BOW connects to **Oracle Business Intelligence** — OBIEE 11g/12c, Oracle Analytics Server, and Oracle Analytics Cloud — through the BI Web Services SOAP API. It discovers the subject areas the credential can see, reads their presentation tables and columns, and runs **Logical SQL** against the BI Server, so every query goes through your semantic model rather than around it.
 
 <Note>
   The Oracle BI connector is part of the **Enterprise Edition**.
@@ -14,7 +14,7 @@ Bag of words connects to **Oracle Business Intelligence** — OBIEE 11g/12c, Ora
 
 All three products ship the same v12 web services at `/analytics-ws/saw.dll`, so one connector covers them:
 
-1. Bag of words logs on (`nQSessionService.logon`) and holds a session ID.
+1. BOW logs on (`nQSessionService.logon`) and holds a session ID.
 2. It lists subject areas (`MetadataService.getSubjectAreas`) and describes each one with its presentation tables and columns (`MetadataService.describeSubjectArea`).
 3. Queries run as Logical SQL (`XmlViewService.executeXMLQuery`), and the returned rowset is typed from its inline schema — numbers, dates, and booleans come back as real types, with Oracle's user-facing column captions applied.
 
@@ -27,11 +27,11 @@ Each presentation table becomes a schema entry named `SubjectArea/PresentationTa
 ## Before you start
 
 - The base URL of the instance: the analytics URL for OBIEE/OAS, or the OAC instance URL.
-- The **BI Web Services** SOAP endpoint (`/analytics-ws/saw.dll`) reachable from Bag of words over HTTP(S) — some deployments front the portal with a proxy that does not expose it.
+- The **BI Web Services** SOAP endpoint (`/analytics-ws/saw.dll`) reachable from BOW over HTTP(S) — some deployments front the portal with a proxy that does not expose it.
 - An account that can log on and has been granted the subject areas you want to expose. For OAC the username is the account's email; for OBIEE/OAS it is the domain user.
 - A **deployed semantic model** (an RPD, or a Semantic Model on OAC). An instance with nothing deployed connects successfully but exposes no subject areas.
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Settings → Data Sources → Add data source → Oracle BI**. See [Connecting a data source](/data-sources/connecting) for the general flow.
 
@@ -74,6 +74,6 @@ Because the mode is available at both scopes, you can configure **one shared ser
   </Accordion>
 
   <Accordion title="A query fails with an Oracle error code">
-    Oracle returns query errors inside the rowset rather than as a fault; Bag of words surfaces the text and code as the query error. The usual causes are an unquoted identifier containing spaces, a column referenced with its subject area prefix instead of its presentation table, or an explicit `JOIN` clause — the semantic model resolves joins itself.
+    Oracle returns query errors inside the rowset rather than as a fault; BOW surfaces the text and code as the query error. The usual causes are an unquoted identifier containing spaces, a column referenced with its subject area prefix instead of its presentation table, or an explicit `JOIN` clause — the semantic model resolves joins itself.
   </Accordion>
 </AccordionGroup>

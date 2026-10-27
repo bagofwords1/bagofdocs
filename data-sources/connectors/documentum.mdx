@@ -8,7 +8,7 @@ icon: "folder-open"
   The OpenText Documentum connector is part of the **Enterprise Edition**, and is currently in **beta**.
 </Note>
 
-Bag of words reads an OpenText Documentum repository through **Documentum REST Services** (`https://host/dctm-rest`, hypermedia JSON; a D2 REST root also works). Documents become a searchable **file catalog** the agent can grep and read — not tables.
+BOW reads an OpenText Documentum repository through **Documentum REST Services** (`https://host/dctm-rest`, hypermedia JSON; a D2 REST root also works). Documents become a searchable **file catalog** the agent can grep and read — not tables.
 
 The connector is **read-only**. Documents are addressed by their stable `r_object_id`, and display paths are shown relative to the configured root folder.
 
@@ -17,7 +17,7 @@ The connector is **read-only**. Documents are addressed by their stable `r_objec
 Two independent limits apply to every call, and both are re-enforced on **every read** rather than only at indexing time:
 
 1. **The connection's scope** — the root folder plus any include patterns. Anything outside it is invisible *and* unreadable.
-2. **Documentum's own ACLs** — every call runs as the authenticated identity, so the repository does the security trimming. Nothing is pre-authorized by Bag of words.
+2. **Documentum's own ACLs** — every call runs as the authenticated identity, so the repository does the security trimming. Nothing is pre-authorized by BOW.
 
 That second point is what makes the per-user modes worth setting up: with OTDS impersonation or OTDS sign-in, each person's session is genuinely theirs, and Documentum evaluates its ACLs against their identity.
 
@@ -77,7 +77,7 @@ A client-credentials grant: the connection acts as the OAuth client's own servic
 
 The per-user path that stores **no secret per user**. The admin's OTDS client stays on the connection and performs an RFC 8693 token exchange to mint a token *for* each user, so the Documentum session — and its ACL evaluation — is genuinely theirs. It layers over the connection's `otds_client` credentials.
 
-**Sign in with OTDS — `oauth`** (user scope, no fields). Each user completes an OTDS authorization-code flow and Bag of words stores and refreshes their token. Requires the OTDS client to be configured on the connection's system credentials.
+**Sign in with OTDS — `oauth`** (user scope, no fields). Each user completes an OTDS authorization-code flow and BOW stores and refreshes their token. Requires the OTDS client to be configured on the connection's system credentials.
 
 <Note>
   Per-user authentication on file connections does not require an Enterprise license — but the Documentum connector itself does. See [Authentication and access](/data-sources/authentication).
@@ -86,7 +86,7 @@ The per-user path that stores **no secret per user**. The admin's OTDS client st
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="A document is visible in Documentum but not in Bag of words">
+  <Accordion title="A document is visible in Documentum but not in BOW">
     It is outside the connection's scope. Check `root_path` first, then `include_globs` — when include patterns are set, anything not matching them is both invisible and unreadable.
   </Accordion>
 

@@ -4,7 +4,7 @@ description: "Chat with the analyst from Google Chat — outbound-only Pub/Sub c
 icon: "google"
 ---
 
-The Google Chat integration lets users in your Google Workspace domain DM the Bag of words analyst directly from Google Chat. It uses **Google Cloud Pub/Sub**: Google publishes chat events to a topic in your GCP project, and BOW **pulls** them over an outbound connection.
+The Google Chat integration lets users in your Google Workspace domain DM the BOW analyst directly from Google Chat. It uses **Google Cloud Pub/Sub**: Google publishes chat events to a topic in your GCP project, and BOW **pulls** them over an outbound connection.
 
 <Note>
   Because BOW pulls events outbound, **your server never needs to be reachable from the internet** — no public URL, no inbound firewall rules. This makes Google Chat a good fit for locked-down enterprise deployments.

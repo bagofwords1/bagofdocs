@@ -4,7 +4,7 @@ description: "Give the analyst its own mailbox — send answers by email and (op
 icon: "mail"
 ---
 
-The Email integration gives the Bag of words analyst **its own mailbox** (e.g., `analyst@acme.com`) — like a teammate with an inbox. BOW connects **outbound** to that one mailbox: it **sends** via SMTP and, optionally, **reads** incoming mail via IMAP. It never exposes an inbound port and never logs in as your end users.
+The Email integration gives the BOW analyst **its own mailbox** (e.g., `analyst@acme.com`) — like a teammate with an inbox. BOW connects **outbound** to that one mailbox: it **sends** via SMTP and, optionally, **reads** incoming mail via IMAP. It never exposes an inbound port and never logs in as your end users.
 
 - **Outbound only** — the analyst sends answers, scheduled reports, and notifications by email.
 - **Inbound enabled** — the mailbox becomes a full channel: users email the analyst a question and get an answer back, with the conversation saved as a BOW report.
@@ -102,5 +102,5 @@ For on-prem Exchange or providers that still allow IMAP/SMTP passwords (or app p
 
 ## How it's used
 
-- **Outbound**: the analyst sends answers, notifications, and scheduled report deliveries from the mailbox, as `From: Bag of words Analyst <analyst@acme.com>` (the display name is configurable).
+- **Outbound**: the analyst sends answers, notifications, and scheduled report deliveries from the mailbox, as `From: BOW Analyst <analyst@acme.com>` (the display name is configurable).
 - **Inbound** (if enabled): users email the analyst directly. BOW polls the inbox, matches the sender to a BOW account by email address, runs the question with that user's permissions, and replies in the same email thread. Each thread maps to a BOW report, same as chat channels.

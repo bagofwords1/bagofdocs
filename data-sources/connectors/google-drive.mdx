@@ -14,7 +14,7 @@ The **Google Drive** connector gives the agent read access to a user's Drive —
 
 This is a **per-user** connection: `catalog_ownership` is `per_user`, so there is no shared, admin-curated catalog. Each user's own Drive *is* their catalog, and no two users' catalogs overlap unless their Drives do. That is why the connector has **no config fields** — there is nothing for an admin to scope. The admin's only job is registering the OAuth client; the users do the rest by signing in.
 
-Once a user has connected, Bag of words reads their Drive with the Drive API (`https://www.googleapis.com/drive/v3`) and Google-native spreadsheets with the Sheets API (`https://sheets.googleapis.com/v4`). `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted. Access is read-only — the connector requests read-only scopes and cannot modify Drive.
+Once a user has connected, BOW reads their Drive with the Drive API (`https://www.googleapis.com/drive/v3`) and Google-native spreadsheets with the Sheets API (`https://sheets.googleapis.com/v4`). `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted. Access is read-only — the connector requests read-only scopes and cannot modify Drive.
 
 See [User context and per-user data](/data-sources/user-context) for how per-user connections behave in a conversation.
 
@@ -23,7 +23,7 @@ See [User context and per-user data](/data-sources/user-context) for how per-use
 - A **Google Cloud project** you can administer.
 - The **Google Drive API** and **Google Sheets API** enabled in that project.
 - Permission to configure the project's **OAuth consent screen**.
-- Your Bag of words base URL, for the redirect URI.
+- Your BOW base URL, for the redirect URI.
 
 ## Step 1 — Create a Google OAuth client
 
@@ -38,7 +38,7 @@ See [User context and per-user data](/data-sources/user-context) for how per-use
     **APIs & Services** → **Credentials** → **Create credentials** → **OAuth client ID**. Choose application type **Web application**.
 
     <Warning>
-      It must be a **Web application** client. Desktop, Android/iOS, and service-account credentials do not work with the authorization-code flow Bag of words uses.
+      It must be a **Web application** client. Desktop, Android/iOS, and service-account credentials do not work with the authorization-code flow BOW uses.
     </Warning>
   </Step>
   <Step title="Add the redirect URI">
@@ -48,10 +48,10 @@ See [User context and per-user data](/data-sources/user-context) for how per-use
     https://<your-bow-host>/api/connections/oauth/callback
     ```
 
-    Replace `<your-bow-host>` with your Bag of words base URL.
+    Replace `<your-bow-host>` with your BOW base URL.
   </Step>
   <Step title="Copy the client ID and secret">
-    Copy the **Client ID** and **Client secret** — these go into Bag of words.
+    Copy the **Client ID** and **Client secret** — these go into BOW.
   </Step>
 </Steps>
 
@@ -65,7 +65,7 @@ https://www.googleapis.com/auth/spreadsheets.readonly
 
 If your consent screen lists scopes explicitly, add these. Both Drive scopes are read-only.
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Google Drive**. There are **no config fields** — you only supply the OAuth client.
 
@@ -89,15 +89,15 @@ See [Authentication and access](/data-sources/authentication).
 
 ## Alternative: the Google Drive MCP preset
 
-Bag of words also ships a **Google Drive (MCP Preview)** preset that reaches Drive through Google's preview MCP server (`https://drivemcp.googleapis.com/mcp/v1`) rather than this native connector. It also needs a Google OAuth client, and it gives the agent Google's own Drive tools instead of the Bag of words file catalog. Add it from **Data Sources → Add data source → MCP** and pick the Google Drive preset. See [MCP servers](/data-sources/mcp).
+BOW also ships a **Google Drive (MCP Preview)** preset that reaches Drive through Google's preview MCP server (`https://drivemcp.googleapis.com/mcp/v1`) rather than this native connector. It also needs a Google OAuth client, and it gives the agent Google's own Drive tools instead of the BOW file catalog. Add it from **Data Sources → Add data source → MCP** and pick the Google Drive preset. See [MCP servers](/data-sources/mcp).
 
-Use the native connector when you want Drive files in the standard file catalog with Bag of words parsing and search; use the MCP preset when you specifically want Google's tool surface.
+Use the native connector when you want Drive files in the standard file catalog with BOW parsing and search; use the MCP preset when you specifically want Google's tool surface.
 
 ## Troubleshooting
 
 <AccordionGroup>
   <Accordion title="redirect_uri_mismatch on sign-in">
-    The **Authorized redirect URIs** list on the OAuth client must contain `https://<your-bow-host>/api/connections/oauth/callback` exactly, matching your Bag of words base URL.
+    The **Authorized redirect URIs** list on the OAuth client must contain `https://<your-bow-host>/api/connections/oauth/callback` exactly, matching your BOW base URL.
   </Accordion>
 
   <Accordion title="Sign-in works but the connector reports no access token">

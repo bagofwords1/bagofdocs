@@ -28,7 +28,7 @@ Because OneDrive's catalog is per user, there is no admin-side file list to inde
 
 ## How it works
 
-Bag of words calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to resolve the site and drive, walk folders, search, and download file content. `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted; plain-text formats are read as text.
+BOW calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to resolve the site and drive, walk folders, search, and download file content. `.csv`, `.tsv`, `.xlsx` and `.xls` are parsed into tables; `.pdf`, `.docx` and `.pptx` are text-extracted; plain-text formats are read as text.
 
 For SharePoint, `folder_path` is the server-side base — the efficient way to scope a connection — and `include_globs` is the access boundary on top of it. A file outside the globs is **denied**, not merely hidden, including for drive-wide search results.
 
@@ -40,7 +40,7 @@ For SharePoint, `folder_path` is the server-side base — the efficient way to s
 
 - A **Microsoft Entra ID app registration** in your tenant, with a client secret.
 - A Global Administrator (or Privileged Role Administrator) who can **grant admin consent** for the Graph permissions.
-- Your Bag of words base URL, for the OAuth redirect URI.
+- Your BOW base URL, for the OAuth redirect URI.
 - For SharePoint: the full site URL, and the name of the document library if it is not the site's default **Documents**.
 
 ## Step 1 — Register an Entra ID application
@@ -49,7 +49,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
 
 <Steps>
   <Step title="Create the app registration">
-    Name it (e.g. `Bag of words - Microsoft 365`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+    Name it (e.g. `BOW - Microsoft 365`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
   </Step>
   <Step title="Copy the Tenant ID and Client ID">
     From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**.
@@ -64,7 +64,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
     https://<your-bow-host>/api/connections/oauth/callback
     ```
 
-    Replace `<your-bow-host>` with your Bag of words base URL.
+    Replace `<your-bow-host>` with your BOW base URL.
   </Step>
 </Steps>
 
@@ -83,7 +83,7 @@ If you also want the shared service principal to enumerate SharePoint without a 
   Without admin consent, sign-in fails or returns a token with no usable Graph scopes. `offline_access` is required for the refresh token — omit it and users have to re-authenticate whenever the access token expires.
 </Warning>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source** and pick **SharePoint** or **OneDrive**.
 
@@ -137,7 +137,7 @@ See [Authentication and access](/data-sources/authentication) for how to require
   </Accordion>
 
   <Accordion title="The redirect URI does not match">
-    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your Bag of words base URL exactly, scheme and trailing path included.
+    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your BOW base URL exactly, scheme and trailing path included.
   </Accordion>
 
   <Accordion title="SharePoint files list but will not read">

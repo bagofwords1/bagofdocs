@@ -4,11 +4,11 @@ description: "Connect a Snowflake warehouse so the agent can explore its schemas
 icon: "snowflake"
 ---
 
-Bag of words connects to Snowflake with the standard Snowflake driver, reads the tables, views, and semantic views in the schemas you point it at, and runs SQL against a warehouse you choose. You can authenticate with a username and password, with **key pair (RSA) authentication** — the option most Snowflake accounts require once MFA is enforced on human users — or per-user with **Sign in with Snowflake** (OAuth), where each person signs in with their own Snowflake account and queries run under their own role and permissions.
+BOW connects to Snowflake with the standard Snowflake driver, reads the tables, views, and semantic views in the schemas you point it at, and runs SQL against a warehouse you choose. You can authenticate with a username and password, with **key pair (RSA) authentication** — the option most Snowflake accounts require once MFA is enforced on human users — or per-user with **Sign in with Snowflake** (OAuth), where each person signs in with their own Snowflake account and queries run under their own role and permissions.
 
 ## How it works
 
-Bag of words opens a connection scoped to one `database` and one or more `schema` values, using the `warehouse` you specify for compute (and the `role` you specify, if any). During indexing it reads:
+BOW opens a connection scoped to one `database` and one or more `schema` values, using the `warehouse` you specify for compute (and the `role` you specify, if any). During indexing it reads:
 
 - **Tables and views** from `INFORMATION_SCHEMA`, including table and column comments where they exist.
 - **Semantic views** — discovered with `SHOW SEMANTIC VIEWS` and described with `DESC SEMANTIC VIEW`. These are exposed to the agent alongside regular tables, and the agent knows to query them through the `SEMANTIC_VIEW()` function rather than as ordinary tables.
@@ -20,8 +20,8 @@ Schema names are normalized to uppercase, matching Snowflake's `INFORMATION_SCHE
 - A Snowflake **account identifier**, in the organization-account form (for example `ABCDEF-GHIJKL`). This is the identifier from your account URL, not the full hostname.
 - A **warehouse** the connecting user can use, and a **database** to query.
 - The names of the **schemas** you want indexed. One schema, or several as a comma-separated list.
-- A user for Bag of words to connect as. A dedicated service user with a read-only role is the usual pattern.
-- Network access from the Bag of words host to your Snowflake account. If your account restricts access by network policy, allow the Bag of words egress IP.
+- A user for BOW to connect as. A dedicated service user with a read-only role is the usual pattern.
+- Network access from the BOW host to your Snowflake account. If your account restricts access by network policy, allow the BOW egress IP.
 
 <Tip>
   Create a dedicated role with `USAGE` on the warehouse, database, and schemas, plus `SELECT` on the objects you want available, and grant it to the service user. Then set that role in the **Role** field so the connection can never see more than intended.
@@ -31,7 +31,7 @@ Schema names are normalized to uppercase, matching Snowflake's `INFORMATION_SCHE
 
 Skip this step if you are using a username and password.
 
-Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair yourself, register the **public** key on the Snowflake user, and paste the **private** key into Bag of words.
+Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair yourself, register the **public** key on the Snowflake user, and paste the **private** key into BOW.
 
 <Steps>
   <Step title="Generate the private key">
@@ -47,7 +47,7 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
     openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -nocrypt -out rsa_key.p8
     ```
 
-    Either form works. Bag of words accepts a PKCS#8 PEM private key and decrypts it with the passphrase you provide.
+    Either form works. BOW accepts a PKCS#8 PEM private key and decrypts it with the passphrase you provide.
   </Step>
   <Step title="Derive the public key">
     ```bash
@@ -81,7 +81,7 @@ Snowflake key-pair authentication uses a 2048-bit RSA key. You generate the pair
 
 Skip this step unless you want **Sign in with Snowflake** — per-user OAuth where each person queries as themselves.
 
-Snowflake acts as its own OAuth authorization server: you register Bag of words as a client with a **security integration**, then save the integration's client ID and secret on the connection.
+Snowflake acts as its own OAuth authorization server: you register BOW as a client with a **security integration**, then save the integration's client ID and secret on the connection.
 
 <Steps>
   <Step title="Create the security integration">
@@ -98,7 +98,7 @@ Snowflake acts as its own OAuth authorization server: you register Bag of words 
       OAUTH_REFRESH_TOKEN_VALIDITY = 7776000;  -- 90 days, the maximum
     ```
 
-    The redirect URI must match your Bag of words host exactly and must use HTTPS — for a local or non-TLS deployment, add `OAUTH_ALLOW_NON_TLS_REDIRECT_URI = TRUE`.
+    The redirect URI must match your BOW host exactly and must use HTTPS — for a local or non-TLS deployment, add `OAUTH_ALLOW_NON_TLS_REDIRECT_URI = TRUE`.
   </Step>
   <Step title="Read the client ID and secret">
     ```sql
@@ -108,15 +108,15 @@ Snowflake acts as its own OAuth authorization server: you register Bag of words 
     Copy `OAUTH_CLIENT_ID` and one of the `OAUTH_CLIENT_SECRET` values — they go into the connection's **OAuth Client ID** and **OAuth Client Secret** fields in Step 3.
   </Step>
   <Step title="Check the roles users will sign in with">
-    A Snowflake OAuth session cannot use `ACCOUNTADMIN` or `SECURITYADMIN` (they are on the integration's blocked-roles list by default). With the connection's **Role** field blank, each token is bound to the user's **default role**, so that role needs `USAGE` on the warehouse, database, and schemas. If you set a **Role** on the connection, Bag of words requests the `session:role:<ROLE>` scope so the token authorizes exactly that role — users still need the role granted to them.
+    A Snowflake OAuth session cannot use `ACCOUNTADMIN` or `SECURITYADMIN` (they are on the integration's blocked-roles list by default). With the connection's **Role** field blank, each token is bound to the user's **default role**, so that role needs `USAGE` on the warehouse, database, and schemas. If you set a **Role** on the connection, BOW requests the `session:role:<ROLE>` scope so the token authorizes exactly that role — users still need the role granted to them.
   </Step>
 </Steps>
 
 <Note>
-  `OAUTH_ISSUE_REFRESH_TOKENS = TRUE` is what lets Bag of words renew the short-lived access token (about 10 minutes) without asking the user to sign in again. When the refresh token itself expires — 90 days at most — the user reconnects.
+  `OAUTH_ISSUE_REFRESH_TOKENS = TRUE` is what lets BOW renew the short-lived access token (about 10 minutes) without asking the user to sign in again. When the refresh token itself expires — 90 days at most — the user reconnects.
 </Note>
 
-## Step 3 — Add the connection in Bag of words
+## Step 3 — Add the connection in BOW
 
 Go to **Data Sources → Add data source → Snowflake** and fill in the form.
 
@@ -150,10 +150,10 @@ Snowflake supports three modes. Username/password and key pair can be used as a 
     | `private_key_pem` | Yes | The **full** PEM private key, including the `-----BEGIN ... PRIVATE KEY-----` and `-----END ... PRIVATE KEY-----` lines and the newlines between them. Paste the contents of `rsa_key.p8`. |
     | `private_key_passphrase` | No | Passphrase that decrypts the key. Leave blank when the key was generated with `-nocrypt`. |
 
-    Bag of words parses the PEM, decrypts it with the passphrase if one is given, and hands the key to the Snowflake driver. No passphrase is sent to Snowflake.
+    BOW parses the PEM, decrypts it with the passphrase if one is given, and hands the key to the Snowflake driver. No passphrase is sent to Snowflake.
   </Tab>
   <Tab title="Sign in with Snowflake (OAuth)">
-    Per-user only, and requires the security integration from Step 2. Users fill in **no fields** — clicking **Connect** on the data source sends them to Snowflake's sign-in (password, MFA, and the consent screen), and Bag of words stores and auto-refreshes their token.
+    Per-user only, and requires the security integration from Step 2. Users fill in **no fields** — clicking **Connect** on the data source sends them to Snowflake's sign-in (password, MFA, and the consent screen), and BOW stores and auto-refreshes their token.
 
     The integration's client belongs on the connection's **system credentials**, next to the shared username/password or key pair:
 

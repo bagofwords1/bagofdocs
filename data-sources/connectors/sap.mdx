@@ -1,10 +1,10 @@
 ---
 title: "SAP"
-description: "Connect SAP HANA, SAP BW, SAP Datasphere, and SAP BusinessObjects to Bag of words"
+description: "Connect SAP HANA, SAP BW, SAP Datasphere, and SAP BusinessObjects to BOW"
 icon: "database"
 ---
 
-Bag of words ships four SAP connectors. They are complementary rather than alternatives: each reaches a different layer of the SAP landscape, with its own catalog, query language, and security model. This page covers all four — pick the one that matches the system you want to query, or connect several.
+BOW ships four SAP connectors. They are complementary rather than alternatives: each reaches a different layer of the SAP landscape, with its own catalog, query language, and security model. This page covers all four — pick the one that matches the system you want to query, or connect several.
 
 | Connector | What it reaches | Query language | Per-user security |
 | :-- | :-- | :-- | :-- |
@@ -25,7 +25,7 @@ Plain SQL against the HANA SQL port via SAP's official `hdbcli` driver. Covers o
 
 ### How it works
 
-Bag of words connects with the configured database user and introspects `SYS.TABLE_COLUMNS` / `SYS.VIEW_COLUMNS` (joined to `SYS.TABLES` / `SYS.VIEWS` for comments, plus `SYS.CONSTRAINTS` for primary keys). Tables **and views** are both first-class — Datasphere exposes only views. If the enriched introspection fails on a low-privilege user, it falls back to a minimal query without comments or keys.
+BOW connects with the configured database user and introspects `SYS.TABLE_COLUMNS` / `SYS.VIEW_COLUMNS` (joined to `SYS.TABLES` / `SYS.VIEWS` for comments, plus `SYS.CONSTRAINTS` for primary keys). Tables **and views** are both first-class — Datasphere exposes only views. If the enriched introspection fails on a low-privilege user, it falls back to a minimal query without comments or keys.
 
 Unless you scope the connection to specific schemas, HANA's own and SAP-delivered schemas are filtered out of discovery: `SYS`, `SYSTEMDB`, `PUBLIC`, `UIS`, `HANA_XS_BASE`, `SAP_XS_LM`, and anything starting with `_SYS`, `SAP_`, `XSSQLCC`, `HDI_`, or `BROKER_`.
 
@@ -33,7 +33,7 @@ Each object is exposed to the agent as `SCHEMA.OBJECT`. The agent writes HANA SQ
 
 ### Before you start
 
-- The SQL port must be reachable from the Bag of words backend host: `443` for HANA Cloud and Datasphere, `3<instance>13` or `3<instance>41` on-premise.
+- The SQL port must be reachable from the BOW backend host: `443` for HANA Cloud and Datasphere, `3<instance>13` or `3<instance>41` on-premise.
 - A database user with `SELECT` on the objects you want. For Datasphere, that is a **space database user** such as `MYSPACE#ANALYST`, created in the space's database-access settings.
 - For Datasphere, the views must be marked **Expose for Consumption** — nothing else is readable in the Open SQL schema.
 
@@ -74,7 +74,7 @@ BW / BW4HANA InfoProviders and BEx queries, queried with **MDX** over BW's stand
 
 ### How it works
 
-Bag of words builds the endpoint URL from the server base URL plus the XMLA ICF path, then speaks the same XMLA contract as every other XMLA source:
+BOW builds the endpoint URL from the server base URL plus the XMLA ICF path, then speaks the same XMLA contract as every other XMLA source:
 
 1. `DBSCHEMA_CATALOGS` for catalogs, `MDSCHEMA_CUBES` for the InfoProviders and released queries in each.
 2. `MDSCHEMA_HIERARCHIES` and `MDSCHEMA_MEASURES` for each cube — BW characteristics become dimension columns, key figures become measure columns.
@@ -155,7 +155,7 @@ Each model is a schema table named `Space/Model`. The agent writes OData query o
 
 - Objects must be marked **Expose for Consumption** in Datasphere; nothing else appears in the catalog.
 - An OAuth client from **Administration → App Integration** in the Datasphere tenant. That page also shows the tenant's **token** and **authorize** URLs — copy them from there rather than constructing them.
-- For per-user sign-in, a second OAuth client of purpose **Interactive Usage** whose redirect URI is your Bag of words callback.
+- For per-user sign-in, a second OAuth client of purpose **Interactive Usage** whose redirect URI is your BOW callback.
 
 ### Step 1 — Create the OAuth clients
 
@@ -240,7 +240,7 @@ On-prem **universes** (the BOBJ semantic layer) through the `/biprws` RESTful We
     Enable it in **CMC → Authentication → Enterprise → Trusted Authentication**, then use the generated shared secret (the value distributed as `TrustedPrincipal.conf`).
 
     <Warning>
-      The shared secret lets Bag of words log on as **any** named user. Treat it as a high-privilege credential, restrict it to the accounts you intend, and rotate it in the CMC if it is ever exposed.
+      The shared secret lets BOW log on as **any** named user. Treat it as a high-privilege credential, restrict it to the accounts you intend, and rotate it in the CMC if it is ever exposed.
     </Warning>
   </Tab>
 </Tabs>

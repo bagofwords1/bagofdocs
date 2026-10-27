@@ -8,7 +8,7 @@ icon: "hard-drive"
   The NetApp ONTAP connector ships as **beta**. It has been verified against a simulator, not yet against a customer appliance — see [What "beta" means here](#what-beta-means-here).
 </Note>
 
-Bag of words queries an on-premises ONTAP cluster's **REST API** so the agent can investigate storage incidents in place: inventory, topology, performance, events and the rest of the diagnostic surface, presented as tables.
+BOW queries an on-premises ONTAP cluster's **REST API** so the agent can investigate storage incidents in place: inventory, topology, performance, events and the rest of the diagnostic surface, presented as tables.
 
 All network I/O is **GET-only**. There is no write path in this connector at all.
 
@@ -28,7 +28,7 @@ A few properties are deliberate, because the output is meant to be evidence:
 ## Before you start
 
 - An ONTAP account with **HTTP application access** and read-only diagnostic permissions. A dedicated read-only account is the right shape here — the connector never needs more.
-- The cluster management LIF must be reachable from the Bag of words backend over HTTPS.
+- The cluster management LIF must be reachable from the BOW backend over HTTPS.
 - If the cluster uses a private CA, have its PEM certificate ready. Certificate verification is **always on**; the certificate field is how you make it succeed, not how you skip it.
 
 ## Fields

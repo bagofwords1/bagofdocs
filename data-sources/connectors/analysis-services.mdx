@@ -4,7 +4,7 @@ description: "Connect SSAS Multidimensional and Tabular models and query them wi
 icon: "boxes"
 ---
 
-Bag of words connects to **SQL Server Analysis Services (SSAS)** over **XMLA**, discovers every catalog and cube the account can see, and runs **MDX** or **DAX** against them. Both SSAS model types are supported: Multidimensional (MDX) and Tabular (DAX or MDX).
+BOW connects to **SQL Server Analysis Services (SSAS)** over **XMLA**, discovers every catalog and cube the account can see, and runs **MDX** or **DAX** against them. Both SSAS model types are supported: Multidimensional (MDX) and Tabular (DAX or MDX).
 
 <Note>
   The Microsoft Analysis Services connector is part of the **Enterprise Edition**.
@@ -12,7 +12,7 @@ Bag of words connects to **SQL Server Analysis Services (SSAS)** over **XMLA**, 
 
 ## How it works
 
-XMLA is a SOAP-over-HTTP protocol. Bag of words posts to the endpoint URL you configure, authenticating with **HTTP Basic** on every request — XMLA is stateless, so there is no logon round-trip.
+XMLA is a SOAP-over-HTTP protocol. BOW posts to the endpoint URL you configure, authenticating with **HTTP Basic** on every request — XMLA is stateless, so there is no logon round-trip.
 
 1. Lists catalogs (databases) with a `DBSCHEMA_CATALOGS` Discover.
 2. Lists the cubes/models in each catalog (`MDSCHEMA_CUBES`).
@@ -21,12 +21,12 @@ XMLA is a SOAP-over-HTTP protocol. Bag of words posts to the endpoint URL you co
 
 Each cube is exposed to the agent as a schema table named `Catalog/Cube` (for example `AdventureWorks/Sales`). Its columns are the cube's dimension hierarchies (`dtype="dimension"`) and measures (`dtype="measure"`); the unique name needed to write a query is carried in each column's `metadata.unique_name`.
 
-**Model-type detection.** For each catalog, Bag of words probes the Tabular metadata DMV `SELECT * FROM $SYSTEM.TMSCHEMA_MODEL`. If it succeeds, the catalog is recorded as `TABULAR` (DAX and MDX both work); if it fails, the catalog is treated as `MULTIDIMENSIONAL`, which is always safe because MDX runs on both. Sending DAX at a Multidimensional target is rejected before the request leaves Bag of words, with an explicit "use MDX instead" error rather than a cryptic server fault.
+**Model-type detection.** For each catalog, BOW probes the Tabular metadata DMV `SELECT * FROM $SYSTEM.TMSCHEMA_MODEL`. If it succeeds, the catalog is recorded as `TABULAR` (DAX and MDX both work); if it fails, the catalog is treated as `MULTIDIMENSIONAL`, which is always safe because MDX runs on both. Sending DAX at a Multidimensional target is rejected before the request leaves BOW, with an explicit "use MDX instead" error rather than a cryptic server fault.
 
 ## Before you start
 
-- The SSAS **XMLA endpoint must be published over HTTP(S)**. SSAS's native protocol is TCP (port 2383 by default) and Bag of words does not speak it — the only supported transport is XMLA over HTTP, which means the **`msmdpump.dll` IIS pump** (see Step 1).
-- The Bag of words backend host must be able to reach that URL. There is no path discovery and no redirect following: whatever URL works in `curl` is the URL to paste into the form, verbatim.
+- The SSAS **XMLA endpoint must be published over HTTP(S)**. SSAS's native protocol is TCP (port 2383 by default) and BOW does not speak it — the only supported transport is XMLA over HTTP, which means the **`msmdpump.dll` IIS pump** (see Step 1).
+- The BOW backend host must be able to reach that URL. There is no path discovery and no redirect following: whatever URL works in `curl` is the URL to paste into the form, verbatim.
 - The pump's IIS application must accept **Basic authentication** — that is the only scheme the connector sends.
 - An SSAS account with read access to the databases you want to query.
 - If the endpoint uses a certificate signed by an internal CA that the backend host does not trust, either install the CA or turn off **Verify SSL**.
@@ -67,7 +67,7 @@ https://<server>/olap/msmdpump.dll
   Quick liveness check: a working XMLA endpoint is **POST-only**, so a plain `GET` on it returns **HTTP 405**. A `404` means the URL path is wrong (or the ISAPI extension is blocked), never a broken client.
 </Tip>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Microsoft Analysis Services** and fill in the form.
 
@@ -124,7 +124,7 @@ Cubes are addressed as `Catalog/Cube`, and members and measures are referenced b
   </Accordion>
 
   <Accordion title="Connection timed out">
-    Nothing answered on the port. Check firewall rules between the Bag of words backend and the IIS server, and the port in the URL. Raising `timeout_sec` helps only when the server is slow, not when it is unreachable.
+    Nothing answered on the port. Check firewall rules between the BOW backend and the IIS server, and the port in the URL. Raising `timeout_sec` helps only when the server is slow, not when it is unreachable.
   </Accordion>
 
   <Accordion title="'DAX queries are only supported on Tabular models'">

@@ -4,7 +4,7 @@ description: "Reference for the database and query-engine connectors that need o
 icon: "database"
 ---
 
-This is a reference page for the connectors that need no external app registration, tenant setting, or admin consent — just **network access from the Bag of words host** and a **login with read permission**. Add them under **Data Sources → Add data source**, fill in the fields below, test the connection, and pick the tables the agent may use.
+This is a reference page for the connectors that need no external app registration, tenant setting, or admin consent — just **network access from the BOW host** and a **login with read permission**. Add them under **Data Sources → Add data source**, fill in the fields below, test the connection, and pick the tables the agent may use.
 
 Connectors with real external setup have their own pages: [Snowflake](/data-sources/connectors/snowflake), [Google BigQuery](/data-sources/connectors/bigquery), and [Microsoft SQL Server](/data-sources/connectors/sql-server).
 
@@ -20,7 +20,7 @@ Connectors with real external setup have their own pages: [Snowflake](/data-sour
 | **MySQL** `mysql` | `host`, `port`, `database` | Username / Password | `user` and `password` may both be blank for anonymous access. |
 | **MariaDB** `mariadb` | `host`, `port`, `database` | Username / Password | Same shape as MySQL. |
 | **Oracle Database** `oracledb` | `host`, `port` (1521), `service_name`, `schema`, `use_tcps` (false), `verify_ssl` (true) | Username / Password | Connect by **service name**, not SID. |
-| **SQLite** `sqlite` | `database` | No auth *(shared only)* | `database` is an absolute path on the Bag of words host. |
+| **SQLite** `sqlite` | `database` | No auth *(shared only)* | `database` is an absolute path on the BOW host. |
 | **DuckDB** `duckdb` | `uris` | No auth *(shared)*, AWS Keys *(shared)*, GCP Service Account, Azure Connection String *(shared)* | Queries files in object storage as views. See below. |
 | **ClickHouse** `clickhouse` | `host`, `port` (8123), `database`, `secure` (true) | Username / Password | `database` is optional and takes a comma-separated list; blank means all databases. |
 | **Trino** `trino` | `host`, `port` (8080), `catalog`, `schema`, `protocol` (`http`) | Username / Password | `catalog` and `schema` are both required. See below. |
@@ -43,7 +43,7 @@ Connectors with real external setup have their own pages: [Snowflake](/data-sour
 
 ### DuckDB
 
-DuckDB is not a server connection. `uris` holds either the path to a local `.duckdb` file, or **one URI pattern per line** pointing at parquet or CSV files, which Bag of words registers as views and queries in-process. Wildcards are supported:
+DuckDB is not a server connection. `uris` holds either the path to a local `.duckdb` file, or **one URI pattern per line** pointing at parquet or CSV files, which BOW registers as views and queries in-process. Wildcards are supported:
 
 ```text
 s3://analytics-lake/events/*.parquet
@@ -99,7 +99,7 @@ For **Atlas**, set `use_srv` to true — the connection then uses `mongodb+srv:/
 
 ### Spark
 
-Runs Spark SQL against a remote cluster over **Spark Connect** (`sc://`). Compute stays on the cluster — Bag of words sends SQL and receives results, with no in-process engine on the Bag of words server.
+Runs Spark SQL against a remote cluster over **Spark Connect** (`sc://`). Compute stays on the cluster — BOW sends SQL and receives results, with no in-process engine on the BOW server.
 
 Leave `catalog` blank to use the session default, and `database` blank to discover all databases (it also takes a comma-separated list). `require_partition_filter` is a guardrail worth turning on for large lakehouse tables: queries that would scan a partitioned table without filtering on a partition column are rejected via `EXPLAIN` before they run.
 
@@ -123,7 +123,7 @@ Athena is serverless: there is no host or port, only a `region` and a Glue `data
 
 `s3_output_location` is where Athena writes query results. Leave it blank **only if** your `workgroup` has a default output location configured; otherwise set it to an S3 URI the identity can write to, since Athena cannot return results without one.
 
-The default auth mode, **AWS Default (IAM Role / Instance Profile)**, takes no fields at all — it uses the ambient AWS credentials of the Bag of words host, which is the right choice when it runs on EC2, ECS, or EKS with an attached role. Otherwise use **AWS Access Keys**, which takes `access_key`, `secret_key`, and `role_arn`.
+The default auth mode, **AWS Default (IAM Role / Instance Profile)**, takes no fields at all — it uses the ambient AWS credentials of the BOW host, which is the right choice when it runs on EC2, ECS, or EKS with an attached role. Otherwise use **AWS Access Keys**, which takes `access_key`, `secret_key`, and `role_arn`.
 
 ## Related
 

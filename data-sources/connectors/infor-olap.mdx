@@ -4,7 +4,7 @@ description: "Connect Infor d/EPM OLAP cubes over the XMLA Provider and query th
 icon: "server"
 ---
 
-Bag of words connects to the **Infor d/EPM OLAP XMLA Provider** — the supported entry point for on-premise Infor OLAP / Infor BI (25.x), since native connections were removed — discovers the cubes in each OLAP database, and runs **MDX** against them.
+BOW connects to the **Infor d/EPM OLAP XMLA Provider** — the supported entry point for on-premise Infor OLAP / Infor BI (25.x), since native connections were removed — discovers the cubes in each OLAP database, and runs **MDX** against them.
 
 <Note>
   The Infor OLAP connector is part of the **Enterprise Edition**.
@@ -12,7 +12,7 @@ Bag of words connects to the **Infor d/EPM OLAP XMLA Provider** — the supporte
 
 ## How it works
 
-XMLA is a SOAP-over-HTTP protocol. Bag of words posts to the endpoint you configure and:
+XMLA is a SOAP-over-HTTP protocol. BOW posts to the endpoint you configure and:
 
 1. Lists catalogs (OLAP databases) with a `DBSCHEMA_CATALOGS` Discover.
 2. Lists cubes per catalog (`MDSCHEMA_CUBES`), then their hierarchies (`MDSCHEMA_HIERARCHIES`) and measures (`MDSCHEMA_MEASURES`).
@@ -22,14 +22,14 @@ Each cube becomes a schema table named `Catalog/Cube` (for example `Finance/GL`)
 
 **Two things are specific to Infor and worth understanding before you configure anything:**
 
-**The application identity travels inside the XMLA request.** Infor database workers authenticate from `UserName`, `Password`, and `Tenant` properties in each request's XMLA `PropertyList` — not from HTTP Basic. Bag of words sends both: HTTP Basic reaches the endpoint, and the XMLA properties establish the Infor application identity. Sending Basic alone reaches the worker but leaves the username empty, which the worker rejects.
+**The application identity travels inside the XMLA request.** Infor database workers authenticate from `UserName`, `Password`, and `Tenant` properties in each request's XMLA `PropertyList` — not from HTTP Basic. BOW sends both: HTTP Basic reaches the endpoint, and the XMLA properties establish the Infor application identity. Sending Basic alone reaches the worker but leaves the username empty, which the worker rejects.
 
-**Farms route through a manager.** Infor's documented connection flow is to send `DISCOVER_DATASOURCES` to the **OLAP Service Manager** at `http(s)://<server>:<manager_port>/BI/APP/SOAP/OLAPDB`. The response lists each database with the URL of the **Database Worker** that serves it, and all subsequent traffic goes to that worker URL. Enable **Manager discovery** to have Bag of words perform this bootstrap on connect.
+**Farms route through a manager.** Infor's documented connection flow is to send `DISCOVER_DATASOURCES` to the **OLAP Service Manager** at `http(s)://<server>:<manager_port>/BI/APP/SOAP/OLAPDB`. The response lists each database with the URL of the **Database Worker** that serves it, and all subsequent traffic goes to that worker URL. Enable **Manager discovery** to have BOW perform this bootstrap on connect.
 
 ## Before you start
 
 - Decide which endpoint you have: a **Database Worker** XMLA URL (point at it directly) or the **OLAP Service Manager** URL (enable manager discovery). Worker endpoint paths are farm-specific; the manager endpoint is the documented, stable entry point.
-- The Bag of words backend host must reach that URL. The connector posts to the exact URL configured — no path discovery, no redirect handling.
+- The BOW backend host must reach that URL. The connector posts to the exact URL configured — no path discovery, no redirect handling.
 - An Infor EPM user with read access to the OLAP database.
 - Know your **Tenant** value (`single` on single-tenant farms) and whether the datasource is advertised as **Secured** — manager discovery matches on both.
 - For **ION API Gateway** routing, a backend-service `.ionapi` credentials file for an authorized application. You will need its `pu` + `ot` (token URL), `ci` (client ID), and `cs` (client secret) values.
@@ -51,7 +51,7 @@ Each cube becomes a schema table named `Catalog/Cube` (for example `Finance/GL`)
     http(s)://<server>:<manager_port>/BI/APP/SOAP/OLAPDB
     ```
 
-    Turn **Manager discovery** on. On connect, Bag of words sends `DISCOVER_DATASOURCES` (carrying `Tenant`, the `Secured` value, and — if you set **Catalog** — a `Databasename` restriction), picks the matching database, and switches to its worker URL. **Test Connection** reports the resolved worker URL so you can confirm what it picked.
+    Turn **Manager discovery** on. On connect, BOW sends `DISCOVER_DATASOURCES` (carrying `Tenant`, the `Secured` value, and — if you set **Catalog** — a `Databasename` restriction), picks the matching database, and switches to its worker URL. **Test Connection** reports the resolved worker URL so you can confirm what it picked.
 
     If the manager hosts more than one database, you must set **Catalog**; otherwise the connection fails with the list of available database names.
   </Tab>
@@ -72,7 +72,7 @@ When the OLAP farm is fronted by ION API Gateway or another reverse proxy, the w
     Put the API-suite route that sits in front of `/BI/APP/SOAP/OLAPDB` into **Worker URL base**. It must be an absolute URL. The path returned by discovery is appended to it, and the scheme and host of that base win — which is what makes an HTTPS gateway route survive in front of an HTTP OLAP farm.
   </Step>
   <Step title="Switch the credentials to ION API Gateway">
-    Choose the **ION API Gateway** authentication mode and fill it from the backend-service `.ionapi` file: `pu` + `ot` form the token URL, `ci` is the client ID, `cs` is the client secret. Bag of words performs an OAuth **client-credentials** grant, caches the token until shortly before it expires, sends it as a bearer token on every XMLA call, and retries once with a fresh token if the gateway answers HTTP 401.
+    Choose the **ION API Gateway** authentication mode and fill it from the backend-service `.ionapi` file: `pu` + `ot` form the token URL, `ci` is the client ID, `cs` is the client secret. BOW performs an OAuth **client-credentials** grant, caches the token until shortly before it expires, sends it as a bearer token on every XMLA call, and retries once with a fresh token if the gateway answers HTTP 401.
   </Step>
   <Step title="Keep the EPM user">
     The gateway credentials authenticate the *route*, not the OLAP user. The Infor username and password are still required and still travel in the XMLA `PropertyList` on every worker request.
@@ -83,7 +83,7 @@ When the OLAP farm is fronted by ION API Gateway or another reverse proxy, the w
   Set **Secured** to match the value `DISCOVER_DATASOURCES` advertises for the datasource. It describes the Infor datasource itself — not the transport — so it stays as the farm reports it even when an HTTPS gateway fronts an HTTP OLAP farm.
 </Note>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Infor OLAP** and fill in the form.
 

@@ -1,10 +1,10 @@
 ---
 title: 'Day 2 Operations'
 icon: 'shield-check'
-description: 'Production guide: backups, high availability, upgrades and automatic updates, monitoring and security for running Bag of Words'
+description: 'Production guide: backups, high availability, upgrades and automatic updates, monitoring and security for running BOW'
 ---
 
-Installing Bag of Words is the easy part. This page is a checklist for the system administrator who keeps it running: what to back up, how to run more than one replica, how to upgrade safely, and what to monitor.
+Installing BOW is the easy part. This page is a checklist for the system administrator who keeps it running: what to back up, how to run more than one replica, how to upgrade safely, and what to monitor.
 
 <Info>
 New to deployment? Start with [Deployment Options](/install), then come back here before you go live.
@@ -26,7 +26,7 @@ New to deployment? Start with [Deployment Options](/install), then come back her
 
 ## What to back up
 
-Bag of Words keeps its state in five places. Back up all of them. A database backup alone is **not** enough to restore a working system.
+BOW keeps its state in five places. Back up all of them. A database backup alone is **not** enough to restore a working system.
 
 | What | Where | Why it matters |
 | --- | --- | --- |
@@ -167,7 +167,7 @@ config:
 
 ## Upgrades
 
-There are two ways to keep Bag of Words up to date:
+There are two ways to keep BOW up to date:
 
 - **Planned upgrades**: you choose the version, back up, upgrade and verify. Recommended for production.
 - **Automatic updates** (Docker Compose only): a cron job pulls new images on a schedule and restarts only the containers that changed. Good for evaluation, internal or low-risk instances. See [Automatic updates with Docker Compose](#automatic-updates-with-docker-compose).
@@ -265,7 +265,7 @@ Redeploying an older image against an already migrated database is not supported
 For Docker Compose installs, a small script keeps the deployment on the newest image. It is meant to run from cron. Each run:
 
 1. Pulls the latest images for every service in the Compose file.
-2. Recreates only the containers whose image changed. Services with unchanged images keep running without interruption. The updated containers restart, so expect a short interruption of Bag of Words while the new container starts and runs migrations.
+2. Recreates only the containers whose image changed. Services with unchanged images keep running without interruption. The updated containers restart, so expect a short interruption of BOW while the new container starts and runs migrations.
 3. Removes dangling images to free disk space.
 
 The script follows the tags in your Compose file. With `bagofwords/bagofwords:latest` it moves to every new release. With a pinned tag such as `0.0.587` it only picks up a rebuild of that same tag, so to move to a new version you still change the tag yourself.
@@ -391,7 +391,7 @@ Other schedules:
 | Once a month (1st of the month at midnight) | `0 0 1 * *` |
 
 <Tip>
-Pick a quiet time, since the Bag of Words container restarts whenever a new image is found. Once a day outside working hours is enough for most teams.
+Pick a quiet time, since the BOW container restarts whenever a new image is found. Once a day outside working hours is enough for most teams.
 </Tip>
 
 #### Logs

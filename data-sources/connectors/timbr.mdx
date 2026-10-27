@@ -4,7 +4,7 @@ description: "Connect a Timbr ontology and query concepts, relationships, and me
 icon: "table"
 ---
 
-Bag of words connects to a **Timbr** server, discovers the concepts, properties, relationships, and measures of an ontology, and queries them with SQL through the Timbr query API. Because Timbr is an ontology-based semantic layer, the agent gets business-level entities and pre-defined measures rather than raw physical tables.
+BOW connects to a **Timbr** server, discovers the concepts, properties, relationships, and measures of an ontology, and queries them with SQL through the Timbr query API. Because Timbr is an ontology-based semantic layer, the agent gets business-level entities and pre-defined measures rather than raw physical tables.
 
 <Note>
   The Timbr AI connector is part of the **Enterprise Edition**.
@@ -16,7 +16,7 @@ All traffic goes to the Timbr REST API at `<host>/timbr/api`, authenticated with
 
 Discovery is **permission-aware**:
 
-1. Bag of words reads `timbr.sys_permissions` to find the schemas the key can `QUERY`.
+1. BOW reads `timbr.sys_permissions` to find the schemas the key can `QUERY`.
 2. For concepts it picks the richest accessible schema, preferring `dtimbr` over `etimbr` over `timbr`. If the permissions table lists no schema-level grants, it probes each schema directly instead and uses the first that answers.
 3. Concepts come from `timbr.sys_concepts`; each one is described with `DESCRIBE concept` to build its columns.
 4. If `vtimbr` is accessible, views are discovered from `timbr.sys_views` and their columns parsed from each view's definition.
@@ -36,7 +36,7 @@ The `thing` root concept is excluded from discovery.
 - A **Timbr API key** with `QUERY` permission on the schemas you want indexed: at least one of `dtimbr` / `etimbr` / `timbr` for concepts, and `vtimbr` if you want views. Relationship traversal is only available in `dtimbr`, so grant it when you want the agent to follow relationships instead of writing joins.
 - If the Timbr server uses a certificate signed by an internal CA the backend host does not trust, turn off **Verify SSL**.
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Timbr AI** and fill in the form.
 

@@ -6,7 +6,7 @@ icon: 'circle-check'
 
 ## Why evals matter
 
-A successful AI analyst is a reliable AI analyst. To measure and improve reliability, Bag of words provides **Evals** — lightweight tests you can run against your agent and data sources any time. Evals set a repeatable benchmark for your AI analyst and make continuous development safe as context evolves (instructions, tables, definitions) or models change.
+A successful AI analyst is a reliable AI analyst. To measure and improve reliability, BOW provides **Evals** — lightweight tests you can run against your agent and data sources any time. Evals set a repeatable benchmark for your AI analyst and make continuous development safe as context evolves (instructions, tables, definitions) or models change.
 
 <Note>
 Run evals regularly to set a standard for your AI analyst and catch regressions as you update instructions, modify tables, edit context, or switch LLMs.
@@ -14,7 +14,7 @@ Run evals regularly to set a standard for your AI analyst and catch regressions 
 
 ## Deterministic checks vs. Judge checks
 
-Bag of words supports two complementary evaluation styles:
+BOW supports two complementary evaluation styles:
 
 - **Deterministic tests (Create Data rules)**: Strict, machine-checkable assertions like “used tables contain `customer` and `payment`”, “row count is greater than 0”, or “generated code is valid SQL”. These are great to prevent regressions and ensure required sources/columns are used.
 - **Judge tests (LLM Judge)**: Natural-language scoring using a small model that reads the full agent trace and decides Pass/Fail from a rubric. Perfect for presentation, UX and reasoning behaviors that aren’t easily captured by strict rules (e.g., “should produce a bar chart and explain groupings clearly”).

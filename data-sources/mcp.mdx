@@ -4,10 +4,10 @@ description: "Connect any MCP server, then govern which tools the agent may call
 icon: "plug"
 ---
 
-An **MCP connection** points Bag of words at a Model Context Protocol server. The server's tools become tools the agent can call during a conversation — creating a Monday item, searching Notion, opening a GitHub issue, querying an internal service.
+An **MCP connection** points BOW at a Model Context Protocol server. The server's tools become tools the agent can call during a conversation — creating a Monday item, searching Notion, opening a GitHub issue, querying an internal service.
 
 <Note>
-  This is the opposite direction from [the Bag of words MCP server](/using-bow/mcp), which lets Claude or Cursor query _your_ data. Here, BOW is the client and the external server provides the tools.
+  This is the opposite direction from [the BOW MCP server](/using-bow/mcp), which lets Claude or Cursor query _your_ data. Here, BOW is the client and the external server provides the tools.
 </Note>
 
 <Note>
@@ -16,7 +16,7 @@ An **MCP connection** points Bag of words at a Model Context Protocol server. Th
 
 ## Presets vs custom servers
 
-Bag of words ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, HubSpot, Google Drive, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+BOW ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, HubSpot, Google Drive, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
 
 For anything else, add a **custom MCP server** and supply the details yourself.
 
@@ -63,7 +63,7 @@ If DCR fails with `does not advertise a registration_endpoint`, the server does 
 
 ## OAuth MCP integration
 
-OAuth connects an MCP server without turning a shared secret into a shared identity. Each user authorizes the connection with their own account, and tool calls use that user's token and the policies configured in Bag of words.
+OAuth connects an MCP server without turning a shared secret into a shared identity. Each user authorizes the connection with their own account, and tool calls use that user's token and the policies configured in BOW.
 
 The setup flow is:
 
@@ -82,7 +82,7 @@ Use dynamic registration whenever the server supports it, so you never create or
 
 ## Tool discovery
 
-When you save the connection, Bag of words asks the server for its tools and stores each one with its name, description, and input schema. Re-run discovery any time from the connection's tools view — after the server ships new tools, for example.
+When you save the connection, BOW asks the server for its tools and stores each one with its name, description, and input schema. Re-run discovery any time from the connection's tools view — after the server ships new tools, for example.
 
 Discovery never silently empties your tool list: if a refresh returns nothing (usually a transient outage), the existing tools and their policies are left untouched.
 
@@ -117,7 +117,7 @@ Admins set connection defaults and agent overrides; any user with access can set
 
 ## Per-user identity
 
-Many internal MCP servers need to know _who_ is asking — to apply their own permissions or to write audit records. Bag of words can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
+Many internal MCP servers need to know _who_ is asking — to apply their own permissions or to write audit records. BOW can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
 
 ## Adding a connection
 
