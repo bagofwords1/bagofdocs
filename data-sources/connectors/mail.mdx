@@ -11,7 +11,7 @@ The **Gmail** and **Outlook Mail** connectors let the agent search and read mess
 </Note>
 
 <Warning>
-  These connectors are **not** the [Email channel](/channels/email). The Email channel gives the Bag of words analyst _its own_ mailbox so it can send answers and receive questions — one shared address, configured once by an admin. These connectors do the opposite: they let the agent read _your_ mailbox as data. The two are configured separately and can be used together or independently.
+  These connectors are **not** the [Email channel](/channels/email). The Email channel gives the BOW analyst _its own_ mailbox so it can send answers and receive questions — one shared address, configured once by an admin. These connectors do the opposite: they let the agent read _your_ mailbox as data. The two are configured separately and can be used together or independently.
 </Warning>
 
 ## How it works
@@ -43,7 +43,7 @@ See [User context and per-user data](/data-sources/user-context) for how per-use
 
 - A **Google Cloud project** you can administer, with the **Gmail API** enabled.
 - Access to the project's **OAuth consent screen** (choose **Internal** for a Workspace organization).
-- Your Bag of words base URL, for the redirect URI.
+- Your BOW base URL, for the redirect URI.
 
 ### Step 1 — Create a Google OAuth client
 
@@ -87,7 +87,7 @@ openid email profile https://www.googleapis.com/auth/gmail.readonly
 
 - A **Microsoft Entra ID app registration** with a client secret.
 - An administrator who can **grant admin consent** for the Graph permissions.
-- Your Bag of words base URL, for the redirect URI.
+- Your BOW base URL, for the redirect URI.
 
 ### Step 1 — Register an Entra ID application
 
@@ -130,7 +130,7 @@ openid email profile https://www.googleapis.com/auth/gmail.readonly
 
 See [Authentication and access](/data-sources/authentication).
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mail**. Enter the admin credential above and save — there is nothing else to configure. Each user then clicks **Connect** on the connection to sign in with their own account before the agent can search their mail.
 
@@ -142,7 +142,7 @@ Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mai
   </Accordion>
 
   <Accordion title="redirect_uri_mismatch / reply URL mismatch">
-    Both providers must have `https://<your-bow-host>/api/connections/oauth/callback` registered exactly, matching your Bag of words base URL.
+    Both providers must have `https://<your-bow-host>/api/connections/oauth/callback` registered exactly, matching your BOW base URL.
   </Accordion>
 
   <Accordion title="Outlook sign-in succeeds but searching returns nothing">

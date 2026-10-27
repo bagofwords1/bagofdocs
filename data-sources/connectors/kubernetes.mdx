@@ -8,7 +8,7 @@ icon: "server"
   The Kubernetes connector is available in every edition, and is currently in **beta**.
 </Note>
 
-Bag of words talks to the Kubernetes **API server** directly (`/api/v1/...`, `/apis/<group>/...`). There is no query language: queries are JSON specs that map onto a catalog of virtual tables, the same shape as the Zabbix and Aria Operations connectors.
+BOW talks to the Kubernetes **API server** directly (`/api/v1/...`, `/apis/<group>/...`). There is no query language: queries are JSON specs that map onto a catalog of virtual tables, the same shape as the Zabbix and Aria Operations connectors.
 
 ## What the catalog looks like
 
@@ -54,7 +54,7 @@ The connect form renders this as a numbered setup guide with copy buttons, so yo
     kubectl --kubeconfig access.yaml get nodes
     ```
 
-    If the server URL in the file is private to your network, edit it to the address this Bag of words instance can actually reach.
+    If the server URL in the file is private to your network, edit it to the address this BOW instance can actually reach.
   </Step>
 
   <Step title="Paste it in and test">
@@ -95,7 +95,7 @@ There is exactly one mechanism: the bearer token of a long-lived service-account
   </Accordion>
 
   <Accordion title="Test connection times out, but kubectl works on your laptop">
-    The `server` URL in the access file is the address *your* kubectl uses, which may be private. Edit it to an address the Bag of words backend can reach, then paste the file again.
+    The `server` URL in the access file is the address *your* kubectl uses, which may be private. Edit it to an address the BOW backend can reach, then paste the file again.
   </Accordion>
 
   <Accordion title="The access file is rejected">

@@ -1,11 +1,11 @@
 ---
 title: "Use BOW from Claude or another MCP client"
 sidebarTitle: "BOW from Claude (MCP)"
-description: "Connect Claude Code, Claude Desktop, Cursor, or Claude on the web to Bag of Words and ask questions about your data from your assistant."
+description: "Connect Claude Code, Claude Desktop, Cursor, or Claude on the web to BOW and ask questions about your data from your assistant."
 icon: "plug"
 ---
 
-Connect Claude, Cursor, or any other MCP client to Bag of Words and ask about your data from inside your assistant. BOW runs the queries as you, under your normal permissions, and saves each conversation as a report.
+Connect Claude, Cursor, or any other MCP client to BOW and ask about your data from inside your assistant. BOW runs the queries as you, under your normal permissions, and saves each conversation as a report.
 
 ![A report created from Claude Code over MCP](/images/guides/mcp-clients/mcp-report.png)
 
@@ -90,7 +90,7 @@ bagofwords: https://<YOUR_BOW_DOMAIN>/api/mcp (HTTP) - √ Connected
 Then start `claude` and ask a question. The first time Claude calls a BOW tool, it asks for permission. In non-interactive mode (`claude -p`), allow the BOW tools up front:
 
 ```bash
-claude -p "Using Bag of Words, what data do I have access to?" --allowedTools "mcp__bagofwords"
+claude -p "Using BOW, what data do I have access to?" --allowedTools "mcp__bagofwords"
 ```
 
 ### Cursor
@@ -133,13 +133,13 @@ BOW doesn't support dynamic client registration. If a client can't accept a Clie
 
 ## Step 4: Ask your first question
 
-In your client, mention Bag of Words so the assistant uses its tools:
+In your client, mention BOW so the assistant uses its tools:
 
-> _Using Bag of Words, what data do I have access to?_
+> _Using BOW, what data do I have access to?_
 
 The assistant starts a report and lists your agents and their tables. Then ask for a chart:
 
-> _Using Bag of Words, start a report titled "Top customers" on the Music Store data and show the top 10 customers by total spend as a bar chart._
+> _Using BOW, start a report titled "Top customers" on the Music Store data and show the top 10 customers by total spend as a bar chart._
 
 The assistant answers with the numbers in your client. In BOW, the same query and chart are saved to a report.
 
@@ -155,15 +155,15 @@ Open the report to see each tool call the assistant made and the charts it creat
 
 | Goal | Prompt |
 | --- | --- |
-| Explore | _Using Bag of Words, list the tables in the Music Store agent and show me a few sample rows from Invoice._ |
-| Trend | _Using Bag of Words, chart monthly revenue for the Music Store over the last 12 months in the data._ |
-| Break down | _Using Bag of Words, show revenue by genre as a bar chart, sorted from highest to lowest._ |
-| Build a dashboard | _Using Bag of Words, build a dashboard from the charts in my "Top customers" report._ |
-| Check the rules | _Using Bag of Words, list the instructions that apply to the Music Store agent._ |
+| Explore | _Using BOW, list the tables in the Music Store agent and show me a few sample rows from Invoice._ |
+| Trend | _Using BOW, chart monthly revenue for the Music Store over the last 12 months in the data._ |
+| Break down | _Using BOW, show revenue by genre as a bar chart, sorted from highest to lowest._ |
+| Build a dashboard | _Using BOW, build a dashboard from the charts in my "Top customers" report._ |
+| Check the rules | _Using BOW, list the instructions that apply to the Music Store agent._ |
 
 ## Tips
 
-- **Name the source.** Start prompts with "Using Bag of Words" so the assistant calls BOW instead of guessing.
+- **Name the source.** Start prompts with "Using BOW" so the assistant calls BOW instead of guessing.
 - **Give the report a title.** Ask for one in your first prompt so you can find the report in BOW later.
 - **One token per client.** **Regenerate Token** creates an extra token and keeps the old ones. Under **Manage tokens**, hover a token and click the trash icon to delete one you no longer use.
 - **Say "the latest month in the data".** If your data isn't up to date, "last month" can return nothing.
@@ -176,7 +176,7 @@ Open the report to see each tool call the assistant made and the charts it creat
 | `403` / `MCP integration is not enabled for this organization` | The BOW MCP server is off. Ask an admin to turn on **Settings → Channels → BOW MCP Server**. |
 | A tool is missing, such as `create_instruction`, `delete_instruction`, or `send_email` | BOW lists only the tools you can use. Instruction tools need permission to manage instructions. `send_email` appears only when your organization has outbound email set up. |
 | The assistant can't see an agent you use in BOW | The agent may be turned off for the MCP channel, or you may not have access to it. Ask the agent's owner. |
-| The assistant answers without calling BOW | Start the prompt with "Using Bag of Words". In Claude Code, allow the BOW tools when asked. |
+| The assistant answers without calling BOW | Start the prompt with "Using BOW". In Claude Code, allow the BOW tools when asked. |
 
 ## Related
 

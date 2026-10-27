@@ -4,11 +4,11 @@ description: "Connect Microsoft Fabric Warehouse and Lakehouse SQL endpoints and
 icon: "microsoft"
 ---
 
-Bag of words connects to **Microsoft Fabric** Warehouse and Lakehouse **SQL endpoints** with Microsoft Entra ID (Azure AD) authentication, discovers the tables the connecting identity may read, and queries them with **T-SQL**. A shared service principal and per-user sign-in are both supported.
+BOW connects to **Microsoft Fabric** Warehouse and Lakehouse **SQL endpoints** with Microsoft Entra ID (Azure AD) authentication, discovers the tables the connecting identity may read, and queries them with **T-SQL**. A shared service principal and per-user sign-in are both supported.
 
 ## How it works
 
-The Fabric SQL endpoint is a SQL Server-compatible endpoint. Bag of words acquires an Entra access token, then connects with the **Microsoft ODBC Driver 18 for SQL Server** using that token (`Encrypt=yes`, `TrustServerCertificate=no`).
+The Fabric SQL endpoint is a SQL Server-compatible endpoint. BOW acquires an Entra access token, then connects with the **Microsoft ODBC Driver 18 for SQL Server** using that token (`Encrypt=yes`, `TrustServerCertificate=no`).
 
 - **Service principal** — a client-credentials token for `https://database.windows.net/.default`.
 - **Per-user** — a delegated token for `https://database.windows.net/user_impersonation offline_access`, obtained by user sign-in or by an on-behalf-of exchange from the user's Entra login.
@@ -22,7 +22,7 @@ Discovery reads `INFORMATION_SCHEMA.COLUMNS` for the configured database, skips 
 Each object is exposed to the agent as `schema.table`.
 
 <Note>
-  Fabric SQL endpoints are serverless and can be slow to answer the first connection after the capacity has been idle. Bag of words allows a 60-second login timeout and retries transient connection failures up to three times, so a cold start surfaces as a slow first query rather than an error.
+  Fabric SQL endpoints are serverless and can be slow to answer the first connection after the capacity has been idle. BOW allows a 60-second login timeout and retries transient connection failures up to three times, so a cold start surfaces as a slow first query rather than an error.
 </Note>
 
 ## Before you start
@@ -30,7 +30,7 @@ Each object is exposed to the agent as `schema.table`.
 - A Fabric Warehouse or Lakehouse, and its **SQL endpoint** hostname (for example `abc123.datawarehouse.fabric.microsoft.com`) — copy it from the item's settings in Fabric.
 - Permission to create an app registration in Microsoft Entra ID, and an administrator who can grant admin consent.
 - The identity you connect with needs access to the workspace and read access to the warehouse or lakehouse. Discovery only lists objects it holds `SELECT` on, so missing grants show up as missing tables rather than as an error.
-- The Microsoft ODBC Driver 18 for SQL Server must be present on the backend host. The official Bag of words container image already includes it.
+- The Microsoft ODBC Driver 18 for SQL Server must be present on the backend host. The official BOW container image already includes it.
 
 ## Step 1 — Register an Entra ID application
 
@@ -38,7 +38,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
 
 <Steps>
   <Step title="Create the app registration">
-    Name it (for example `Bag of words - Fabric`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+    Name it (for example `BOW - Fabric`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
   </Step>
   <Step title="Copy the Tenant ID and Client ID">
     From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**.
@@ -68,7 +68,7 @@ Add the service principal (or the security group containing it) to the Fabric **
   A connection that tests successfully but discovers zero tables is almost always a permissions gap, not a configuration error: the identity can log in to the endpoint but holds `SELECT` on nothing.
 </Tip>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Microsoft Fabric** and fill in the form.
 
@@ -119,7 +119,7 @@ With **per-user** authentication, a dashboard built on Fabric can be shared so e
   </Accordion>
 
   <Accordion title="Login timeout expired (HYT00) on the first attempt">
-    A cold-starting serverless endpoint. Bag of words already retries with a 60-second login timeout; if it persists across retries, the endpoint or the capacity is unavailable rather than idle.
+    A cold-starting serverless endpoint. BOW already retries with a 60-second login timeout; if it persists across retries, the endpoint or the capacity is unavailable rather than idle.
   </Accordion>
 
   <Accordion title="The connection tests fine but shows zero tables">

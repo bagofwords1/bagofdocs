@@ -4,11 +4,11 @@ description: "Expose a local folder or a mounted network share (SMB/NFS) to the 
 icon: "folder"
 ---
 
-The **Files and Directories** connector points Bag of words at a directory on the backend host — a local folder, or an SMB/NFS share the operating system has already mounted. The agent lists the directory, searches filenames and file contents, reads files, and (optionally) writes new ones. It reads inside PDF, Word, PowerPoint, Excel and CSV, so a question can be answered from documents, not just tables.
+The **Files and Directories** connector points BOW at a directory on the backend host — a local folder, or an SMB/NFS share the operating system has already mounted. The agent lists the directory, searches filenames and file contents, reads files, and (optionally) writes new ones. It reads inside PDF, Word, PowerPoint, Excel and CSV, so a question can be answered from documents, not just tables.
 
 ## How it works
 
-Bag of words treats the directory as a **file catalog**, not a database. The agent gets filesystem primitives:
+BOW treats the directory as a **file catalog**, not a database. The agent gets filesystem primitives:
 
 | Tool | Filesystem equivalent |
 | :-- | :-- |
@@ -24,16 +24,16 @@ Everything is confined to `root_path`. A file id is its POSIX path relative to t
 
 ## Before you start
 
-- The directory must exist **on the Bag of words backend host** and be readable by the process that runs it. Bag of words does not mount anything itself.
+- The directory must exist **on the BOW backend host** and be readable by the process that runs it. BOW does not mount anything itself.
 - For a network share, mount it with the OS first (`/etc/fstab`, `mount -t cifs`, `mount -t nfs`, an autofs map, or a container volume). There are **no credential fields** on this connector — the share's authentication is handled entirely by the mount.
-- If Bag of words runs in a container, the mount must be visible **inside** the container (bind-mount or volume), not just on the host.
+- If BOW runs in a container, the mount must be visible **inside** the container (bind-mount or volume), not just on the host.
 - For a writable connection, the backend process needs write permission on the mount.
 
 <Warning>
   If the share is mounted read-only at the OS level, leave `writable` off. Turning it on does not grant write access — writes will fail at the filesystem.
 </Warning>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Files and Directories** and fill in the form.
 
@@ -53,7 +53,7 @@ Go to **Data Sources → Add data source → Files and Directories** and fill in
 
 ### Indexing modes
 
-`index_mode` controls how much Bag of words caches. Reads are always live regardless of the mode.
+`index_mode` controls how much BOW caches. Reads are always live regardless of the mode.
 
 | Mode | What is cached | Use when |
 | :-- | :-- | :-- |
@@ -63,7 +63,7 @@ Go to **Data Sources → Add data source → Files and Directories** and fill in
 
 ## Authentication
 
-This connector has a single mode, **No Authentication** (`none`), scoped to the system. Access is whatever the backend host's OS grants on the mount — there is nothing to enter in Bag of words. To give different teams different slices of a share, create several connections with different `root_path` or `include_globs` values and set access rules per connection. See [Authentication and access](/data-sources/authentication).
+This connector has a single mode, **No Authentication** (`none`), scoped to the system. Access is whatever the backend host's OS grants on the mount — there is nothing to enter in BOW. To give different teams different slices of a share, create several connections with different `root_path` or `include_globs` values and set access rules per connection. See [Authentication and access](/data-sources/authentication).
 
 ## Troubleshooting
 

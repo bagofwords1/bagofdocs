@@ -4,7 +4,7 @@ description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometh
 icon: "activity"
 ---
 
-These connectors let the agent investigate operational data — logs, search indices, distributed traces, monitoring metrics, and cloud spend — alongside your business data. None of them speak SQL natively, so Bag of words maps each platform onto a catalog the agent can reason about and issues queries in the platform's own language.
+These connectors let the agent investigate operational data — logs, search indices, distributed traces, monitoring metrics, and cloud spend — alongside your business data. None of them speak SQL natively, so BOW maps each platform onto a catalog the agent can reason about and issues queries in the platform's own language.
 
 | Connector | What the catalog looks like | Query surface | Edition |
 | :-- | :-- | :-- | :-- |
@@ -26,7 +26,7 @@ These connectors let the agent investigate operational data — logs, search ind
   The Splunk connector is available in every edition, and is currently in **beta**.
 </Note>
 
-Bag of words talks to the Splunk REST API on the management port (`https://<host>:8089`). There is no SQL endpoint — queries are **SPL** run as oneshot search jobs.
+BOW talks to the Splunk REST API on the management port (`https://<host>:8089`). There is no SQL endpoint — queries are **SPL** run as oneshot search jobs.
 
 Tables are `index::sourcetype` pairs, enumerated with one cheap `tstats` call that reads tsidx metadata rather than raw events, so discovery cost does not grow with the number of sourcetypes. Columns cost a real search, so fields are sampled only for the top sourcetypes by volume; the rest stay thin and the agent samples their fields on demand.
 
@@ -135,7 +135,7 @@ OpenSearch behaves like Elasticsearch: indices map to catalog objects, the mappi
   The Jaeger connector is in **beta**.
 </Note>
 
-Jaeger has no query language — it is a parameterized trace search — so instead of discovering tables Bag of words presents a fixed catalog that mirrors the Query API: `services`, `operations`, `spans` and `dependencies`. Span rows are flattened to identity, topology, timing and status columns, plus the span's own tags.
+Jaeger has no query language — it is a parameterized trace search — so instead of discovering tables BOW presents a fixed catalog that mirrors the Query API: `services`, `operations`, `spans` and `dependencies`. Span rows are flattened to identity, topology, timing and status columns, plus the span's own tags.
 
 ### Fields
 
@@ -171,7 +171,7 @@ Jaeger has no query language — it is a parameterized trace search — so inste
   The Zabbix connector is part of the **Enterprise Edition**.
 </Note>
 
-Bag of words talks to the Zabbix JSON-RPC 2.0 API (the `/api_jsonrpc.php` endpoint is appended to your frontend URL automatically). Queries are JSON specs that map one-to-one onto Zabbix API methods — `host.get`, `item.get`, `problem.get`, `history.get`, and so on.
+BOW talks to the Zabbix JSON-RPC 2.0 API (the `/api_jsonrpc.php` endpoint is appended to your frontend URL automatically). Queries are JSON specs that map one-to-one onto Zabbix API methods — `host.get`, `item.get`, `problem.get`, `history.get`, and so on.
 
 The catalog is a fixed set of virtual tables — hosts, items, triggers, problems, events, history, trends — because Zabbix's data model is stable. The `items` table is enriched from a live `item.get` so the agent sees the value types actually present.
 
@@ -212,7 +212,7 @@ Both modes support **system** and **user** scope.
   The Prometheus connector is in **beta**.
 </Note>
 
-Bag of words talks to the Prometheus HTTP API and queries in **PromQL**. Each metric becomes a table whose columns are that metric's labels, so the agent can filter and group without knowing the label set in advance.
+BOW talks to the Prometheus HTTP API and queries in **PromQL**. Each metric becomes a table whose columns are that metric's labels, so the agent can filter and group without knowing the label set in advance.
 
 Metric **type** matters for correct queries — a counter read without `rate()` returns a meaningless monotonic total — so each metric carries its type from `/api/v1/metadata`. Histogram and summary components are typed from their base metric: `_bucket` resolves to a histogram (use `histogram_quantile`), `_sum` and `_count` to counters.
 
@@ -312,7 +312,7 @@ All three modes are **system** scope.
   The AWS Cost Explorer connector is in **beta**.
 </Note>
 
-Bag of words queries the AWS **Cost Explorer** API (`ce`) so the agent can analyze spend and usage over time — by service, account, tag, or any other Cost Explorer dimension.
+BOW queries the AWS **Cost Explorer** API (`ce`) so the agent can analyze spend and usage over time — by service, account, tag, or any other Cost Explorer dimension.
 
 ### Fields
 
@@ -339,7 +339,7 @@ The credential needs permission to call the Cost Explorer read APIs (`ce:GetCost
   The AppDynamics connector is in **beta**.
 </Note>
 
-Bag of words talks to the Cisco / Splunk AppDynamics **Controller REST API** (`https://<controller>/controller/rest/...`). On-premises controllers are the target deployment — validated against the 21.x API surface, which has been stable since the 4.x era — and SaaS controllers serve the same API.
+BOW talks to the Cisco / Splunk AppDynamics **Controller REST API** (`https://<controller>/controller/rest/...`). On-premises controllers are the target deployment — validated against the 21.x API surface, which has been stable since the 4.x era — and SaaS controllers serve the same API.
 
 There is no free-form query language. Queries are JSON specs that map onto a fixed catalog of virtual tables: the topology half (`applications`, `tiers`, `nodes`, `backends`, `business_transactions`, `service_flows`) and the time-bounded activity half (metric data, events, health-rule violations, snapshots). A query returns at most 50,000 rows, and activity tables default to a 60-minute window when the spec gives no time range.
 

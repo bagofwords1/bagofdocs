@@ -8,7 +8,7 @@ icon: "boxes"
   The VMware Aria Operations connector is part of the **Enterprise Edition**, and is currently in **beta**.
 </Note>
 
-Bag of words talks to the Aria Operations **Suite API** (`https://<appliance>/suite-api/api/...`) — formerly vRealize Operations, and VCF Operations in 9.x. It is validated against the official OpenAPI spec (VCF Operations 9.1, the same surface Aria Operations 8.18 serves) and the 8.18 API Programming Guide.
+BOW talks to the Aria Operations **Suite API** (`https://<appliance>/suite-api/api/...`) — formerly vRealize Operations, and VCF Operations in 9.x. It is validated against the official OpenAPI spec (VCF Operations 9.1, the same surface Aria Operations 8.18 serves) and the 8.18 API Programming Guide.
 
 There is no free-form query language: queries are JSON specs that map onto a catalog of virtual tables.
 
@@ -33,7 +33,7 @@ Aria learns a normal band for each series. The connector asks for it (`dt=true`)
 
 - A local or LDAP/AD user with at least the **ReadOnly** role on the appliance.
 - The name of its authentication source, if it is not a local user — as configured under **Administration → Authentication Sources**.
-- The appliance reachable over HTTPS from the Bag of words backend. If it uses a private CA, put a PEM bundle on the backend host so verification can stay on.
+- The appliance reachable over HTTPS from the BOW backend. If it uses a private CA, put a PEM bundle on the backend host so verification can stay on.
 
 ## Fields
 

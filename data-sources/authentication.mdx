@@ -7,7 +7,7 @@ icon: "lock"
 Every connection authenticates in one of two ways. The choice determines whose permissions the agent's queries run under, and it is the single most important security decision when adding a data source.
 
 <Note>
-  This page is about how a **connection** reaches a data source. For how people sign in **to Bag of words** — auth modes, OIDC and Entra ID, Google, and LDAP — see [Sign-in and SSO](/sign-in-and-sso).
+  This page is about how a **connection** reaches a data source. For how people sign in **to BOW** — auth modes, OIDC and Entra ID, Google, and LDAP — see [Sign-in and SSO](/sign-in-and-sso).
 </Note>
 
 ## The two auth policies
@@ -22,7 +22,7 @@ Every connection authenticates in one of two ways. The choice determines whose p
   </Card>
 </CardGroup>
 
-Per-user authentication is what you want when the source system already models who may see what — a Power BI tenant, a SharePoint site, a warehouse with row-level security. Instead of reproducing those rules inside Bag of words, you let the source enforce them.
+Per-user authentication is what you want when the source system already models who may see what — a Power BI tenant, a SharePoint site, a warehouse with row-level security. Instead of reproducing those rules inside BOW, you let the source enforce them.
 
 You choose the policy with the **Require user authentication** toggle when creating or editing a connection. When it is on, you also choose which sign-in methods users may use — for most connectors that list is filled in for you.
 

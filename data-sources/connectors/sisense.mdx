@@ -4,7 +4,7 @@ description: "Connect Sisense data models and query ElastiCubes with SQL"
 icon: "boxes"
 ---
 
-Bag of words connects to a **Sisense** deployment, discovers every data model (ElastiCube or live model) the credential can reach, and queries them with **SQL**. Dashboards built on a model are attached to it as context, so the agent knows which reports a table already feeds.
+BOW connects to a **Sisense** deployment, discovers every data model (ElastiCube or live model) the credential can reach, and queries them with **SQL**. Dashboards built on a model are attached to it as context, so the agent knows which reports a table already feeds.
 
 <Note>
   The Sisense connector is part of the **Enterprise Edition**.
@@ -12,7 +12,7 @@ Bag of words connects to a **Sisense** deployment, discovers every data model (E
 
 ## How it works
 
-1. Bag of words authenticates and obtains a bearer token.
+1. BOW authenticates and obtains a bearer token.
 2. It lists data models from the v2 API (`/api/v2/datamodels`), falling back to the v1 ElastiCubes API on older deployments.
 3. For each model it reads the field list (`/api/datasources/{title}/fields`), grouping fields into tables and translating Sisense column type codes into readable types. Relationships defined in the model become foreign keys.
 4. Dashboards are listed and indexed against the model they are built on.
@@ -26,11 +26,11 @@ Each table is exposed as a schema entry named `Datamodel/Table` — for example 
 
 ## Before you start
 
-- The Sisense server URL, for example `https://sisense.company.com`, reachable from Bag of words.
+- The Sisense server URL, for example `https://sisense.company.com`, reachable from BOW.
 - A Sisense account with access to the data models you want to expose, or a pre-issued API token for such an account.
 - At least one data model the account can query — the connection test fails if the account sees none.
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Settings → Data Sources → Add data source → Sisense**. See [Connecting a data source](/data-sources/connecting) for the general flow.
 
@@ -64,7 +64,7 @@ Because the mode is available at both scopes, you can configure **one shared ser
   </Accordion>
 
   <Accordion title="Connected but no data models found">
-    The credential authenticated but sees nothing. Give the account access to at least one ElastiCube or live model. On older deployments the v2 datamodels API may be unavailable; Bag of words then falls back to the v1 ElastiCubes API, and the account needs visibility there.
+    The credential authenticated but sees nothing. Give the account access to at least one ElastiCube or live model. On older deployments the v2 datamodels API may be unavailable; BOW then falls back to the v1 ElastiCubes API, and the account needs visibility there.
   </Accordion>
 
   <Accordion title="Connected but cannot query a data model">

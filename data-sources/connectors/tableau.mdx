@@ -4,7 +4,7 @@ description: "Connect Tableau published data sources and let the agent query the
 icon: "chart-column"
 ---
 
-Bag of words connects to **Tableau Server** or **Tableau Cloud**, discovers the published data sources on a site, and queries them through the **VizQL Data Service** (Headless BI). Field-level descriptions, roles, and calculated-field formulas come from the **Metadata API**, so the agent knows what each field means before it asks a question.
+BOW connects to **Tableau Server** or **Tableau Cloud**, discovers the published data sources on a site, and queries them through the **VizQL Data Service** (Headless BI). Field-level descriptions, roles, and calculated-field formulas come from the **Metadata API**, so the agent knows what each field means before it asks a question.
 
 <Note>
   The Tableau connector is part of the **Enterprise Edition**.
@@ -12,7 +12,7 @@ Bag of words connects to **Tableau Server** or **Tableau Cloud**, discovers the 
 
 ## How it works
 
-Bag of words signs in to the site with a Personal Access Token and receives a session token, then:
+BOW signs in to the site with a Personal Access Token and receives a session token, then:
 
 1. Lists the **published data sources** on the site (paginated REST call), optionally narrowed to one project.
 2. For each data source, reads its fields from **VizQL `read-metadata`** and enriches them from the **Metadata API** (`/api/metadata/graphql`) — descriptions, field roles, and calculated-field formulas.
@@ -32,7 +32,7 @@ Re-indexing is incremental: data sources that are already in the catalog are reb
 - A **Personal Access Token** created by a user with access to the data sources you want to expose.
 - The **Metadata API** enabled on the server. Tableau Cloud has it on; on Tableau Server a server administrator must enable metadata services, otherwise field descriptions and formulas come back empty.
 - **VizQL Data Service** (Headless BI) available for the site — this is what executes queries.
-- Network access from Bag of words to the Tableau server over HTTPS.
+- Network access from BOW to the Tableau server over HTTPS.
 
 ## Step 1 — Create a Personal Access Token
 
@@ -40,7 +40,7 @@ In Tableau, open the user menu → **My Account Settings** → **Personal Access
 
 <Steps>
   <Step title="Name the token">
-    The **token name** is what you enter as `pat_name` in Bag of words.
+    The **token name** is what you enter as `pat_name` in BOW.
   </Step>
   <Step title="Copy the secret">
     Copy the **token secret** immediately — Tableau shows it once. This is `pat_token`.
@@ -54,7 +54,7 @@ In Tableau, open the user menu → **My Account Settings** → **Personal Access
   </Step>
 </Steps>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Settings → Data Sources → Add data source → Tableau**. See [Connecting a data source](/data-sources/connecting) for the general flow.
 

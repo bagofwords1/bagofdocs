@@ -31,7 +31,7 @@ Each parameter has:
 
 ## Using a parameter in SQL
 
-Reference a parameter with a colon placeholder — `:region`. Bag of words binds the value safely (never string-substituted), so a parameter can't be used for SQL injection.
+Reference a parameter with a colon placeholder — `:region`. BOW binds the value safely (never string-substituted), so a parameter can't be used for SQL injection.
 
 ```sql
 SELECT id, region, amount
@@ -70,7 +70,7 @@ Every parameter draws its value from one of three sources. This is the setting t
 An **identity** parameter is what makes one shared dashboard show each person their own slice: bind `team` to the viewer's team and everyone opens the same artifact but sees only their team's rows. Because identity parameters resolve on the server, a viewer cannot read or change another person's value. See [personalization](/using-bow/dashboards#personalize-a-dashboard-per-viewer).
 
 <Warning>
-  An identity parameter scopes data by a value Bag of words resolves from the viewer's profile. It is **not** a substitute for source-enforced security on sources that already model per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security). For those, use a [per-user connection](/data-sources/authentication) so the source filters under each viewer's own credentials.
+  An identity parameter scopes data by a value BOW resolves from the viewer's profile. It is **not** a substitute for source-enforced security on sources that already model per-user visibility (a Power BI tenant with RLS, a warehouse with row-level security). For those, use a [per-user connection](/data-sources/authentication) so the source filters under each viewer's own credentials.
 </Warning>
 
 ## Giving a control its choices

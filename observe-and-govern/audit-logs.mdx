@@ -8,7 +8,7 @@ icon: "scroll"
 The activity view and export are included in the Team and Enterprise licenses. Log streams need an Enterprise license.
 </Note>
 
-Bag of Words records every security-relevant action in your organization: sign-ins, member and role changes, API keys, data sources, reports, settings, and every tool call an agent makes. You can browse and filter the log in the app, download it as JSON or CSV, and stream it continuously to Datadog, Splunk, Microsoft Sentinel, Amazon S3, Google Cloud Storage, an HTTPS endpoint or a syslog collector.
+BOW records every security-relevant action in your organization: sign-ins, member and role changes, API keys, data sources, reports, settings, and every tool call an agent makes. You can browse and filter the log in the app, download it as JSON or CSV, and stream it continuously to Datadog, Splunk, Microsoft Sentinel, Amazon S3, Google Cloud Storage, an HTTPS endpoint or a syslog collector.
 
 Open it from **Settings → Audit Logs**. The page has two tabs: **Activity** and **Streams**.
 
@@ -22,7 +22,7 @@ The actor is one of:
 |---|---|
 | **User** | A person did it in the app or through the API. |
 | **Agent** | An agent did it while answering a user, for example running a query. The row shows the user it ran for, marked *via agent*. |
-| **System** | Bag of Words did it on its own, for example a log stream changing state after its credentials were rejected. |
+| **System** | BOW did it on its own, for example a log stream changing state after its credentials were rejected. |
 
 Agent tool events are written durably: under heavy load or a short database outage they are queued, retried and, if needed, kept on disk until they can be written. They are not dropped.
 
@@ -76,7 +76,7 @@ A log stream delivers every audit event to an external system, continuously, wit
     Under **Start from**, pick **New events only** or **Include all history**. To send only some events, list action prefixes in **Only actions starting with**, for example `tool., member.`. Leave it empty to send everything.
   </Step>
   <Step title="Send a test event">
-    Click **Send test event**. Bag of Words sends one `audit_stream.test` event with your settings and shows the destination's answer. Fix any error before saving.
+    Click **Send test event**. BOW sends one `audit_stream.test` event with your settings and shows the destination's answer. Fix any error before saving.
   </Step>
   <Step title="Save">
     Click **Save stream**. Delivery starts on the next cycle.
@@ -97,7 +97,7 @@ A log stream delivers every audit event to an external system, continuously, wit
 
 <AccordionGroup>
   <Accordion title="Amazon S3 with an IAM role">
-    Enter the **Role ARN** instead of access keys. When you save, Bag of Words generates an **External ID** and shows it in the stream form. Add it to the role's trust policy as the `sts:ExternalId` condition. The role needs `s3:PutObject` on the bucket and prefix.
+    Enter the **Role ARN** instead of access keys. When you save, BOW generates an **External ID** and shows it in the stream form. Add it to the role's trust policy as the `sts:ExternalId` condition. The role needs `s3:PutObject` on the bucket and prefix.
   </Accordion>
   <Accordion title="Verify HTTPS webhook signatures">
     If you set a signing secret, each request carries two headers:

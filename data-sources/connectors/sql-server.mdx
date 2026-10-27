@@ -4,13 +4,13 @@ description: "Connect on-prem or cloud SQL Server, with a SQL login, service-acc
 icon: "server"
 ---
 
-Bag of words connects to **Microsoft SQL Server** over ODBC, reads the tables, views, and columns in the schemas you point it at, and runs read-only T-SQL. Beyond the usual SQL login it supports **Kerberos (Windows Integrated)** authentication as the app's service account, and **Kerberos SSO**, where every query runs under the signed-in user's own Active Directory identity through constrained delegation.
+BOW connects to **Microsoft SQL Server** over ODBC, reads the tables, views, and columns in the schemas you point it at, and runs read-only T-SQL. Beyond the usual SQL login it supports **Kerberos (Windows Integrated)** authentication as the app's service account, and **Kerberos SSO**, where every query runs under the signed-in user's own Active Directory identity through constrained delegation.
 
 The connector's registry type is the uppercase string `MSSQL`. You will see it under **Microsoft SQL Server** in the data source picker.
 
 ## How it works
 
-Bag of words connects with the **Microsoft ODBC Driver for SQL Server** (version 18 by default, 17 available for older servers), reads table and column metadata from the database's catalog views, and issues `SELECT` statements at query time. If the enriched metadata read fails on your server it falls back to a basic table and column listing.
+BOW connects with the **Microsoft ODBC Driver for SQL Server** (version 18 by default, 17 available for older servers), reads table and column metadata from the database's catalog views, and issues `SELECT` statements at query time. If the enriched metadata read fails on your server it falls back to a basic table and column listing.
 
 Scope the connection with `database` and, optionally, `schema` — which accepts a comma-separated list, so one connection can cover several schemas.
 
@@ -26,7 +26,7 @@ Authentication happens in one of three shapes:
   Per-user authentication on a database connector requires an Enterprise license. See [Authentication](/data-sources/authentication).
 </Note>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source → Microsoft SQL Server**.
 
@@ -41,7 +41,7 @@ Go to **Data Sources → Add data source → Microsoft SQL Server**.
 | `additional_params` | No | — | Extra ODBC keywords passed through as-is, for example `ApplicationIntent=ReadOnly`. |
 
 <Warning>
-  `additional_params` cannot weaken the connection. Security-relevant keywords are owned by Bag of words and any attempt to set them here is silently ignored: `Driver`, `Server`, `Database`, `UID`, `PWD`, `Encrypt`, `TrustServerCertificate`, `Trusted_Connection`, `Authentication`, `Integrated Security`, and `APP`. Use it for behavioral hints like read-intent routing, not to change how the connection authenticates or encrypts.
+  `additional_params` cannot weaken the connection. Security-relevant keywords are owned by BOW and any attempt to set them here is silently ignored: `Driver`, `Server`, `Database`, `UID`, `PWD`, `Encrypt`, `TrustServerCertificate`, `Trusted_Connection`, `Authentication`, `Integrated Security`, and `APP`. Use it for behavioral hints like read-intent routing, not to change how the connection authenticates or encrypts.
 </Warning>
 
 <Warning>
@@ -65,15 +65,15 @@ This mode can be used as one shared credential for the whole workspace, or per-u
 
 ## Option B — Kerberos (Windows Integrated)
 
-All queries authenticate as **one Active Directory service account**. Bag of words still enforces its own access control on top; SQL Server sees a single Windows login.
+All queries authenticate as **one Active Directory service account**. BOW still enforces its own access control on top; SQL Server sees a single Windows login.
 
-This mode requires setup by both your AD/DBA team and whoever operates the Bag of words host.
+This mode requires setup by both your AD/DBA team and whoever operates the BOW host.
 
 ### Before you start
 
 - An AD **service account** for the app, for example `svc-bow@CORP.EXAMPLE.COM`, with AES key types enabled ("This account supports Kerberos AES 128/256 bit encryption").
 - SQL Server's own SPN registered — `setspn -L <sql service account>` should list `MSSQLSvc/<fqdn>:1433`. This is usually automatic.
-- The ability to mount files and set environment variables on the Bag of words host.
+- The ability to mount files and set environment variables on the BOW host.
 - NTP or chrony running on the host. Kerberos fails above **5 minutes** of clock skew.
 
 ### Step 1 — Create the keytab (AD team)
@@ -94,9 +94,9 @@ CREATE LOGIN [CORP\svc-bow] FROM WINDOWS;
 -- or explicit GRANT SELECT on the approved schemas (recommended)
 ```
 
-Bag of words only ever issues `SELECT`, so read-only rights are sufficient.
+BOW only ever issues `SELECT`, so read-only rights are sufficient.
 
-### Step 3 — Configure Kerberos on the Bag of words host
+### Step 3 — Configure Kerberos on the BOW host
 
 The Docker image already ships `krb5-user`, `libgssapi-krb5-2`, and `msodbcsql18`. You mount two files and set one environment variable.
 
@@ -155,7 +155,7 @@ SELECT auth_scheme FROM sys.dm_exec_connections WHERE session_id = @@SPID;
 
 ## Option C — Kerberos SSO (per-user delegation)
 
-With per-user SSO, queries run as **the signed-in user's AD identity**. No password or token is collected from the user. Bag of words performs *protocol transition* (**S4U2Self** — "issue me a ticket for user X to myself", which needs only the user's UPN) and *constrained delegation* (**S4U2Proxy** — exchange that ticket for one to the SQL Server SPN). SQL-side permissions, row-level security, and auditing all resolve per user.
+With per-user SSO, queries run as **the signed-in user's AD identity**. No password or token is collected from the user. BOW performs *protocol transition* (**S4U2Self** — "issue me a ticket for user X to myself", which needs only the user's UPN) and *constrained delegation* (**S4U2Proxy** — exchange that ticket for one to the SQL Server SPN). SQL-side permissions, row-level security, and auditing all resolve per user.
 
 This builds **on top of** Option B: the service-account Kerberos setup must already be working, because the service identity is still used for schema indexing.
 
@@ -236,9 +236,9 @@ The per-user mode's fields:
 | Field | Required | Default | Notes |
 | :-- | :-- | :-- | :-- |
 | `use_kerberos` | No | `true` | Queries run under the user's own AD identity via constrained delegation. |
-| `kerberos_impersonate` | No | — | The user's AD user principal name, e.g. `jdoe@corp.example.com`. **Leave blank** to use their Bag of words login identity. |
+| `kerberos_impersonate` | No | — | The user's AD user principal name, e.g. `jdoe@corp.example.com`. **Leave blank** to use their BOW login identity. |
 
-The UPN is taken from the user's Bag of words login identity — Entra ID / OIDC `preferred_username` or `upn`, LDAP, or the local email address. If someone's email is not their AD UPN, they can save an explicit principal in `kerberos_impersonate` under the data source's user credentials.
+The UPN is taken from the user's BOW login identity — Entra ID / OIDC `preferred_username` or `upn`, LDAP, or the local email address. If someone's email is not their AD UPN, they can save an explicit principal in `kerberos_impersonate` under the data source's user credentials.
 
 ### Optional environment variables
 
@@ -252,7 +252,7 @@ The UPN is taken from the user's Bag of words login identity — Entra ID / OIDC
 - **Ticket renewal is automatic.** Delegated tickets are cached per user and re-acquired from the keytab as they near expiry. There is nothing to schedule.
 - **Indexing always runs as the service account**, since schema refresh has no user in context.
 - `KRB5CCNAME` is process-global on Linux, so the credential-cache switch is serialized around the driver's connect handshake. Concurrent connects by different users queue for milliseconds; established connections are unaffected.
-- Under integrated auth every user's ODBC connection string would otherwise be identical, since the identity comes from the credential cache rather than the string — which would let a shared pool hand user B a connection authenticated as user A. Bag of words binds a per-identity `APP=BagOfWords-<principal>` token into the string so each impersonated user gets its own pool bucket. Leaving unixODBC pooling off is still worth doing as defence in depth.
+- Under integrated auth every user's ODBC connection string would otherwise be identical, since the identity comes from the credential cache rather than the string — which would let a shared pool hand user B a connection authenticated as user A. BOW binds a per-identity `APP=BagOfWords-<principal>` token into the string so each impersonated user gets its own pool bucket. Leaving unixODBC pooling off is still worth doing as defence in depth.
 - If your SQL Server is **2022 or newer and Azure Arc-enabled**, Entra token authentication is an alternative to constrained delegation and may be easier to get approved than AD delegation changes.
 
 ---

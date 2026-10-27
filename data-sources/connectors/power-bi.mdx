@@ -1,10 +1,10 @@
 ---
 title: "Power BI"
-description: "Connect Power BI semantic models to Bag of words and query them with DAX"
+description: "Connect Power BI semantic models to BOW and query them with DAX"
 icon: "chart-column"
 ---
 
-Bag of words connects to the **Power BI REST API** to auto-discover the workspaces, semantic models (datasets), tables, and reports an identity can access, and to run **DAX** queries against them. This page covers everything you set up on the Microsoft side (app registration, tenant settings, workspace membership, permissions) and how to enter it in Bag of words.
+BOW connects to the **Power BI REST API** to auto-discover the workspaces, semantic models (datasets), tables, and reports an identity can access, and to run **DAX** queries against them. This page covers everything you set up on the Microsoft side (app registration, tenant settings, workspace membership, permissions) and how to enter it in BOW.
 
 <Note>
   The Power BI connector is part of the **Enterprise Edition**. Per-user (delegated) authentication in particular requires an Enterprise license.
@@ -12,7 +12,7 @@ Bag of words connects to the **Power BI REST API** to auto-discover the workspac
 
 ## How it works
 
-Bag of words authenticates to Power BI as an **Azure AD (Microsoft Entra ID) application**, then:
+BOW authenticates to Power BI as an **Azure AD (Microsoft Entra ID) application**, then:
 
 1. Lists the **workspaces** the identity belongs to (`GET /v1.0/myorg/groups`).
 2. Lists the **semantic models** (datasets) and **reports** in each workspace.
@@ -44,7 +44,7 @@ Power BI supports two authentication modes. You can use either, or both.
 - A **Microsoft Entra ID (Azure AD)** tenant where you can create an app registration.
 - A **Fabric / Power BI administrator** who can change tenant settings.
 - Workspace admin rights on the workspaces you want to expose, so you can add the identity as a Member or Contributor.
-- Outbound network access from Bag of words to `https://api.powerbi.com` and `https://login.microsoftonline.com`.
+- Outbound network access from BOW to `https://api.powerbi.com` and `https://login.microsoftonline.com`.
 
 ## Step 1 — Register an Azure AD application
 
@@ -52,13 +52,13 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
 
 <Steps>
   <Step title="Create the app registration">
-    Give it a name (e.g. `Bag of words - Power BI`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
+    Give it a name (e.g. `BOW - Power BI`). Under **Supported account types**, choose **Accounts in this organizational directory only** unless you specifically need multi-tenant.
   </Step>
   <Step title="Copy the Tenant ID and Client ID">
-    From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**. You will paste these into Bag of words.
+    From the app's **Overview** page, copy the **Directory (tenant) ID** and the **Application (client) ID**. You will paste these into BOW.
   </Step>
   <Step title="Create a client secret">
-    Go to **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately (it is only shown once). This is the `client_secret` field in Bag of words.
+    Go to **Certificates & secrets** → **New client secret**. Copy the **secret value** immediately (it is only shown once). This is the `client_secret` field in BOW.
   </Step>
   <Step title="Add API permissions">
     Under **API permissions** → **Add a permission** → **Power BI Service**, add the delegated **Tenant.Read.All** (or the read scopes your policy allows). For per-user sign-in, keep the delegated **profile**, **email**, and **openid** scopes. Grant admin consent for the directory.
@@ -70,7 +70,7 @@ In the [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → *
     https://<your-bow-host>/api/connections/oauth/callback
     ```
 
-    Replace `<your-bow-host>` with your Bag of words base URL. Enable **offline\_access** so the token can be refreshed.
+    Replace `<your-bow-host>` with your BOW base URL. Enable **offline\_access** so the token can be refreshed.
   </Step>
 </Steps>
 
@@ -81,11 +81,11 @@ These live in the **Power BI / Fabric Admin portal** → **Tenant settings** (a 
 | Tenant setting | Why it matters |
 | :-- | :-- |
 | **Service principals can use Fabric / Power BI APIs** | Required for the service principal to call the Power BI REST API at all. Without it, discovery and queries fail. |
-| **Service principals can access read-only admin APIs** | Lets Bag of words read model schemas via the Admin (Scanner) API — the most reliable discovery path, and the only one that reads schema without per-model query permission. |
+| **Service principals can access read-only admin APIs** | Lets BOW read model schemas via the Admin (Scanner) API — the most reliable discovery path, and the only one that reads schema without per-model query permission. |
 | **Enhanced admin API responses with detailed metadata** | Makes the Scanner API return table/column schema (datasetSchema). Strongly recommended, especially for **DirectLake** and Fabric default semantic models. |
 
 <Warning>
-  If the read-only admin APIs are **not** enabled, Bag of words falls back to a per-model DAX probe. That probe requires **Build** permission on each model and does not work for some **DirectLake** models — which is the most common reason a model appears in Power BI but is missing from the schema list. Enabling the two admin settings above resolves this for most tenants.
+  If the read-only admin APIs are **not** enabled, BOW falls back to a per-model DAX probe. That probe requires **Build** permission on each model and does not work for some **DirectLake** models — which is the most common reason a model appears in Power BI but is missing from the schema list. Enabling the two admin settings above resolves this for most tenants.
 </Warning>
 
 <Note>
@@ -113,11 +113,11 @@ For the **service principal**, discovery only sees workspaces where it holds a w
     - **A service principal cannot query an RLS model at all.** It cannot be added to an RLS role, so `executeQueries` returns `401` — even if the service principal is a workspace Member. Use **Sign in with Microsoft** (per-user) for any RLS-protected model; the service principal can still index non-RLS models in the same tenant.
     - **An edit-level workspace role bypasses RLS.** Admin, Member, and Contributor have edit permission, so RLS does **not** apply to them. For RLS to take effect a user must hold at most **Viewer**, or no workspace role with the model shared to them directly.
 
-    So the correct setup for an RLS model is, per user: **Build** permission on the model **and** membership in the appropriate **RLS role**, with **no** edit-level workspace role. Bag of words discovers and queries the model with that user's own token, and Power BI filters the rows to their role.
+    So the correct setup for an RLS model is, per user: **Build** permission on the model **and** membership in the appropriate **RLS role**, with **no** edit-level workspace role. BOW discovers and queries the model with that user's own token, and Power BI filters the rows to their role.
   </Step>
 </Steps>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Settings → Data Sources → Add data source → Power BI** and fill in the form. See [Connecting a data source](/data-sources/connecting) for the general flow.
 
@@ -135,7 +135,7 @@ Go to **Settings → Data Sources → Add data source → Power BI** and fill in
     Pick **Service Principal (Azure AD)** for a shared identity, or **Sign in with Microsoft** for per-user (delegated) access. The **Sign in with Microsoft** mode has no fields of its own — it reuses the app registration configured above.
   </Step>
   <Step title="Test the connection">
-    Click **Test Connection**. Bag of words authenticates, lists workspaces, and probes a semantic model to verify query access. A model that is empty or not queryable does not fail the test — it reports that query access was verified.
+    Click **Test Connection**. BOW authenticates, lists workspaces, and probes a semantic model to verify query access. A model that is empty or not queryable does not fail the test — it reports that query access was verified.
   </Step>
   <Step title="Require user authentication (optional)">
     To force every user to sign in with their own Microsoft account instead of using the shared service principal, enable **Require user authentication** under the data source's access settings. Each user then clicks **Connect** to sign in before they can query. See [Authentication](/data-sources/authentication).
@@ -159,7 +159,7 @@ With **per-user** authentication, a dashboard built on a Power BI model can be s
 
 ## Troubleshooting: a model is missing from the schema
 
-If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of words, work through these in order:
+If a semantic model is visible in `app.powerbi.com` but not selectable in BOW, work through these in order:
 
 <AccordionGroup>
   <Accordion title="The identity is not a Member/Contributor of the workspace">
@@ -175,7 +175,7 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in Bag of
   </Accordion>
 
   <Accordion title="A per-user model isn't showing for a signed-in user">
-    With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them. If access was **just changed** in Power BI, note that Power BI caches user permissions — Bag of words refreshes them on sign-in and on **Reload tables**, so click **Reload** if a newly granted model hasn't appeared yet.
+    With per-user authentication, the user must have completed **Connect** (Microsoft sign-in). Once signed in, models their own account can access become selectable even if the shared service principal cannot see them. If access was **just changed** in Power BI, note that Power BI caches user permissions — BOW refreshes them on sign-in and on **Reload tables**, so click **Reload** if a newly granted model hasn't appeared yet.
   </Accordion>
 
   <Accordion title="A per-user model is discovered but the agent can't query it yet">

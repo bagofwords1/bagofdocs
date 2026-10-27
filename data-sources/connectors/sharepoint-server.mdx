@@ -10,7 +10,7 @@ icon: "microsoft"
 
 This connector reads document libraries from a **self-hosted SharePoint Server** farm over SharePoint's own REST API. It is separate from [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive) and [SharePoint Lists](/data-sources/connectors/sharepoint-lists), which both go through Microsoft Graph and need an Entra app registration. Here there is no Graph and no app registration — the backend authenticates to the farm directly with Windows credentials or Kerberos.
 
-The connection is **read-only**. The agent browses, searches, and reads documents; it never writes to SharePoint. Report attachments and saved queries live in Bag of words, not in the source library.
+The connection is **read-only**. The agent browses, searches, and reads documents; it never writes to SharePoint. Report attachments and saved queries live in BOW, not in the source library.
 
 ## What the agent sees
 
@@ -23,7 +23,7 @@ A searchable file catalog, scoped to what you configure:
 Scope is enforced on every read, including when a read is given an absolute server-relative path, and search hits outside the configured origin, site, library, folder or globs are rejected and re-authorized live.
 
 <Warning>
-  Content search depends on the farm's own crawl. A newly uploaded document is matched by **filename** immediately, but its **contents** are only searchable once SharePoint's Search Service Application has crawled it — indexing the catalog in Bag of words does not trigger that crawl.
+  Content search depends on the farm's own crawl. A newly uploaded document is matched by **filename** immediately, but its **contents** are only searchable once SharePoint's Search Service Application has crawled it — indexing the catalog in BOW does not trigger that crawl.
 </Warning>
 
 ## Fields
@@ -62,7 +62,7 @@ At **system** scope the whole connection uses one service account. At **user** s
 | :-- | :-- | :-- |
 | `principal` | No | Optional service-account UPN, e.g. `svc_bow@EXAMPLE.COM`. |
 
-Kerberos authenticates as the **service account**, not as the signed-in Bag of words user — it does not impersonate the caller, and end-user delegation is not implemented by this connector. Choose it for a single shared identity, not for per-person permissions.
+Kerberos authenticates as the **service account**, not as the signed-in BOW user — it does not impersonate the caller, and end-user delegation is not implemented by this connector. Choose it for a single shared identity, not for per-person permissions.
 
 The keytab is never uploaded through the connection form. A deployment owner mounts it read-only and points the backend at it (`krb5.conf` plus `KRB5_CLIENT_KTNAME`, or a ticket cache). The backend also needs the `kerberos` extra installed — the shipped Docker image already includes the MIT Kerberos runtime.
 

@@ -165,7 +165,7 @@ A trigger starts a new session for every event. If you want events to collect in
 
 ## Troubleshooting
 
-- **"Event received" never appears.** Check the URL host. It must be the address of your Bag of Words server as your sender sees it. Try a `GET` to the URL first. It should return `{"status":"ready"}`.
+- **"Event received" never appears.** Check the URL host. It must be the address of your BOW server as your sender sees it. Try a `GET` to the URL first. It should return `{"status":"ready"}`.
 - **Events arrive but no session starts.** Check that the trigger is active, has a task, and that the AI filter's guidance doesn't exclude the event.
 - **`401 Invalid signature` with HMAC.** Sign the exact bytes you send, include the `.` between timestamp and body, and make sure the clock on the sending machine is correct.
 

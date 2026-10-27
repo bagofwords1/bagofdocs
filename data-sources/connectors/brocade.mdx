@@ -8,7 +8,7 @@ icon: "network"
   The Brocade Fabric OS connector is part of the **Enterprise Edition**, and ships as **beta**. It has been verified against a simulator on a 9.1.0b schema baseline, not yet against real hardware — see [What "beta" means here](#what-beta-means-here).
 </Note>
 
-Bag of words queries a Brocade SAN switch over its **Fabric OS REST API** so the agent can investigate Fibre Channel problems: port health, counters, optics, congestion, zoning and retained events, presented as tables.
+BOW queries a Brocade SAN switch over its **Fabric OS REST API** so the agent can investigate Fibre Channel problems: port health, counters, optics, congestion, zoning and retained events, presented as tables.
 
 Every vendor request is **explicitly allowlisted** and read-only, over a bounded REST path.
 
@@ -50,7 +50,7 @@ Every row carries provenance alongside the data, so a finding can be traced back
 ## Before you start
 
 - A switch account with **read access to the required fabrics**.
-- The switch's HTTPS management address, reachable from the Bag of words backend.
+- The switch's HTTPS management address, reachable from the BOW backend.
 - If you run Virtual Fabrics, know which fabric IDs you care about. Every logical-switch query must specify a fabric ID.
 
 ## Fields

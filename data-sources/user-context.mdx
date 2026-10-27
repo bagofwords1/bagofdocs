@@ -4,7 +4,7 @@ description: "Pass the caller's identity to an MCP server on every tool call, wi
 icon: "user-check"
 ---
 
-Internal services usually need to know *who* is asking. When Bag of words calls an MCP tool on a user's behalf, **user context forwarding** attaches that person's identity to the request — as HTTP headers, as tool arguments, or both.
+Internal services usually need to know *who* is asking. When BOW calls an MCP tool on a user's behalf, **user context forwarding** attaches that person's identity to the request — as HTTP headers, as tool arguments, or both.
 
 This is what lets a shared MCP connection stay permission-aware: one connection, one set of server credentials, but every call carries the real caller's identity so the server can apply its own rules and write meaningful audit records.
 
@@ -35,7 +35,7 @@ Each forwarded field draws its value from one of these — and only these:
 |---|---|
 | `user.email` | The caller's email address |
 | `user.name` | Their display name |
-| `user.id` | Their Bag of words user id |
+| `user.id` | Their BOW user id |
 | `membership.role` | Their role in the organization |
 | `membership.attr:<key>` | A directory attribute, e.g. `membership.attr:employeeId` |
 | `static:<text>` | A fixed string, with `{...}` placeholders for any of the above |
@@ -65,7 +65,7 @@ Enable and pick which attributes to sync under **Settings → Identity**. Only s
 Each forwarded field is one of two modes:
 
 - **Locked** (default) — the value is set by the server and the field is **removed from the tool schema the model sees**. The model cannot read it, guess it, or override it. This is the correct choice for anything security-relevant, because the model cannot spoof a field it doesn't know exists.
-- **AI** — the field stays visible to the model, which may fill it; Bag of words supplies the value only when the model leaves it empty.
+- **AI** — the field stays visible to the model, which may fill it; BOW supplies the value only when the model leaves it empty.
 
 <Warning>
   If a server trusts a forwarded field for authorization, keep it locked. An AI field is a hint, not a guarantee.

@@ -32,7 +32,7 @@ The connector sends the `Prefer: HonorNonIndexedQueriesWarningMayFailRandomly` h
 
 ## Before you start
 
-The prerequisites are the same as for [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive): a **Microsoft Entra ID app registration** with a client secret, admin consent for the Graph permissions, and your Bag of words base URL for the OAuth redirect URI. If you already registered an app for the SharePoint files connector, **reuse it** — SharePoint Lists needs only `Sites.Read.All`, which that app already has.
+The prerequisites are the same as for [SharePoint and OneDrive](/data-sources/connectors/sharepoint-onedrive): a **Microsoft Entra ID app registration** with a client secret, admin consent for the Graph permissions, and your BOW base URL for the OAuth redirect URI. If you already registered an app for the SharePoint files connector, **reuse it** — SharePoint Lists needs only `Sites.Read.All`, which that app already has.
 
 | Access path | Graph permission needed |
 | :-- | :-- |
@@ -43,7 +43,7 @@ The prerequisites are the same as for [SharePoint and OneDrive](/data-sources/co
   Unlike Graph _file_ reads, Graph _list_ reads work app-only on standard tenants — so a service-principal-only connection can index and query lists without any user signing in, as long as the application permission is granted. With delegated sign-in, each user sees exactly the lists and items their own account can see.
 </Note>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source** and pick **SharePoint Lists**.
 

@@ -1,6 +1,6 @@
 ---
-description: always write "Bag of words" or Bow - not "Bag of Words"
+description: Always write "BOW" for the product name.
 globs:
 alwaysApply: true
 ---
-always write "Bag of words" or Bow - not "Bag of Words"
+Always write "BOW" for the product name.

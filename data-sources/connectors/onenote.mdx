@@ -16,7 +16,7 @@ The **OneNote** connector reads Microsoft OneNote notebooks through **Microsoft 
 
 ## How it works
 
-Bag of words calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to walk notebooks, list pages, fetch page HTML, and pull embedded media. The agent gets **note-shaped** tools rather than file tools:
+BOW calls Microsoft Graph (`https://graph.microsoft.com/v1.0`) to walk notebooks, list pages, fetch page HTML, and pull embedded media. The agent gets **note-shaped** tools rather than file tools:
 
 | Tool | What it does |
 | :-- | :-- |
@@ -49,7 +49,7 @@ Site and group notebooks are the usual home of a shared team knowledge base and 
 
 - A **Microsoft Entra ID app registration** in your tenant, with a client secret.
 - An administrator who can **grant admin consent** for the Graph permissions.
-- Your Bag of words base URL, for the OAuth redirect URI.
+- Your BOW base URL, for the OAuth redirect URI.
 - For a `site` source: the full SharePoint site URL. For a `group` source: the Microsoft 365 group id.
 
 ## Step 1 — Register an Entra ID application
@@ -68,7 +68,7 @@ Site and group notebooks are the usual home of a shared team knowledge base and 
     https://<your-bow-host>/api/connections/oauth/callback
     ```
 
-    Replace `<your-bow-host>` with your Bag of words base URL.
+    Replace `<your-bow-host>` with your BOW base URL.
   </Step>
 </Steps>
 
@@ -92,7 +92,7 @@ Under **API permissions** → **Add a permission** → **Microsoft Graph** → *
   Without admin consent, sign-in fails or returns a token with no usable Graph scopes. Omit `offline_access` and no refresh token is issued, so users must re-authenticate whenever the access token expires.
 </Warning>
 
-## Connect in Bag of words
+## Connect in BOW
 
 Go to **Data Sources → Add data source** and choose **OneNote**. Enter the app registration credentials, pick a notebook source, and save. Each user then clicks **Connect** on the connection to sign in with their own Microsoft account before the agent can read any pages.
 
@@ -143,7 +143,7 @@ See [Authentication and access](/data-sources/authentication) for how to require
   </Accordion>
 
   <Accordion title="redirect_uri_mismatch / reply URL mismatch">
-    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your Bag of words base URL exactly.
+    The app registration must have `https://<your-bow-host>/api/connections/oauth/callback` registered as a **Web** platform redirect URI, matching your BOW base URL exactly.
   </Accordion>
 
   <Accordion title="Users must sign in again every hour">
