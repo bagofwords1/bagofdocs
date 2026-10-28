@@ -168,124 +168,558 @@ docker run --pull always -d -p 3000:3000 -v $(pwd)/bow-config.yaml:/app/bow-conf
 ## Install with Kubernetes
 ---
 
-You can install BOW on a Kubernetes cluster. The Helm chart can deploy the app with a bundled PostgreSQL instance **or** connect to an external managed database such as AWS Aurora with IAM authentication.
+The `bow/bagofwords` Helm chart (chart version `3.0.0`) runs BOW on any Kubernetes cluster. It deploys:
 
-### 1. Add the Helm Repository
+- A `Deployment` running the `bagofwords/bagofwords` image on port `3000`, with startup, readiness and liveness probes on `/health`
+- A `ClusterIP` `Service` and an `Ingress` (class `nginx` by default)
+- A `ServiceAccount` (named `bowapp` by default) that you can annotate for IRSA or Workload Identity
+- A `ConfigMap` holding environment variables and the generated `bow-config.yaml`, mounted at `/app/bow-config.yaml`
+- Optionally, a bundled single-instance PostgreSQL 17 (a `StatefulSet` running the official `postgres:17-bookworm` image), enabled by default. The chart has no chart dependencies.
+- Optionally, a `HorizontalPodAutoscaler`, `PodDisruptionBudget` and `NetworkPolicy` (all disabled by default)
+
+**Prerequisites**
+
+- A Kubernetes cluster and `kubectl` access to it
+- Helm 3.8 or newer
+- An ingress controller (the chart defaults to `ingress-nginx`), or set `ingress.enabled=false` and expose the `Service` yourself
+- For the bundled PostgreSQL: a default `StorageClass` (the database requests a 20Gi volume)
+- For TLS: [cert-manager](https://cert-manager.io/) or an existing TLS Secret
+
+<Note>
+The chart validates your values against a strict schema. Unknown keys, or a wrong type such as `--set ingress.tls=false`, fail the install with `values don't meet the specifications of the schema`. If you are coming from older docs or an older values file, see [Upgrading from chart 2.x](#upgrading-from-chart-2-x) and [Upgrading from chart 1.x](#upgrading-from-chart-1-x).
+</Note>
+
+### Quick start
+
+<Steps>
+  <Step title="Add the Helm repository">
+    ```bash
+    helm repo add bow https://helm.bagofwords.com/
+    helm repo update
+    ```
+  </Step>
+  <Step title="Create a namespace and a Secret">
+    Keep sensitive values in a Kubernetes Secret, not in your values file. The chart loads every key of the Secret named in `config.secretRef` as an environment variable.
+
+    ```bash
+    kubectl create namespace bow
+
+    PG_PASSWORD=$(openssl rand -hex 24)
+
+    kubectl create secret generic bow-secrets -n bow \
+      --from-literal=BOW_ENCRYPTION_KEY="$(openssl rand -base64 32 | tr '+/' '-_')" \
+      --from-literal=password="$PG_PASSWORD" \
+      --from-literal=postgres-password="$(openssl rand -hex 24)" \
+      --from-literal=BOW_DATABASE_URL="postgresql://bow:${PG_PASSWORD}@bowapp-postgresql:5432/bagofwords"
+    ```
+
+    - `BOW_ENCRYPTION_KEY` encrypts stored credentials. Back it up. See [Day 2 operations](/day-2-operations#the-encryption-key-is-the-most-important-thing-to-back-up).
+    - `password` and `postgres-password` are the keys the bundled PostgreSQL reads for the app user and the `postgres` superuser. The app user is created as the database owner, not as a superuser.
+    - `BOW_DATABASE_URL` points the app at the bundled database. The host is `<release-name>-postgresql`, so adjust it if your release is not called `bowapp`.
+  </Step>
+  <Step title="Write a values file">
+    ```yaml
+    # values.yaml
+    host: bow.example.com
+
+    image:
+      tag: "0.0.587"          # pin a version; the default is `latest`
+
+    postgresql:
+      auth:
+        username: bow
+        database: bagofwords
+        existingSecret: bow-secrets
+
+    ingress:
+      className: nginx
+      tls:
+        enabled: true
+        secretName: bowapp-cert
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+
+    config:
+      secretRef: bow-secrets
+      baseUrl: https://bow.example.com
+    ```
+  </Step>
+  <Step title="Install">
+    ```bash
+    helm upgrade -i bowapp bow/bagofwords -n bow -f values.yaml
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    kubectl get pods -n bow
+    kubectl logs -n bow -l app.kubernetes.io/instance=bowapp --tail=100
+    ```
+
+    The first start runs database migrations, so the pod can take a minute or two to become ready. Then open `https://bow.example.com`. Before DNS and TLS are in place, you can reach the app with:
+
+    ```bash
+    kubectl port-forward -n bow svc/bowapp 3000:3000
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+If neither `config.encryptionKey` nor `config.secretRef` is set, a new encryption key is generated each time a pod starts. Stored LLM keys, data source credentials and OAuth tokens then become unreadable after any restart. The chart prints a warning in its install notes when this happens.
+</Warning>
+
+<Tip>
+For a quick evaluation you can skip the Secret and pass values inline. These values are stored in plain text in the `ConfigMap`, and the chart warns about it:
 
 ```bash
-helm repo add bow https://helm.bagofwords.com/
-helm repo update
+helm upgrade -i bowapp bow/bagofwords -n bow --create-namespace \
+  --set host=bow.example.com \
+  --set postgresql.auth.username=bow \
+  --set postgresql.auth.password=<PG-PASS> \
+  --set postgresql.auth.database=bagofwords \
+  --set config.encryptionKey="$(openssl rand -base64 32 | tr '+/' '-_')"
+```
+</Tip>
+
+### Database options
+
+<Tabs>
+  <Tab title="Bundled PostgreSQL">
+    This is the default (`postgresql.enabled: true`). The [quick start](#quick-start) above uses it.
+
+    The chart runs its own PostgreSQL 17 `StatefulSet` from the official `postgres` image, with a `<release>-postgresql` Service and a 20Gi volume. Common settings:
+
+    ```yaml
+    postgresql:
+      enabled: true
+      auth:
+        username: bow
+        password: ""              # or use existingSecret
+        database: bagofwords
+        postgresPassword: ""      # superuser; empty generates one on first install
+        existingSecret: ""
+        secretKeys:
+          userPasswordKey: password
+          adminPasswordKey: postgres-password
+      primary:
+        persistence:
+          enabled: true
+          size: 50Gi
+          storageClass: ""        # empty uses the cluster default
+          existingClaim: ""
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        nodeSelector:
+          workload: databases
+        tolerations: []
+        affinity: {}
+        extendedConfiguration: |
+          max_connections = 300
+          shared_buffers = 256MB
+    ```
+
+    Other keys: `postgresql.image.registry` / `repository` / `tag` (default `docker.io` / `library/postgres` / `17-bookworm`), `postgresql.imagePullSecrets`, `postgresql.primary.podAnnotations`, `podSecurityContext`, `containerSecurityContext` and `terminationGracePeriodSeconds` (`60`). Run `helm show values bow/bagofwords` for the full list. Keys from the old Bitnami subchart are rejected.
+
+    <Warning>
+    Keep `postgresql.image.tag` on PostgreSQL 17 and the Debian 12 (`bookworm`) base. A major-version change needs a dump and restore or `pg_upgrade`, and a different base image can change text sort order and corrupt existing indexes.
+    </Warning>
+
+    <Note>
+    If you render the chart without cluster access (`helm template`, Argo CD, Flux), set `postgresql.auth.postgresPassword` or use `postgresql.auth.existingSecret`. Otherwise the chart cannot read the stored superuser password and writes a new random one to its Secret on every sync, while the database keeps the original.
+    </Note>
+
+    The chart sets `max_connections = 300` on the bundled server. The bundled database is a single instance. For production, prefer a managed database. See [Day 2 operations](/day-2-operations#back-up-the-database) for backups.
+  </Tab>
+  <Tab title="External PostgreSQL">
+    Turn off the bundled database and supply the connection string through your Secret:
+
+    ```bash
+    kubectl create secret generic bow-secrets -n bow \
+      --from-literal=BOW_ENCRYPTION_KEY="$(openssl rand -base64 32 | tr '+/' '-_')" \
+      --from-literal=BOW_DATABASE_URL="postgresql://bow:<PASSWORD>@db.example.com:5432/bagofwords"
+    ```
+
+    ```yaml
+    # values.yaml
+    postgresql:
+      enabled: false
+
+    config:
+      secretRef: bow-secrets
+      database:
+        # Optional. Only set this on PostgreSQL 14 or newer (see below).
+        idleSessionTimeoutMs: 600000
+    ```
+
+    Values loaded from `config.secretRef` take precedence over the chart's `ConfigMap`, so `BOW_DATABASE_URL` from the Secret is the one the app uses.
+  </Tab>
+  <Tab title="AWS Aurora / RDS with IAM">
+    The app connects with short-lived IAM tokens instead of a stored password. Complete the [AWS setup](#aws-aurora-configuration) first, then:
+
+    ```yaml
+    # aurora-values.yaml
+    host: bow.example.com
+
+    database:
+      auth:
+        provider: aws_iam
+        region: us-east-1
+        sslMode: verify-full
+        # Optional: custom CA bundle. Leave empty to use the AWS RDS CA bundle in the image.
+        sslRootCert:
+          secretName: ""
+          key: ""
+      host: my-cluster.cluster-xxx.us-east-1.rds.amazonaws.com
+      port: 5432
+      username: bow_user
+      name: bagofwords
+
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/bow-rds-role
+
+    config:
+      secretRef: bow-secrets  # holds BOW_ENCRYPTION_KEY
+      baseUrl: https://bow.example.com
+    ```
+
+    ```bash
+    helm upgrade -i bowapp bow/bagofwords -n bow -f aurora-values.yaml
+    ```
+
+    With `database.auth.provider: aws_iam`, the chart does not deploy the bundled PostgreSQL, and the `postgresql.*` values are ignored.
+  </Tab>
+</Tabs>
+
+<Warning>
+`config.database.idleSessionTimeoutMs` sends PostgreSQL's `idle_session_timeout` parameter, which exists only on **PostgreSQL 14 and newer**. On older servers every connection fails. The chart turns it on (10 minutes) only for the bundled database. For an external or IAM-authenticated database, set it yourself only if you know the server is 14 or newer.
+</Warning>
+
+#### Connection pool sizing
+
+Each Uvicorn worker keeps its own connection pool. The most connections BOW can open is:
+
+```text
+(poolSize + maxOverflow) × uvicornWorkers × replicaCount
 ```
 
-### 2. Install or Upgrade the Chart
-
-Here are a few examples of how to install or upgrade the BOW Helm chart:
-
-**Deploy with a bundled PostgreSQL instance:**
-
-```bash
-helm upgrade -i --create-namespace \
- -nbowapp-1 bowapp bow/bagofwords \
- --set postgresql.auth.username=<PG-USER> \
- --set postgresql.auth.password=<PG-PASS> \
- --set postgresql.auth.database=<PG-DB>
-```
-
-**Deploy without TLS with a custom hostname:**
-
-```bash
-helm upgrade -i --create-namespace \
- -nbowapp-1 bowapp bow/bagofwords \
-  --set host=<HOST> \
- --set postgresql.auth.username=<PG-USER> \
- --set postgresql.auth.password=<PG-PASS> \
- --set postgresql.auth.database=<PG-DB> \
- --set ingress.tls=false
-```
-
-**Deploy with TLS, cert-manager, and Google OAuth:**
-
-```bash
-helm upgrade -i --create-namespace \
- -nbowapp-1 bowapp bow/bagofwords \
- --set host=<HOST> \
- --set postgresql.auth.username=<PG-USER> \
- --set postgresql.auth.password=<PG-PASS> \
- --set postgresql.auth.database=<PG-DB> \
- --set config.googleOauthEnabled=true \
- --set config.googleClientId=<CLIENT_ID> \
- --set config.googleClientSecret=<CLIENT_SECRET>
-```
-
-### Deploy with AWS Aurora and IAM Authentication
-
-When using a managed database like AWS Aurora PostgreSQL, the chart skips the bundled PostgreSQL subchart and connects directly to your Aurora cluster. Passwords are never stored — short-lived IAM tokens are generated at runtime for every new database connection.
-
-**Prerequisites:**
-
-- An Aurora PostgreSQL cluster with **IAM database authentication** enabled
-- A database user created with: `GRANT rds_iam TO <username>`
-- An IAM role/policy with `rds-db:connect` permission
-- In EKS: an **IRSA** (IAM Roles for Service Accounts) annotation on the pod's service account so the app can assume the IAM role
-
-```bash
-helm upgrade -i --create-namespace \
- -nbowapp-1 bowapp bow/bagofwords \
- --set host=<HOST> \
- --set database.auth.provider=aws_iam \
- --set database.auth.region=us-east-1 \
- --set database.auth.sslMode=require \
- --set database.host=<AURORA-CLUSTER-ENDPOINT> \
- --set database.port=5432 \
- --set database.username=<DB-USER> \
- --set database.name=<DB-NAME> \
- --set serviceAccount.annotations.'eks\.amazonaws\.com/role-arn'=arn:aws:iam::<ACCOUNT>:role/<ROLE-NAME>
-```
-
-Or use a values file:
+With the defaults (20 + 20 per worker, up to 4 workers per pod), one pod can open 160 connections. Keep the total under your server's `max_connections` minus its reserved superuser slots, or new connections are refused and agent runs fail. Tune it with:
 
 ```yaml
-# aurora-values.yaml
-host: bow.example.com
-
-database:
-  auth:
-    provider: aws_iam
-    region: us-east-1
-    sslMode: require
-  host: my-cluster.cluster-xxx.us-east-1.rds.amazonaws.com
-  port: 5432
-  username: bow_user
-  name: postgres
-
-serviceAccount:
-  name: bowapp
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/bow-rds-role
-
+replicaCount: 2
 config:
-  encryptionKey: "<your-encryption-key>"
-  baseUrl: "https://bow.example.com"
+  uvicornWorkers: "2"
+  database:
+    poolSize: 10
+    maxOverflow: 10
+postgresql:
+  primary:
+    extendedConfiguration: |
+      max_connections = 300
 ```
+
+### Ingress and TLS
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `host` | `app.bagofwords.com` | Hostname for the Ingress rule. Always set this. |
+| `ingress.enabled` | `true` | Create the Ingress. |
+| `ingress.className` | `nginx` | IngressClass, for example `nginx`, `alb` or `traefik`. |
+| `ingress.tls.enabled` | `false` | Add a TLS block for `host`. |
+| `ingress.tls.secretName` | `bowapp-cert` | TLS Secret name. cert-manager creates it, or you create it yourself. |
+| `ingress.annotations` | `{}` | Extra Ingress annotations. |
+
+Also set `config.baseUrl` to the public URL (for example `https://bow.example.com`). BOW uses it to build links in emails and OAuth callback URLs.
+
+**HTTP only, custom hostname:**
 
 ```bash
-helm upgrade -i --create-namespace \
- -nbowapp-1 bowapp bow/bagofwords \
- -f aurora-values.yaml
+helm upgrade -i bowapp bow/bagofwords -n bow -f values.yaml \
+  --set host=bow.internal.example.com \
+  --set ingress.tls.enabled=false \
+  --set config.baseUrl=http://bow.internal.example.com
 ```
 
-<Info>
-When `database.auth.provider` is set to `aws_iam`, the bundled PostgreSQL subchart is automatically skipped. The app uses `boto3` to call `generate_db_auth_token()` before each new connection, so tokens rotate automatically and no static database password is needed.
-</Info>
+**TLS with cert-manager and larger uploads (nginx):**
+
+```yaml
+ingress:
+  tls:
+    enabled: true
+    secretName: bowapp-cert
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+```
+
+**Behind a proxy:** set `config.forwardedAllowIps` to your ingress controller's pod CIDR (comma-separated IPs or CIDRs). Without it, BOW sees every request as coming from the ingress controller and all anonymous users share one rate limit.
+
+### Secrets
+
+Values that start with `${` are placeholders. The chart does not put them in the `ConfigMap`, and BOW reads the real value from the environment at startup. Put the real values in the Secret named by `config.secretRef`, using these keys:
+
+| Secret key | Used for |
+| --- | --- |
+| `BOW_ENCRYPTION_KEY` | Encryption of stored credentials. Required. |
+| `BOW_DATABASE_URL` | Database connection string, when not using IAM auth. |
+| `password`, `postgres-password` | Bundled PostgreSQL passwords, when `postgresql.auth.existingSecret` points to this Secret. |
+| `BOW_LICENSE_KEY` | Enterprise license. You can also paste it in **Settings → License**. |
+| `BOW_GOOGLE_CLIENT_SECRET` | Google OAuth client secret. |
+| `BOW_OIDC_<NAME>_CLIENT_SECRET` | Client secret for each OIDC provider (any name works, as long as it matches the placeholder). |
+| `BOW_LDAP_BIND_PASSWORD` | LDAP bind password. Secret only, the chart has no value for it. |
+| `BOW_SMTP_PASSWORD` | SMTP password. |
+
+If you set a sensitive value as plain text (for example `config.googleClientSecret=abc`), the chart stores it in the `ConfigMap` and prints a warning.
+
+### Authentication
+
+`config.authMode` controls sign-in: `hybrid` (default, local accounts and SSO), `local_only` or `sso_only`. Related flags: `config.allowUninvitedSignups`, `config.allowMultipleOrganizations` and `config.verifyEmails` (all `false` by default).
+
+<AccordionGroup>
+  <Accordion title="Google OAuth">
+    ```yaml
+    config:
+      googleOauthEnabled: true
+      googleClientId: "<client-id>.apps.googleusercontent.com"
+      googleClientSecret: "${BOW_GOOGLE_CLIENT_SECRET}"
+    ```
+    See [Google OAuth](#google-oauth) for the callback URL and scopes.
+  </Accordion>
+  <Accordion title="OIDC (Okta, Microsoft Entra ID, Auth0)">
+    ```yaml
+    config:
+      oidcProviders:
+        - name: entra
+          enabled: true
+          label: "Sign in with Microsoft"
+          icon: microsoft
+          issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+          clientId: "<client-id>"
+          clientSecret: "${BOW_OIDC_ENTRA_CLIENT_SECRET}"
+          scopes: ["openid", "profile", "email"]
+          pkce: true
+          clientAuthMethod: post     # basic | post
+          discovery: true
+          uidClaim: sub
+          syncGroups: true
+          groupClaim: groups
+          resolveGroupNames: true
+    ```
+    Optional per-provider keys: `redirectPath`, `extraAuthorizeParams` and `extraTokenParams`. See [OpenID Connect](#openid-connect-oidc) for provider-side setup.
+  </Accordion>
+  <Accordion title="LDAP / Active Directory">
+    ```yaml
+    config:
+      ldap:
+        enabled: true
+        url: ldaps://ad.corp.example.com:636
+        bindDn: CN=svc-bow,OU=Service Accounts,DC=corp,DC=example,DC=com
+        baseDn: DC=corp,DC=example,DC=com
+        organizationId: "<bow-organization-id>"
+        admissionGroupDn: CN=BOW Users,OU=Groups,DC=corp,DC=example,DC=com
+        useSsl: true
+        autoProvisionUsers: true
+        syncIntervalMinutes: 60
+        # caCertsFile: /etc/ldap-ca/ca.pem   # mount with extraVolumes
+    ```
+    Put `BOW_LDAP_BIND_PASSWORD` in the Secret. Other keys, with their defaults: `startTls` (`false`), `kerberosRealm`, `allowLocalSuperuserLogin` (`false`), `userSearchBase`, `userSearchFilter` (`(objectClass=person)`), `userEmailAttribute` (`mail`), `userNameAttribute` (`displayName`), `groupSearchBase`, `groupSearchFilter` (`(objectClass=group)`), `groupNameAttribute` (`cn`), `groupMemberAttribute` (`member`), `groupMemberFormat` (`dn` or `uid`), `connectionTimeout` (`10`) and `pageSize` (`500`).
+  </Accordion>
+</AccordionGroup>
+
+### Email (SMTP)
+
+```yaml
+config:
+  smtp:
+    enabled: true
+    host: smtp.example.com
+    port: 587
+    username: bow
+    password: "${BOW_SMTP_PASSWORD}"
+    from_name: BOW
+    from_email: bow@example.com
+    use_tls: true
+    use_ssl: false
+    use_credentials: true
+    validate_certs: true
+```
+
+Setting `config.smtp.host` also enables SMTP. If `enabled` is `true` and `host` is empty, the install fails. See [SMTP Settings](#smtp-settings) for what email is used for.
+
+### Persistent storage for uploads
+
+The chart does not mount a volume for uploaded files or branding assets. Without one, they are lost when a pod is rescheduled. Create a PersistentVolumeClaim and mount it:
+
+```yaml
+extraVolumes:
+  - name: uploads
+    persistentVolumeClaim:
+      claimName: bow-uploads
+extraVolumeMounts:
+  - name: uploads
+    mountPath: /app/backend/uploads
+    subPath: uploads
+  - name: uploads
+    mountPath: /app/backend/branding_uploads
+    subPath: branding
+```
+
+If you run more than one replica, the claim must support `ReadWriteMany` (for example EFS, Filestore or Azure Files).
+
+### Scaling and availability
+
+```yaml
+replicaCount: 2
+podDisruptionBudget:
+  enabled: true
+  minAvailable: "50%"
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/instance: bowapp
+autoscaling:
+  enabled: false        # when true, replicaCount is managed by the HPA
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+```
+
+Running more than one replica needs PostgreSQL and shared upload storage. Read [High availability](/day-2-operations#high-availability) before you scale out.
+
+### Observability
+
+Send traces to an OpenTelemetry collector:
+
+```yaml
+config:
+  otel:
+    enabled: true
+    serviceName: bagofwords-backend
+    tracesEndpoint: http://otel-collector.observability:4317
+    protocol: grpc         # grpc | http/protobuf
+    headers: ""            # key1=value1,key2=value2
+  telemetryEnabled: true   # anonymous product telemetry; set false to disable
+```
+
+### Other values
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `image.registry` / `image.repository` / `image.tag` | `docker.io` / `bagofwords/bagofwords` / `latest` | App image. The pull policy is always `Always`, so pin `image.tag` in production. |
+| `serviceAccount.name` | `bowapp` | ServiceAccount the chart creates and the pod uses. |
+| `serviceAccount.imagePullSecret` | `""` | Pull secret for a private registry mirror. |
+| `serviceAccount.annotations` | `{}` | For example IRSA (`eks.amazonaws.com/role-arn`) or GKE Workload Identity. |
+| `resources.requests.cpu` / `.memory` | `2` / `900Mi` | App container requests. |
+| `resources.limits.memory` | `""` | Memory limit. Empty means no limit. |
+| `nameOverride` | `""` | Resource name. Defaults to the release name. |
+| `strategy` | `{}` | Deployment strategy, for example `type: Recreate`. |
+| `revisionHistoryLimit` | `2` | Old ReplicaSets to keep. |
+| `terminationGracePeriodSeconds` | `30` | Time to drain requests on shutdown. Raise it (for example to `120`) so running agent turns can finish. |
+| `nodeSelector`, `tolerations`, `affinity` | empty | App pod scheduling. Use `postgresql.primary.*` for the database pod. |
+| `podAnnotations`, `podSecurityContext`, `containerSecurityContext`, `lifecycle` | empty | Passed through to the pod spec. |
+| `initContainers`, `extraContainers` | `[]` | Init and sidecar containers. |
+| `extraEnv`, `extraEnvFrom` | `[]` | Extra environment variables, or ConfigMaps and Secrets to load. |
+| `extraVolumes`, `extraVolumeMounts` | `[]` | Extra volumes, for example uploads or a CA bundle. |
+| `startupProbe`, `readinessProbe`, `livenessProbe` | HTTP `/health` on `3000` | Override probe settings. |
+| `networkPolicy.enabled` / `.ingress` / `.egress` | `false` / `[]` / `[]` | Raw Kubernetes NetworkPolicy rules for the app pod. |
+
+To see every value with its default:
+
+```bash
+helm show values bow/bagofwords
+```
 
 ### Update
 
+With a pinned tag, change `image.tag` in your values file and run the same upgrade command:
+
 ```bash
-# Restart the BOW deployment(s) to pick up the latest image
-# Adjust namespace (-n) and selector if you used different names
-kubectl rollout restart deployment -n bowapp-1 -l app.kubernetes.io/instance=bowapp
-kubectl rollout status deployment -n bowapp-1 -l app.kubernetes.io/instance=bowapp
+helm repo update
+helm upgrade bowapp bow/bagofwords -n bow -f values.yaml
+kubectl rollout status deployment/bowapp -n bow
 ```
+
+If you use the default `latest` tag, restart the deployment to pull the newest image:
+
+```bash
+kubectl rollout restart deployment -n bow -l app.kubernetes.io/instance=bowapp
+kubectl rollout status deployment -n bow -l app.kubernetes.io/instance=bowapp
+```
+
+Migrations run automatically on startup and cannot be rolled back. Back up the database first. See [Upgrades](/day-2-operations#upgrades).
+
+### Upgrading from chart 2.x
+
+Chart `3.0.0` replaces the Bitnami PostgreSQL subchart with the chart's own PostgreSQL, running the official `postgres:17` image. Bitnami no longer publishes the image that chart 2.x used, so new 2.x installs cannot start their database.
+
+Your data is reused in place. The StatefulSet name, volume (`data-<release>-postgresql-0`), on-disk layout and Secret keys are the same, so the upgrade restarts the database pod on the new image against the same volume. Expect about a minute of database downtime. There is no rollback to 2.x.
+
+<Steps>
+  <Step title="Back up the database">
+    Snapshot the data volume or run `pg_dump`. This backup is your only way back if something goes wrong.
+  </Step>
+  <Step title="Clean up your values file">
+    Remove Bitnami-only keys under `postgresql:`, such as `architecture`, `global`, `primary.resourcesPreset`, `metrics` and `readReplicas`. Also remove any `postgresql.image` override that points at `bitnami` or `bitnamilegacy`. The chart now rejects them.
+
+    If you changed the volume's storage class in 2.x (for example `primary.persistence.storageClass` or `global.storageClass`), set the same value under `postgresql.primary.persistence.storageClass`.
+  </Step>
+  <Step title="Upgrade with the migration flag">
+    ```bash
+    helm repo update
+    helm upgrade bowapp bow/bagofwords -n bow -f values.yaml \
+      --set postgresql.migrateFromBitnami=true
+    ```
+
+    Without this flag, the upgrade stops on purpose while the release still runs the Bitnami database, so an unpinned pipeline cannot migrate your database unattended. You only need it once. Leaving it set afterwards is harmless.
+  </Step>
+</Steps>
+
+<Note>
+The safety check needs cluster access, so it does not run under `helm template` or Argo CD. Pin the chart there (for example `targetRevision: 2.*`) until you are ready to migrate.
+</Note>
+
+If the upgrade fails with `updates to statefulset spec for fields other than ... are forbidden`, delete only the StatefulSet object (the volume and data are kept) and upgrade again:
+
+```bash
+kubectl delete statefulset bowapp-postgresql -n bow --cascade=orphan
+```
+
+If you used AWS IAM authentication on 2.x, the upgrade removes the unused Bitnami database. Its volume is kept, so delete it yourself once you are sure you don't need it.
+
+### Upgrading from chart 1.x
+
+If you are on 1.x, follow these steps first and then [Upgrading from chart 2.x](#upgrading-from-chart-2-x).
+
+
+Chart `2.0.0` changes the Deployment's selector labels to `app.kubernetes.io/name` and `app.kubernetes.io/instance`. Kubernetes does not allow selectors to change, so a plain `helm upgrade` fails with `field is immutable: spec.selector`. Delete the Deployment, then upgrade. The app is unavailable until the new pod is ready. The database and its volume are not affected.
+
+```bash
+kubectl delete deployment bowapp -n bow
+helm upgrade bowapp bow/bagofwords -n bow -f values.yaml
+```
+
+With Argo CD, you can instead add the sync option `argocd.argoproj.io/sync-options: Replace=true` to the Deployment.
+
+Also update your values file:
+
+| 1.x | 2.0 and later |
+| --- | --- |
+| `ingress.tls: true` / `false` | `ingress.tls.enabled: true` / `false` |
+| Logs selected with `-l app=bowapp` | `-l app.kubernetes.io/instance=<release>` (the `app` label still exists) |
+| Unknown keys ignored | Unknown keys rejected by the schema |
+
+### Uninstall
+
+```bash
+helm uninstall bowapp -n bow
+```
+
+The bundled PostgreSQL volume (`data-bowapp-postgresql-0`) is kept. Delete it with `kubectl delete pvc` only if you no longer need the data.
 
 ## AWS Aurora Configuration
 ---
@@ -333,22 +767,30 @@ GRANT ALL PRIVILEGES ON DATABASE postgres TO bow_user;
 }
 ```
 
-**4. For EKS — create an IRSA-enabled service account:**
+**4. For EKS — create an IAM role for the service account (IRSA):**
+
+The Helm chart creates the `bowapp` ServiceAccount itself, so create only the IAM role with eksctl:
 
 ```bash
 eksctl create iamserviceaccount \
   --name bowapp \
-  --namespace bowapp-1 \
+  --namespace bow \
   --cluster <CLUSTER-NAME> \
+  --role-name bow-rds-role \
   --attach-policy-arn arn:aws:iam::<ACCOUNT>:policy/bow-rds-connect \
+  --role-only \
   --approve
 ```
 
-Then set the IRSA annotation in the Helm chart:
+Then set the role on the chart's ServiceAccount:
 
-```bash
---set serviceAccount.annotations.'eks\.amazonaws\.com/role-arn'=arn:aws:iam::<ACCOUNT>:role/<ROLE-NAME>
+```yaml
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT>:role/bow-rds-role
 ```
+
+See the [AWS Aurora / RDS with IAM](#database-options) tab for the full Helm values.
 
 ### bow-config.yaml for Aurora (non-Kubernetes)
 
