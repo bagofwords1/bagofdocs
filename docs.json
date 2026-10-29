@@ -50,7 +50,9 @@
       },
       {
         "group": "Users",
-        "pages": []
+        "pages": [
+          "users/roles-and-permissions"
+        ]
       },
       {
         "group": "Guides",

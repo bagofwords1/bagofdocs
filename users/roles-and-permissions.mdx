@@ -1,0 +1,103 @@
+---
+title: "Roles & permissions"
+description: "Control who can do what with roles, resource grants, and groups."
+icon: "shield-halved"
+---
+
+BOW controls access in three layers:
+
+1. **Roles** set what a person can do across the whole organization.
+2. **Resource grants** give extra rights on one connection or agent.
+3. **Groups** let you give roles and grants to many people at once.
+
+A person's access is everything they get from all three combined. Permissions only add up: nothing takes away a right someone already has.
+
+## Built-in roles
+
+| Role | What it can do |
+|---|---|
+| **Admin** | Everything in the organization |
+| **Member** | Use agents, create and share reports, attach files, see other members, and view and run generated code |
+
+## What every member can always do
+
+Every member can view, create and share reports, attach files to chats, and see the member list. These rights don't depend on role and can't be removed. Editing, deleting or publishing a report is limited to the person who owns it.
+
+## Custom roles
+
+<Info>Custom roles require an Enterprise license.</Info>
+
+Go to **Settings → Members → Roles** to build a role from these permissions:
+
+| Area | Permission | Allows |
+|---|---|---|
+| Data & Knowledge | Create agents | Create new agents |
+| | Create connections | Add connections; you automatically own what you create |
+| | Manage connections | Edit, test, reindex or delete any connection |
+| | Manage instructions | Edit instructions on every agent |
+| | Manage entities | Manage entities |
+| | Manage evals | Manage quality checks |
+| | View code | See generated SQL and Python |
+| | Run custom code | Edit and run code (also allows viewing it) |
+| Members & Access | Manage members | Invite or remove members and change their roles |
+| | Manage service accounts | Create API service accounts |
+| Settings & Admin | Manage settings | Change organization settings |
+| | Manage LLM | Configure models and providers |
+| | View audit logs | Read the audit trail |
+| | Manage identity providers | Configure SSO, LDAP and SCIM |
+
+<Tip>Members get **View code** and **Run custom code** by default. To hide code from some users, give them a custom role without those two permissions.</Tip>
+
+## Resource grants
+
+Resource grants give someone rights on a single connection or agent without making them an admin.
+
+**On a connection**
+
+- **Manage connection**: edit, test, reindex or delete it
+- **Create agents**: build agents on top of this connection
+- **Manage agents**: manage every agent on this connection
+
+**On an agent**
+
+- **Manage**: full owner rights over this agent (includes everything below)
+- **Manage instructions**, **Create entities**, **Manage evals**, **Manage members**
+
+<Note>An organization-wide permission, such as **Manage instructions**, applies to every agent. A **Manage** grant on one agent covers only that agent.</Note>
+
+## Groups
+
+<Info>Groups require an Enterprise license.</Info>
+
+Give a role or grant to a group, and every member of the group gets it. With [SCIM](/enterprise/scim) turned on, groups sync from your identity provider (Entra ID, Okta and others).
+
+## Service accounts
+
+API keys get exactly what their role allows, without the "every member" rights above. New service accounts start with the Member role.
+
+## Project sharing
+
+Shared projects (report folders) use their own **View** or **Manage** access, which you set from the project's Share dialog rather than in roles.
+
+## Plan availability
+
+| Feature | Team | Enterprise |
+|---|---|---|
+| Admin and Member roles, resource grants | ✓ | ✓ |
+| Custom roles and groups | | ✓ |
+| SCIM group sync, LDAP | | ✓ |
+| Audit logs | ✓ | ✓ |
+
+## Examples
+
+<AccordionGroup>
+  <Accordion title="Analyst who can't see SQL">
+    Create a custom role without **View code** and assign it instead of Member.
+  </Accordion>
+  <Accordion title="Data owner for one connection">
+    Keep them as a Member and add a **Manage agents** grant on that connection.
+  </Accordion>
+  <Accordion title="IT admin without data access">
+    Create a custom role with only **Manage members** and **Manage identity providers**.
+  </Accordion>
+</AccordionGroup>
