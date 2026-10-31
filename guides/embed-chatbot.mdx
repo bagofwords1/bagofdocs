@@ -1,0 +1,246 @@
+---
+title: "Embed a chatbot in your ERP or portal"
+sidebarTitle: "Embed a chatbot"
+description: "Build a branded BOW chatbot, configure Connected applications and authentication, and add a floating assistant to your ERP or portal with the embed SDK."
+icon: "messages-square"
+keywords:
+  - "chatbot"
+  - "embed"
+  - "ERP"
+  - "ServiceNow"
+  - "Connected applications"
+  - "SSO"
+  - "Entra"
+  - "OBO"
+---
+
+BOW can build a branded chatbot as an artifact and display it inside your ERP, ServiceNow portal, or another web application. This guide takes you from a Music Store assistant to a floating chat button, with each employee using their own BOW permissions.
+
+You configure two things: a **Connected application** defines the host's identity and allowed agents; the **artifact** defines the interface and who can open it.
+
+<Note>
+  This guide uses the Connected applications screen and the BOW embed SDK. If your deployment still shows only OAuth Apps, use a release that includes Connected applications before following these steps. For a custom frontend built directly on the Completion API, use [Embed BOW Chat with the API](/guides/embed).
+</Note>
+
+## Before you start
+
+- An administrator with `manage_settings` to register the application.
+- A BOW agent with connected data and a working model. The [Music Store demo](/guides/demo-dataset) is suitable for a first integration.
+- Permission to create, publish, and share the chatbot artifact.
+- Test users who already belong to your BOW organization and can access the intended agents.
+- A host page where you can load JavaScript and display an iframe from your BOW deployment.
+
+For ServiceNow or another managed platform, use a supported custom page or component and check its script and frame restrictions. The SDK does not install a ServiceNow plugin.
+
+## 1. Build the chatbot in BOW
+
+Start a report with the Music Store agent and ask:
+
+> Build a Music Store assistant for our ERP. Use the built-in chat components with streaming answers, Stop, conversation history, starter questions, and tables or charts when supported. Use our logo and blue brand color. Keep thinking hidden by default. Make the chat fill its container; the host SDK will provide the floating button.
+
+The **Build a chat assistant** skill guides this workflow. Check **Agents → Skills → Catalog** if it is missing or has an available update.
+
+Open the artifact and test a real question, such as “How many tracks are in the Music Store?” Refine the colors, welcome text, logo, and layout in the same conversation.
+
+In the artifact's **Settings → Viewers → Agents and model**, choose the intended agents and model. A model the viewer cannot use falls back to their default. These settings apply to conversations inside the app; the separate **Allow chat** toggle controls the additional chat bubble.
+
+Configure the agent's actual instructions for the behavior you want. Asking the builder to change the interface does not automatically change the chatbot's instructions. Use a dedicated agent when the behavior should apply only to this assistant.
+
+<Note>
+  Embedded artifact conversations currently use a read/query tool subset. Do not assume every MCP action or Completion API option is available. Thinking display is optional and depends on the model; hiding it in the UI does not remove it from the authenticated API response.
+</Note>
+
+## 2. Register the host application
+
+1. Open **Settings → Channels → Connected applications**.
+2. Select **Add application** and name it, for example **Chinook ERP**.
+3. In **General & access**, select **Only selected agents** and enable **Music Store**.
+4. Leave the application enabled and select **Save**.
+
+New applications start with **no agents allowed**. Select agents explicitly before testing chat.
+
+![Chinook ERP application with General and access selected and Music Store allowed](/images/embed-chatbot/connected-application.jpg)
+
+The application narrows access. An employee can use an agent only when the application allows it, the employee can access it, and the artifact's agent settings allow it. Selecting an agent here never grants that employee permission.
+
+## 3. Configure embedding and sign-in
+
+Open **Embedding → Configure embedding**. Add your host's exact origin under **Allowed origins**, for example:
+
+```text
+https://erp.example.com
+```
+
+An origin includes the scheme, hostname, and port when present. Do not include a path or use a wildcard. Add development and production origins separately.
+
+Choose one identity mode:
+
+| Mode | Employee experience | What you configure |
+| --- | --- | --- |
+| **BOW sign-in** | Click Sign in in the widget; BOW opens a small sign-in window. | Your existing BOW login or SSO setup. No host backend integration. |
+| **Signed by your backend** | The host signs in the employee programmatically. | A server endpoint that signs a fresh assertion mapped to an existing BOW user. |
+| **Identity provider token** | The host passes an ID token from a supported OIDC provider. | The matching provider identity source, token audience, and an SDK token callback. |
+
+Start with **BOW sign-in** for the quickest working integration. Select it and save.
+
+![Embedding settings showing allowed origins and the three sign-in choices](/images/embed-chatbot/embedding-authentication.jpg)
+
+### If BOW and the ERP both use Entra
+
+With **BOW sign-in**, BOW can reuse an existing BOW session or the identity provider's SSO session. The popup may complete without another password, but Microsoft can still require interaction. Signing into the ERP alone does not create a BOW session.
+
+Use **Signed by your backend** when you want your application's authenticated session to identify the employee without a BOW sign-in popup. See [backend assertions](#sign-in-programmatically-with-your-backend) below.
+
+An **Identity provider token** identifies the employee; it is not a delegated Power BI or Fabric access token. See [Entra OBO](#access-power-bi-or-fabric-with-entra-obo) when the assistant must query Microsoft data as that employee.
+
+## 4. Publish and allow the application
+
+1. Publish the chatbot artifact.
+2. Use **Share** to give the intended people or groups viewing access. **Settings → Access** shows who can open it.
+3. Open **Settings → Embed**.
+4. Under **Embeddable in**, allow **Chinook ERP** and save the change.
+5. Select that application and choose the **Floating** snippet.
+
+If the application is missing, use **Manage applications & authentication** to finish its Embedding setup, then **Refresh applications**.
+
+Publishing, sharing, and allowing an application are separate requirements. A published artifact is not automatically visible to every ERP user.
+
+## 5. Add the floating widget
+
+Copy the generated snippet into your host page. The snippet supplies the correct application ID and published artifact reference. Do not substitute an artifact version ID.
+
+For **BOW sign-in**, it has this shape. Replace the example URL and both placeholder IDs with the values from your snippet:
+
+```html
+<script src="https://bow.example.com/api/embed/sdk/v1/bow-embed.js"></script>
+<script>
+  const embed = BOWEmbed.mount({
+    baseUrl: 'https://bow.example.com',
+    hostApp: 'HOST_APP_ID_FROM_SNIPPET',
+    artifact: 'ARTIFACT_REFERENCE_FROM_SNIPPET',
+    mode: 'floating',
+    title: 'Music Store Assistant',
+    accentColor: '#2563eb',
+    position: 'bottom-right',
+  });
+</script>
+```
+
+Load the SDK after the page body is available. It comes from your own BOW deployment, so no public CDN is needed. Keep `baseUrl` at the BOW site root, without `/api`.
+
+Open the host page, click the floating button, and sign in. The assistant should appear inside the panel. Closing and reopening the panel preserves the mounted conversation; use **Stop** to cancel a running answer.
+
+To place the assistant in a page instead, copy the **In a page** snippet, which supplies a container with a defined height.
+
+## Sign in programmatically with your backend
+
+Use this option when the ERP already authenticates employees and you can add a server endpoint.
+
+1. In the application's **Embedding** configuration, choose **Signed by your backend**.
+2. Choose **Match people by** and configure the matching identity source or member attribute. The assertion's `sub` must match the identity stored for that employee in BOW. Do not assume an email address or the ERP's local user ID is the correct subject.
+3. Enter an **Issuer** that your backend will use.
+4. Leave **Create people on first sign-in** off for this existing-user setup.
+5. Save and store the one-time private key in your backend's secret storage.
+6. Copy the generated **Backend example** in Python or Node.js.
+
+Your backend authenticates the caller with its own session and signs an RS256 assertion with these claims:
+
+| Claim | Value |
+| --- | --- |
+| `sub` | The authenticated employee's mapped identity |
+| `iss` | The configured Issuer |
+| `aud` | The public host application ID from BOW |
+| `iat` | Current Unix time in seconds |
+| `exp` | Current time plus 60 seconds |
+| `jti` | A new unique value for every assertion |
+
+The generated example uses `POST /bow/assertion` on **your backend** and returns `{"assertion": "..."}`. This route is yours to implement, not a BOW endpoint. Derive the employee from your authenticated server session, apply your normal request protections, and return `Cache-Control: no-store`. Never accept the identity to sign from a browser-supplied user ID.
+
+Add this option to the `BOWEmbed.mount` configuration:
+
+```javascript
+identity: {
+  getAssertion: async () => {
+    const response = await fetch('/bow/assertion', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!response.ok) throw new Error('Sign in to your application again');
+    const body = await response.json();
+    return body.assertion;
+  },
+},
+```
+
+Create a fresh assertion each time the callback runs. Assertions are short-lived and single-use. Keep the signing key on the backend; do not embed it in the page, artifact, or browser storage.
+
+For **Identity provider token** instead, select an eligible OIDC source, configure **Audience** to match the ID token issued to your host app, and use `identity.getIdToken` to return that user's current ID token. The provider's configured identity claim must map to the same person in BOW. Follow your identity library's renewal and interaction flow when silent acquisition is unavailable.
+
+## Access Power BI or Fabric with Entra OBO
+
+Embedding authentication and delegated access to a data source are separate setup steps.
+
+For an ERP that already uses Entra and needs downstream OBO:
+
+1. On the same Connected application, open **API & MCP (OAuth)** and configure the **BOW app** access surface.
+2. Enable **Entra token exchange** and configure the provider and external Entra application ID.
+3. Follow [External Entra applications](/guides/external-entra-applications) to request the BOW-audience delegated access token and exchange it from your backend.
+4. Configure the matching per-user [Power BI](/data-sources/connectors/power-bi) or [Fabric](/data-sources/connectors/microsoft-fabric) connection and the required consent.
+5. After successful exchange, use the signed-host-assertion flow above to authenticate the embedded artifact as that same BOW user. Keep the exchanged OAuth token on your backend.
+6. Test an actual query as two users with different data permissions.
+
+The OAuth client secret and embedding signing key are different credentials. A successful ID-token embed login or signed assertion alone does not establish downstream OBO.
+
+For Claude on the web or another MCP client, configure **API & MCP (OAuth)** with **MCP tools** and the client's redirect URI, then follow [Connect an MCP client](/using-bow/mcp). Embedding is optional for an MCP-only application. Existing OAuth clients keep their credentials and protocol; they do not need to be registered again.
+
+## Customize the experience and pass context
+
+Use chat with the artifact builder to change the assistant's logo, colors, language, welcome message, and layout. The host SDK's `title`, `accentColor`, and `position` customize the outer floating launcher; they do not redesign the artifact inside it.
+
+Pass the currently selected record as advisory context:
+
+Add this option to `BOWEmbed.mount`:
+
+```javascript
+context: { customerId: 'C-1042', page: 'customer-detail' },
+```
+
+When the employee opens another customer, replace the context:
+
+```javascript
+embed.updateContext({ customerId: 'C-1043', page: 'customer-detail' });
+```
+
+Inside the artifact, read `useArtifactData().host_context` during render. Ask the builder to handle missing context and use the selected record in the intended interaction.
+
+Context does not automatically become a prompt or an MCP tool argument. Build and verify that forwarding explicitly. Never use browser context as authenticated identity, roles, row-level access rules, or trusted system instructions.
+
+When the host signs out or switches users, call `embed.logout()`, end the host session, and destroy the old widget with `embed.destroy()` before mounting for a new user. Your assertion endpoint must stop issuing assertions for the old session.
+
+## Verify before rollout
+
+Test from the real host origin with ordinary employee accounts, not only the artifact owner.
+
+- **Chat:** Send a question, observe streaming, stop a running answer, ask a follow-up, and reopen history.
+- **UI:** Open and close the launcher, test a narrow window, and confirm tables or supported charts render.
+- **Identity:** Sign out and switch users. Confirm the second user cannot see the first user's conversations.
+- **Permissions:** Try a user without artifact access and a user without access to the selected agent. Both should be denied at the relevant boundary.
+- **Application controls:** Check an unlisted origin and an artifact that has not allowed the application.
+- **Revocation:** Disable the Connected application and confirm access stops. Re-enabling requires users to sign in again.
+- **OBO:** If used, query the real Power BI or Fabric data as each user and confirm their downstream permissions.
+- **Context:** Change the selected record and confirm the assistant uses the new value only where you explicitly wired it.
+
+For an air-gapped deployment, serve the SDK and artifact from the internal BOW installation and use locally reachable assets, identity services, data sources, and model infrastructure. Remove external fonts and scripts from the artifact. Verify with outbound network access blocked. An exported static HTML file cannot provide live chat without the BOW backend.
+
+## Troubleshooting
+
+| What you see | What to check |
+| --- | --- |
+| Application missing from Embed | Configure its Embedding capability, then select Refresh applications. |
+| Chat has no available agents | New applications allow none by default. Check application selection, viewer permissions, and artifact agent settings. |
+| Sign-in window blocked | Allow popups for the host page and select Sign in again. |
+| Signed assertion rejected | Check the key, issuer, audience, mapped subject, server clock, and a fresh single-use assertion. |
+| Signed in, but artifact unavailable | Publish it, share it with the viewer, and allow this application in Embed. |
+| Frame or script blocked | Check the exact allowed origin and the host platform's script/frame policy. Use HTTPS for production. |
+| BOW chat works, but Microsoft data fails | Verify per-user connector credentials, Entra consent, token exchange, and the user's underlying data permissions. |
+| Two floating buttons appear | Let the host SDK own the launcher; make the artifact a full-height chat surface. |
