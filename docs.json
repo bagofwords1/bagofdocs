@@ -76,7 +76,8 @@
           "guides/git",
           "guides/embed",
           "guides/external-entra-applications",
-          "guides/completions-api"
+          "guides/completions-api",
+          "guides/embed-chatbot"
         ]
       },
       {
