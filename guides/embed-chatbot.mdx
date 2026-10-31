@@ -199,11 +199,15 @@ Use chat with the artifact builder to change the assistant's logo, colors, langu
 
 Pass the currently selected record as advisory context:
 
-```javascript
-// Add to BOWEmbed.mount:
-context: { customerId: 'C-1042', page: 'customer-detail' },
+Add this option to `BOWEmbed.mount`:
 
-// When the employee opens another customer:
+```javascript
+context: { customerId: 'C-1042', page: 'customer-detail' },
+```
+
+When the employee opens another customer, replace the context:
+
+```javascript
 embed.updateContext({ customerId: 'C-1043', page: 'customer-detail' });
 ```
 
