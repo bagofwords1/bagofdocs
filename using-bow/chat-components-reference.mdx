@@ -29,7 +29,7 @@ Call it once, at the top of the component. Every option is optional.
 | Option | Type | Description |
 | --- | --- | --- |
 | `conversationId` | string | The conversation to open. Without it, the hook reopens the newest conversation whose answer is still running, if any |
-| `title` | string | The title of a conversation created by the first send. Without it, each conversation is named after its first question |
+| `title` | string | The title of a conversation created by the first send. Without it, each conversation is named after the first 80 characters of its first question |
 | `agents` | string[] | Agent IDs to narrow new conversations to. Use only to narrow on purpose; it can never widen the app's agents |
 | `historyLimit` | number | Messages per history page. Default `30` |
 
@@ -38,7 +38,7 @@ It returns:
 | Key | Type | Description |
 | --- | --- | --- |
 | `messages` | Message[] | The open conversation's messages, oldest first. See [Message](#message) |
-| `conversations` | Conversation[] | The viewer's conversations on this app, newest first. See [Conversation](#conversation) |
+| `conversations` | Conversation[] | The viewer's 20 newest conversations on this app, newest first. The hook loads no older ones: use `bow.conversations.list({ before })` for those. See [Conversation](#conversation) |
 | `conversationId` | string \| null | The open conversation |
 | `policy` | Policy \| null | Whether chat is available, and with which agents and model. See [Policy](#policy) |
 | `loading` | boolean | A conversation is loading |
@@ -90,7 +90,7 @@ It needs a bounded height: put it in a flex column with `min-h-0` on shrinking c
 | `autoFocus` | Focus the input on mount |
 | `maxRows` | The most rows the input grows to before it scrolls. Default `6` |
 
-Enter sends, Shift+Enter adds a line, and the button becomes **Stop** while an answer runs. When chat is unavailable, it shows the reason instead of a usable input.
+Enter sends, Shift+Enter adds a line, and the button becomes **Stop** while an answer runs. When chat is unavailable, the input and button stay visible but disabled, with the reason in a note under them.
 
 ### ChatThreads
 
@@ -178,7 +178,7 @@ The low-level API under the components, for what they cannot do. Every call runs
 | --- | --- |
 | `policy()` | [Policy](#policy) |
 | `list({ limit, before })` | `{ items: Conversation[], next_before }`, newest first. `limit` 1 to 50, default 20 |
-| `create({ title, agents })` | `{ id, title, agents }`. `agents` only to narrow |
+| `create({ title, agents })` | `{ id, title, created_at, updated_at, agents }`. `agents` only to narrow. Without `title`, the conversation is named "Chat: " and the artifact's title. Titles are cut to 120 characters |
 | `get(id)` | One conversation |
 | `rename(id, title)` | Renames the conversation |
 | `archive(id)` | Archives it, stopping its running answer first |
@@ -190,6 +190,8 @@ The low-level API under the components, for what they cannot do. Every call runs
 
 Errors are thrown with a `code` and a `message`. Send messages only on a user action.
 
+Embed and artifact access codes are passed through as they are, for example `embed.not_allowed`, `artifact.not_found`, `dashboard.not_published` and `access.denied`.
+
 | `code` | Meaning |
 | --- | --- |
 | `conversation.no_agents` | No agent is left for this viewer here |
@@ -197,6 +199,8 @@ Errors are thrown with a `code` and a `message`. Send messages only on a user ac
 | `conversation.limit` | A message was sent while the conversation was still answering |
 | `conversation.not_found` | The conversation or message does not exist, or is not the viewer's |
 | `conversation.unavailable` | The viewer is not a member of the organization |
+| `VALIDATION` | HTTP 422: the request was refused as invalid, for example a message over 8,000 characters or a `historyLimit` over 100 |
+| `FORBIDDEN` | The call is not allowed in the editor's preview or in view-as |
 | `RATE_LIMITED` | Too many requests: the per-viewer or per-organization limit was reached |
 | `NOT_FOUND` | In the editor's preview, the conversation does not exist |
 | `embed.session_invalid` | The viewer is not signed in, or the embed session ended |
@@ -281,7 +285,7 @@ Results are the answer's own query results, with your organization's display red
 
 ### Stream events
 
-`send()` yields these events, in order, ending with exactly one `completed`:
+`send()` yields these events, in order, ending with exactly one `completed`, or the iterator throws (`UNAVAILABLE` when the answer fails, `INTERRUPTED` when its stream breaks):
 
 | Event | Fields | Meaning |
 | --- | --- | --- |
@@ -340,7 +344,7 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `setLocale(locale)` | Change the language of BOW's messages in the frame |
 | `logout()` | End the BOW embed session in the frame |
 | `destroy()` | Remove the frame and launcher and stop listening |
-| `state` | `{ status, user, open }` |
+| `state` | `{ status, user, open }`. `status` is `'starting'`, `'authenticated'`, `'unavailable'`, `'sign_in_required'`, `'failed'` or `'signed_out'`. `user` is not cleared after `logout()` |
 | `iframe` | The frame element |
 | `version` | `'1'` |
 
