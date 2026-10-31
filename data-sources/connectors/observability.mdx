@@ -1,6 +1,6 @@
 ---
 title: "Observability and monitoring"
-description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AppDynamics, AWS CloudWatch and AWS Cost Explorer so the agent can investigate logs, traces, metrics and spend"
+description: "Connect Splunk, Elasticsearch, OpenSearch, Jaeger, Zabbix, Prometheus, AppDynamics, AWS CloudWatch, AWS Cost Explorer and Azure Cost Management so the agent can investigate logs, traces, metrics and spend"
 icon: "activity"
 ---
 
@@ -16,6 +16,7 @@ These connectors let the agent investigate operational data — logs, search ind
 | [Prometheus](#prometheus) | One table per metric, with its labels as columns | PromQL | Beta |
 | [AWS CloudWatch](#aws-cloudwatch) | `log_group::` and `metric::` tables on one connection | Logs Insights, metric queries | Beta |
 | [AWS Cost Explorer](#aws-cost-explorer) | Cost and usage tables | Cost Explorer API calls | Beta |
+| [Azure Cost Management](#azure-cost-management) | Fixed tables: costs, forecast, dimension values | Cost query specs | Beta |
 | [AppDynamics](#appdynamics) | Fixed tables: applications, tiers, nodes, backends, business transactions, service flows, metrics, events, health-rule violations | JSON query specs | Beta |
 
 ---
@@ -330,6 +331,55 @@ BOW queries the AWS **Cost Explorer** API (`ce`) so the agent can analyze spend 
 | `secret_key` | Yes | AWS secret access key. |
 
 The credential needs permission to call the Cost Explorer read APIs (`ce:GetCostAndUsage` and related). Because the mode is also available at user scope, individual users can supply their own keys instead of sharing the admin's — per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+---
+
+## Azure Cost Management
+
+<Note>
+  The Azure Cost Management connector is in **beta**.
+</Note>
+
+BOW queries the Azure **Cost Management** Query, Forecast and Dimensions APIs for one Azure scope, so the agent can answer questions like *"what did we spend last month by service?"*, *"which resource groups grew this month?"* or *"where will this month land?"*. It is the Azure counterpart of [AWS Cost Explorer](#aws-cost-explorer).
+
+The catalog has three tables:
+
+| Table | What it holds |
+| :-- | :-- |
+| `costs` | Spend grouped by any dimension (service, resource group, resource, location, tag, …) per day or month |
+| `forecast` | Forecast cost for the rest of the period, alongside actuals |
+| `dimension_values` | The values available for each dimension, for filtering |
+
+Relative dates such as "last 30 days" or "start of month" are resolved when a query runs, so saved dashboards keep rolling forward.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `scope` | Yes | — | What to report on: a subscription ID, or a scope path such as `/subscriptions/<id>`, `/subscriptions/<id>/resourceGroups/<name>`, `/providers/Microsoft.Management/managementGroups/<id>`, or a billing scope like `/providers/Microsoft.Billing/billingAccounts/<id>`. One connection covers one scope. |
+| `cost_type` | No | `ActualCost` | `ActualCost` matches your invoice. `AmortizedCost` spreads reservation and savings plan purchases across their term. |
+
+### Authentication
+
+**Service Principal (Entra ID App) — `service_principal`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Microsoft Entra ID tenant ID. |
+| `client_id` | Yes | Application (client) ID of the app registration. |
+| `client_secret` | Yes | Client secret of the app registration. |
+
+**Managed Identity / Default Azure Credential — `managed_identity`** (system scope)
+
+No fields. When BOW runs inside Azure, it signs in with its managed identity or workload identity, so no secret is stored.
+
+Either way, grant the identity the read-only **Cost Management Reader** role on the scope, for example:
+
+```bash
+az ad sp create-for-rbac --role "Cost Management Reader" --scopes /subscriptions/<id>
+```
+
+For Enterprise Agreement billing scopes, also turn on **Account owners can view charges**. Per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).
 
 ---
 

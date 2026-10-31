@@ -1,0 +1,85 @@
+---
+title: "CrowdStrike Falcon"
+description: "Investigate endpoint security read-only — hosts, alerts, incidents, CrowdScore, Spotlight vulnerabilities, prevention policies and custom IOCs"
+icon: "shield"
+---
+
+<Note>
+  The CrowdStrike Falcon connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW reads the **Falcon REST API** with an OAuth2 API client, so a SOC analyst can ask questions like *"open alerts by MITRE tactic for the last 7 days"* or *"which open incidents have the highest score?"* and get answers from live Falcon data.
+
+The connector is **read-only by construction**: it never calls containment, Real Time Response, action or update endpoints.
+
+## What the catalog looks like
+
+Falcon has no SQL surface, so BOW exposes a fixed catalog of tables. Queries are JSON specs, and filters are written in **FQL** (Falcon Query Language) — the API's native filter — and passed through as-is.
+
+| Table | What it holds |
+| :-- | :-- |
+| `hosts` | Managed devices: hostname, platform, OS, sensor version, last seen, containment status |
+| `host_groups` | Host groups and their assignment rules |
+| `alerts` | Detections and other alerts, with severity, status, MITRE tactic and technique |
+| `incidents` | Incidents with state, fine score and the hosts involved |
+| `crowdscores` | Your tenant's CrowdScore over time |
+| `vulnerabilities` | Spotlight vulnerabilities per host, with CVE details |
+| `prevention_policies` | Prevention policies and their settings |
+| `iocs` | Custom indicators of compromise |
+
+## Before you start
+
+<Steps>
+  <Step title="Create an API client in Falcon">
+    In the Falcon console, open **Support and resources → API clients and keys** and add a new API client.
+  </Step>
+
+  <Step title="Grant read-only scopes">
+    Give it **Read** on: Hosts, Host groups, Alerts, Incidents, Vulnerabilities, Prevention policies and IOC Management. Scopes you leave out simply hide the matching tables.
+  </Step>
+
+  <Step title="Copy the client ID and secret">
+    The secret is shown only once. Paste both into the connect form and click **Test connection**.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `region` | No | `auto` | The Falcon cloud your tenant lives in: `us-1`, `us-2`, `eu-1`, `us-gov-1` or `us-gov-2`. The console URL tells you (`falcon.us-2.crowdstrike.com` → `us-2`). `auto` detects it from the API client. |
+| `base_url` | No | _(blank)_ | Overrides the region, for example when an API gateway or proxy sits in front of Falcon. |
+| `verify_ssl` | No | `true` | Disable only behind a TLS-intercepting proxy on a trusted network. |
+
+## Authentication
+
+**API Client (OAuth) — `api_client`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `client_id` | Yes | From **Support and resources → API clients and keys**. |
+| `client_secret` | Yes | Shown once when the API client is created. Short-lived OAuth tokens are fetched and refreshed automatically. |
+| `member_cid` | No | Flight Control (MSSP) only: the child tenant's CID to read from. Leave empty for a single tenant. |
+
+Because the mode is also available at user scope, each user can bring an API client scoped to what they may see — per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Credentials rejected">
+    The client ID or secret is wrong, or the API client was deleted. Create a new secret in the Falcon console and paste it again.
+  </Accordion>
+
+  <Accordion title="Test connection succeeds but some tables are missing">
+    The API client lacks the read scope for those tables. The test result lists the missing scopes — add them to the API client and re-index the connection.
+  </Accordion>
+
+  <Accordion title="Requests go to the wrong cloud">
+    Set `region` explicitly instead of `auto`, or set `base_url` if you reach Falcon through a proxy.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Microsoft Intune](/data-sources/connectors/microsoft-intune) — device compliance alongside endpoint detections.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

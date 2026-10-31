@@ -1,0 +1,79 @@
+---
+title: "Microsoft Intune"
+description: "Query Intune device management read-only — managed devices, compliance, configuration profiles, apps, discovered software and Autopilot"
+icon: "laptop"
+---
+
+<Note>
+  The Microsoft Intune connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW reads Intune through **Microsoft Graph v1.0**, signed in as an Entra app. IT and security admins can ask questions like *"which devices are non-compliant?"*, *"who hasn't synced in 30 days?"* or *"where is Chrome 129 still installed?"*.
+
+The connector is read-only. Secrets Intune stores on devices — such as iOS activation-lock bypass codes and Autopilot product keys — are never selected, so the agent never sees them.
+
+## What the catalog looks like
+
+| Table | What it holds | Graph permission |
+| :-- | :-- | :-- |
+| `managed_devices` | Every enrolled device: name, OS, owner, compliance state, last sync | `DeviceManagementManagedDevices.Read.All` |
+| `detected_apps` | Software discovered on devices, with version and device count | `DeviceManagementManagedDevices.Read.All` |
+| `compliance_policies` | Compliance policies | `DeviceManagementConfiguration.Read.All` |
+| `compliance_policy_device_statuses` | Compliance status of each device against each policy | `DeviceManagementConfiguration.Read.All` |
+| `configuration_profiles` | Device configuration profiles | `DeviceManagementConfiguration.Read.All` |
+| `mobile_apps` | Apps published through Intune | `DeviceManagementApps.Read.All` |
+| `autopilot_devices` | Windows Autopilot device identities | `DeviceManagementServiceConfig.Read.All` |
+
+If the app is missing a permission, the tables that need it are left out of the catalog instead of failing every question, and the connection test names the exact permission to grant.
+
+## Before you start
+
+<Steps>
+  <Step title="Register an app in Microsoft Entra ID">
+    In the Entra admin center, create an app registration and a client secret for it.
+  </Step>
+
+  <Step title="Grant read-only Graph application permissions">
+    Add these Microsoft Graph **application** permissions and grant admin consent: `DeviceManagementManagedDevices.Read.All`, `DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All` and `DeviceManagementServiceConfig.Read.All`.
+  </Step>
+
+  <Step title="Paste the IDs and test">
+    Enter the tenant ID, client ID and client secret in the connect form and click **Test connection**.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `max_rows` | No | `50000` | Safety cap on how many records a single query may page through. |
+
+## Authentication
+
+**Entra ID App (Service Principal) — `service_principal`** (system scope, the only mode)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Microsoft Entra tenant ID (Directory ID) that holds your Intune subscription. |
+| `client_id` | Yes | Application (client) ID of the app registration. |
+| `client_secret` | Yes | A client secret of that app registration. |
+
+Intune data is tenant-wide inventory, so the connection uses one app identity for everyone — there is no per-user sign-in.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A table is missing from the catalog">
+    The app lacks the Graph permission for that table (see the table above), or admin consent wasn't granted. Add the permission, grant consent, and re-index the connection.
+  </Accordion>
+
+  <Accordion title="Queries are slow or retried">
+    Graph throttles large tenants. BOW waits and retries automatically when Graph asks it to.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Microsoft Configuration Manager](/data-sources/connectors/configuration-manager) — on-premises device inventory and patch compliance.
+- [CrowdStrike Falcon](/data-sources/connectors/crowdstrike) — endpoint detections and vulnerabilities.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

@@ -1,0 +1,109 @@
+---
+title: "Microsoft Configuration Manager (SCCM)"
+description: "Query SCCM / MECM read-only — devices, collections, hardware and software inventory, applications, deployments and software update compliance"
+icon: "server"
+---
+
+<Note>
+  The Microsoft Configuration Manager connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW reads Microsoft Configuration Manager (SCCM / MECM / ConfigMgr) through its **AdminService** REST API on the SMS Provider. IT and endpoint teams can ask questions like *"which updates are missing on the most devices?"*, *"how many machines are still on Windows 10?"* or *"who is low on disk space?"* — without SQL access to the site database.
+
+The connector is read-only. With per-user credentials, each person's own Configuration Manager security scopes still apply: a helpdesk account limited to one office only sees that office's devices.
+
+## What the catalog looks like
+
+Configuration Manager catalogs **classes**, not tables. Each class is queried with OData (`$filter`, `$select`), not SQL. By default BOW indexes a curated set of 19 reporting classes:
+
+| Area | Classes |
+| :-- | :-- |
+| Sites and devices | `SMS_Site`, `SMS_R_System`, `SMS_R_User`, `SMS_CombinedDeviceResources` |
+| Collections | `SMS_Collection`, `SMS_FullCollectionMembership` |
+| Hardware and software inventory | `SMS_G_System_OPERATING_SYSTEM`, `SMS_G_System_COMPUTER_SYSTEM`, `SMS_G_System_PC_BIOS`, `SMS_G_System_LOGICAL_DISK`, `SMS_G_System_INSTALLED_SOFTWARE` |
+| Applications and deployments | `SMS_ApplicationLatest`, `SMS_DeploymentSummary`, `SMS_AppDeploymentAssetDetails`, `SMS_Package` |
+| Software updates | `SMS_SoftwareUpdate`, `SMS_UpdateComplianceStatus` |
+| Boundaries | `SMS_Boundary`, `SMS_BoundaryGroup` |
+
+Device classes join on `ResourceID` / `MachineID`, and collection classes on `CollectionID`. To expose other classes — including custom hardware inventory classes — list them in **Classes** or turn on **Discover all classes**.
+
+## Before you start
+
+The connect form shows these steps as a setup guide with copy buttons.
+
+<Steps>
+  <Step title="Give the account read access in Configuration Manager">
+    In the console go to **Administration → Security → Administrative Users**, add the account (or its AD group) and assign the **Read-only Analyst** role. Its security scopes and collections decide what BOW can see.
+  </Step>
+
+  <Step title="Check the administration service answers">
+    From a domain-joined machine, run this against your SMS Provider. It should list your site.
+
+    ```powershell
+    Invoke-RestMethod -UseDefaultCredentials -Uri 'https://cm01.contoso.com/AdminService/wmi/SMS_Site'
+    ```
+  </Step>
+
+  <Step title="Export the SMS Provider certificate">
+    The site binds a self-signed certificate by default. Run this on the SMS Provider and paste the output into **SMS Provider certificate (PEM)**. Skip this if the certificate comes from a CA the BOW server already trusts.
+
+    ```powershell
+    $hash = ((netsh http show sslcert ipport=0.0.0.0:443) -match 'Certificate Hash' -split ':\s*')[-1].Trim()
+    $c = Get-Item "Cert:\LocalMachine\My\$hash"
+    '-----BEGIN CERTIFICATE-----'; [Convert]::ToBase64String($c.RawData, 'InsertLineBreaks'); '-----END CERTIFICATE-----'
+    ```
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `server_url` | Yes | — | Host name of the server with the SMS Provider role (usually the site server), e.g. `cm01.contoso.com`, or the full `https://cm01.contoso.com/AdminService` URL. |
+| `classes` | No | _(blank)_ | Comma-separated list of classes to expose, e.g. `SMS_R_System, SMS_Collection, v1.0/Device`. Leave empty for the curated set. |
+| `discover_all` | No | `false` | Index every class the site exposes (700+) instead of the curated set. |
+| `include_v1` | No | `false` | Also index the versioned `v1.0` route (`Device` and related entities). Needs Configuration Manager 1906 or later. |
+| `ca_certificate` | No | _(blank)_ | The SMS Provider's certificate (or its issuing CA) in PEM, so BOW trusts exactly that certificate. |
+| `verify_ssl` | No | `true` | Turn off only for an isolated test lab. |
+
+## Authentication
+
+**Windows credentials (NTLM) — `ntlm`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | `DOMAIN\username` or `user@domain`. Must be a Configuration Manager administrative user — the Read-only Analyst role is enough. |
+| `password` | Yes | The account's password. |
+
+At user scope, each person signs in with their own Windows account, so their own security scopes filter what they see. Per-user credentials on a database-style connection require an Enterprise license. See [Authentication and access](/data-sources/authentication).
+
+**Kerberos service account — `kerberos`** (system scope)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `principal` | No | Service-account principal, e.g. `svc_bow@CONTOSO.COM`. Administrators mount `krb5.conf` and the client keytab (`KRB5_CLIENT_KTNAME`) on the BOW server. Requests run as this account, not as the signed-in user. |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Certificate verify failed">
+    The SMS Provider uses its default self-signed certificate. Export it with the PowerShell in step 3 and paste it into **SMS Provider certificate (PEM)**.
+  </Accordion>
+
+  <Accordion title="401 Unauthorized">
+    The account isn't a Configuration Manager administrative user, or the password is wrong. Add it under **Administrative Users** with the Read-only Analyst role.
+  </Accordion>
+
+  <Accordion title="Fewer devices than expected">
+    The account's security scopes and collections limit what it can see. That's expected with per-user credentials; for a shared connection, widen the service account's scopes.
+  </Accordion>
+
+  <Accordion title="Test connection times out">
+    The BOW server can't reach the SMS Provider on HTTPS (443). Check the host name and firewall. The test gives up after 30 seconds.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Microsoft Intune](/data-sources/connectors/microsoft-intune) — cloud-managed devices alongside on-premises Configuration Manager.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.
