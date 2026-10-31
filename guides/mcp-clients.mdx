@@ -110,11 +110,11 @@ How you add a remote server like BOW depends on your Claude Desktop version. Som
 
 Hosted clients sign you in with OAuth instead of a token. An admin registers the client once:
 
-1. Open **Settings → Channels → OAuth Apps** and click **Register app**.
-2. Enter an **App name** your users will recognize, such as "Claude".
+1. Open **Settings → Channels → Connected applications** and click **Add application**.
+2. Enter a name your users will recognize, such as "Claude". In **General & access**, choose its **Allowed agents** and save: new applications allow no agents. Then open **API & MCP (OAuth)** and click **Configure OAuth**.
 3. Under **Access surfaces**, select **MCP tools**. Clear **BOW app** unless the client also calls the BOW API.
 4. Under **Redirect URIs**, enter the client's callback URL. For Claude on the web, use `https://claude.ai/api/mcp/auth_callback`.
-5. Click **Register app**, then copy the **Client ID** and the client secret. The secret is shown only once.
+5. Click **Configure OAuth**, then copy the **Client ID** and the client secret. The secret is shown only once.
 
 ![Register an OAuth app for Claude with the MCP tools access surface](/images/guides/mcp-clients/oauth-register-app.png)
 

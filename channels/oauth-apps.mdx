@@ -66,7 +66,7 @@ A public PKCE client does not need the client secret. A backend application shou
 | `app` | Reports, completions, artifacts, and the rest of the BOW application API |
 | `mcp` | The BOW MCP endpoint for AI assistants and MCP clients |
 
-Scopes separate the two surfaces; they do not replace BOW permissions. The application's **Allowed agents** also apply to every token it issues: a token can reach an agent only when the application allows it and its user can use it. Changes apply to existing tokens at once. Applications registered before Connected applications existed keep access to all agents their users can use. An `app` token can perform only the actions its user can already perform in that organization. An `app`-only token cannot call MCP, and an `mcp`-only token cannot call the application API.
+Scopes separate the two surfaces; they do not replace BOW permissions. The application's **Allowed agents** also apply to every token it issues: a token can reach an agent only when the application allows it and its user can use it. Changes apply to existing tokens at once. A token issued through an application with **Only selected agents** cannot call endpoints that need the `manage_settings` permission; manage applications and settings directly in BOW. Applications registered before Connected applications existed keep access to all agents their users can use. An `app` token can perform only the actions its user can already perform in that organization. An `app`-only token cannot call MCP, and an `mcp`-only token cannot call the application API.
 
 Changing an app's access surfaces revokes its existing authorization codes, access tokens, and refresh tokens.
 

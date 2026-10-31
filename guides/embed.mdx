@@ -49,10 +49,10 @@ This guide is for internal tools, trusted admin panels, and backend-proxied prod
 
 OAuth is the default credential for a user-facing embedded app. Every person signs in to BOW, and the resulting token calls the API with that person's existing organization membership and permissions.
 
-1. In BOW, open **Settings → Channels → OAuth Apps**.
-2. Register an app with the **BOW app** access surface.
-3. Add your exact callback URL.
-4. Copy the client ID.
+1. In BOW, open **Settings → Channels → Connected applications** and select **Add application**, or open an existing application.
+2. In **General & access**, under **Allowed agents**, choose the agents the app needs and save. New applications allow no agents, so a token issued before you choose agents reaches none.
+3. Open **API & MCP (OAuth)**, select **Configure OAuth**, and choose the **BOW app** access surface.
+4. Add your exact callback URL, then select **Configure OAuth** and copy the client ID.
 5. Implement Authorization Code with PKCE `S256`.
 
 See [OAuth Apps](/channels/oauth-apps) for the complete authorize, callback, token exchange, refresh, trust, and revocation flow.
