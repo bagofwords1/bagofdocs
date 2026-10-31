@@ -62,7 +62,7 @@ sequenceDiagram
 ## Before you start
 
 - An administrator with the `manage_settings` permission, to register the application.
-- An editor of the chat artifact, to publish it, share it and allow the application. The artifact's **Embed** settings are available to people who can change the artifact's settings.
+- An editor of the chat artifact, to publish it, share it and allow the application. The artifact's **Embed** tab also needs the organization permission `publish_reports`: with it, people who can edit the artifact can see the tab, and people who can change the artifact's settings can save it.
 - An agent with connected data and a working model. The [Music Store demo](/guides/demo-dataset) works for a first integration.
 - Employees who are already members of your BOW organization, or an identity source that can create them on first sign-in.
 - A host page that can load a script and show an iframe from your BOW deployment. On managed platforms such as ServiceNow, use a custom page or component that allows this. There is no BOW plugin for those platforms.
@@ -104,11 +104,11 @@ Open **Settings → Channels → Connected applications**. One registration cove
   <Step title="Configure embedding">
     Open **Embedding** and select **Configure embedding**. Fill in:
 
-    - **Allowed origins**: the exact origins of your system, one per line, for example `https://erp.example.com`. An origin is the scheme, host name and port. Do not include a path. Add development, staging and production origins separately.
+    - **Allowed origins**: the exact origins of your system, one per line, for example `https://erp.example.com`. An origin is the scheme, host name and port. Do not include a path. Add development, staging and production origins separately. An application can list up to 20 origins.
     - **How people are signed in**: the identity mode. See [Identity modes](#identity-modes) below.
     - **Match people by**: for the backend-signed and identity-provider modes, where BOW looks up the person your system names.
     - **Issuer** (backend-signed mode) or **Audience** (identity-provider mode).
-    - **Create people on first sign-in**: off by default. Leave it off when every employee already exists in BOW.
+    - **Create people on first sign-in**: off by default. Leave it off when every employee already exists in BOW. See [Match people by](#match-people-by) for what it needs.
 
     ![The embedding form with allowed origins, the three sign-in modes, Match people by, Member attribute and Issuer](/images/guides/embedded-chat/embedding-form.png)
   </Step>
@@ -183,7 +183,7 @@ The SDK is served by your own BOW deployment at `/api/embed/sdk/v1/bow-embed.js`
   </Tab>
 </Tabs>
 
-Keep `baseUrl` at the BOW site root, without `/api`. Load the script after the page body exists: in floating mode the SDK appends its panel and launcher to `document.body`.
+Keep `baseUrl` at the BOW site root, without `/api`. Call `BOWEmbed.mount` after `<body>` exists: in floating mode `mount()` appends the panel and launcher to `document.body`.
 
 | Launcher closed | Launcher open |
 | --- | --- |
@@ -214,9 +214,13 @@ For the first two modes, **Match people by** decides what the subject in the cre
 | A SAML provider | The SAML subject used at sign-in | Signed assertion only |
 | **Active Directory (LDAP)** | The user's LDAP subject, the AD `objectGUID` by default | Signed assertion only |
 | **SCIM external id** | The `externalId` your identity provider sent through SCIM | Signed assertion only |
-| **Member attribute** | The value of a member attribute you name, such as `employee_id` | Signed assertion only. Set the value per member in **Settings → Access** with **Edit attributes** |
+| **Member attribute** | The value of a member attribute you name, such as `employee_id` | Signed assertion only. Set the value per member in **Settings → Access → Members**: select the pencil icon (**Edit attributes**) next to the member's attributes, or **Add attribute** when the member has none |
 
-BOW never matches people by email address. A subject that matches nobody, more than one person, or an inactive or non-member user is refused. With **Create people on first sign-in** on, an unknown person who is known to the selected directory joins through that directory's own admission rules (for example invitations or allowed domains) with the organization's default role. The option is not offered for SCIM or member attributes.
+BOW never matches people by email address. A subject that matches nobody, more than one person, or an inactive or non-member user is refused. With **Create people on first sign-in** on, an unknown person who is known to the selected directory joins through that directory's own admission rules (for example invitations or allowed domains) with the organization's default role. The option is not offered for SCIM or member attributes. It also has these limits:
+
+- For an OpenID Connect, Google or SAML provider, the credential must carry the person's email address in an `email`, `preferred_username` or `upn` claim. Without one, the sign-in is refused.
+- BOW refuses to create a person when that email address already has a BOW account. An existing account is linked only when the person signs in to BOW through the provider itself, never because a host names its email.
+- It is not available for a SAML provider whose subject is the NameID. The provider must use an attribute as its subject.
 
 ### Signed assertion (recommended)
 
@@ -230,6 +234,7 @@ Use this mode when your system already knows who is signed in, whatever login it
 | `iat` | Now, in Unix seconds |
 | `exp` | `iat` + 60 seconds. BOW refuses assertions that live longer than two minutes |
 | `jti` | A new unique value for every assertion. BOW accepts each value once |
+| `email` | Optional. The person's email address, required when **Create people on first sign-in** is on (see [Match people by](#match-people-by)). `preferred_username` or `upn` also work |
 
 BOW allows 60 seconds of clock skew. Keep your server clock synchronized.
 
@@ -240,7 +245,7 @@ The endpoint lives on **your** backend; `/bow/assertion` is only the name the ex
 - return a fresh assertion on every call, with `Cache-Control: no-store`;
 - read the private key from your secret store.
 
-The application's **Backend example** in BOW is pre-filled with your issuer, audience and subject. These are the same examples as full routes:
+The application's **Backend example** in BOW is pre-filled with your issuer and audience, and has a placeholder for the user field that holds the subject, such as `user.employee_id`. These are the same examples as full routes:
 
 <CodeGroup>
 
@@ -316,7 +321,9 @@ identity: {
 },
 ```
 
-The SDK calls it when the frame first signs in and again for each renewal. Return a string; if it throws or returns nothing, the SDK emits an `error` event with code `credential_failed` and the frame shows the failure.
+The SDK calls it when the frame first signs in and again for each renewal. Return a string. If it throws or returns nothing, the SDK emits an `error` event with code `credential_failed`. On the first sign-in, `authRequired` with `status: 'failed'` follows and the frame shows the failure; during a renewal the frame keeps the current session and retries.
+
+A callback that never settles emits no `error`. The frame stops waiting after 20 seconds and fails with "The host application did not answer", as `authRequired` with `status: 'failed'` on the first sign-in.
 
 ![The Embedding tab of an application with its Python backend example open](/images/guides/embedded-chat/embedding-backend-example.png)
 
@@ -353,7 +360,7 @@ Use this mode when you cannot change the host system's code or backend. The fram
 
 If your system signs employees in with Entra and the assistant must query Power BI or Fabric as each employee (on-behalf-of access), combine two capabilities of the same application:
 
-1. In **API & MCP (OAuth)**, select **Configure OAuth**, choose the **BOW app** access surface, and turn on **Enable Entra token exchange** with your **External Entra application (client) ID**.
+1. In **API & MCP (OAuth)**, select **Configure OAuth**, choose the **BOW app** access surface, and turn on **Enable Entra token exchange**. Choose the **Entra SSO provider** and enter your **External Entra application (client) ID**.
 2. Follow [External Entra applications](/guides/external-entra-applications): your backend requests a BOW-audience delegated token from Entra and exchanges it at BOW's token endpoint (OAuth 2.0 Token Exchange, RFC 8693). The exchange admits the user and provisions their delegated data connections. Keep the exchanged BOW token on your backend.
 3. Configure **Embedding** in **Signed by your backend** mode, with **Match people by** set to your Entra provider. Configure that provider with `uid_claim: oid` and sign each assertion with the user's Entra object ID as `sub`, so the embedded frame signs in as the same BOW user the exchange admitted.
 4. Configure the per-user [Power BI](/data-sources/connectors/power-bi) or [Fabric](/data-sources/connectors/microsoft-fabric) connection and the required consent, and test real queries as two users with different permissions.
@@ -411,24 +418,26 @@ embed.on('error', ({ code, message }) => console.error('BOW', code, message));
 | Event | When | Detail |
 | --- | --- | --- |
 | `authenticated` | The frame signed the user in and is showing the artifact. Also sent after an `unavailable` artifact becomes available | `{ user: { name, email } }` |
-| `authRequired` | The frame is not signed in: it needs a sign-in, sign-in failed, the user signed out, the session ended, or the frame could not start | `{ status, message }` |
+| `authRequired` | The frame is not signed in: it needs a sign-in, sign-in failed, the user signed out, or the session ended | `{ status, message }` |
 | `unavailable` | The user is signed in, but this artifact cannot be shown to them here | `{ reason, message }` |
 | `error` | Your `getAssertion` or `getIdToken` callback failed or returned nothing | `{ code: 'credential_failed', message }` |
 | `open`, `close` | The floating panel opened or closed | `{}` |
 
 ## When the artifact cannot be opened
 
-When the employee is signed in but cannot open the artifact here, the frame shows a message in place of the artifact and the SDK emits `unavailable`:
+BOW lets your page frame the artifact only when the artifact exists and allows an enabled application. It then names the application's allowed origins in the frame policy. Otherwise the browser refuses the frame and the SDK emits no event at all: `embed.state.status` stays `'starting'`. This happens with a wrong artifact reference, an artifact that does not allow this application, a disabled application, or a page origin that is not listed. Treat a `'starting'` state that lasts too long as a failure, with a timeout of your own.
+
+When the frame loads and the employee is signed in but cannot open the artifact, the frame shows a message in place of the artifact and the SDK emits `unavailable`:
 
 | `reason` | Message in the frame | What to do |
 | --- | --- | --- |
 | `not_published` | This hasn't been published yet. It will appear here once it's published. | Publish the artifact. Only its editors and admins see this reason; everyone else gets `not_found` |
-| `not_found` | This isn't available. It may not be published yet, or it was removed. | Check the artifact reference in your snippet and that the artifact is published |
+| `not_found` | This isn't available. It may not be published yet, or it was removed. | Publish the artifact. It is also sent when the artifact is removed while the frame is open |
 | `denied` | You don't have access to this. Ask its owner to share it with you. | Share the artifact with this person or their group |
-| `not_allowed` | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. | Check your application under **Embeddable in** on the artifact's Embed tab |
+| `not_allowed` | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. | The artifact stopped allowing the application while the frame was open. Check your application under **Embeddable in** on the artifact's Embed tab |
 | `failed` | This couldn't be loaded. Try again in a moment. | A server or network error. The frame offers **Try again** |
 
-The session stays signed in during these states. When the artifact becomes available, for example after it is shared, the frame shows it at the next renewal or retry and the host receives `authenticated`. Other failures, such as a page opened outside its host, a disabled application or a failed sign-in, arrive as `authRequired`. Listen for the `unavailable` event rather than reading `embed.state.status`, which is also `unavailable` after some failed starts.
+The session stays signed in during these states. When the artifact becomes available, for example after it is shared, the frame shows it at the next renewal or retry and the host receives `authenticated`. A failed sign-in arrives as `authRequired`. An application disabled while the frame is open ends its sessions, so it also arrives as `authRequired`, with `status: 'failed'`.
 
 ## Sessions and renewal
 
@@ -437,7 +446,7 @@ The session stays signed in during these states. When the artifact becomes avail
 - If a renewal fails, the frame keeps the current session and retries after 15, 30, 60 and then every 120 seconds, until the session really ends. A person BOW does not know, knows twice, or has deactivated is refused at once without retries.
 - In SSO mode the frame asks the employee to sign in again when the session ends.
 - BOW rechecks every request: that the session has not expired, the application is still enabled, the user is still active and a member, and the artifact still allows the application.
-- **Sign everyone out**, **Rotate key**, disabling the application and deleting it end all its sessions at once. Re-enabling requires everyone to sign in again.
+- **Sign everyone out**, **Rotate key**, disabling the application and deleting it end all its sessions at once. So does saving a change to the identity mode, **Match people by**, **Issuer**, **Audience** or **Create people on first sign-in**. Re-enabling requires everyone to sign in again.
 
 ## Security notes
 
@@ -449,7 +458,7 @@ The session stays signed in during these states. When the artifact becomes avail
 - **The frame is locked to your origins.** BOW serves the artifact with a frame policy that names only the application's allowed origins, and only when the artifact allows that application.
 - **Assertions are short and single-use.** RS256 only, at most two minutes long, one use per `jti`. The private key never leaves your backend.
 - **Host context is advisory**, as described in [Pass the current record as context](#pass-the-current-record-as-context).
-- **Sign-ins are rate-limited**: 30 per minute per client address and 600 per minute per application. Chat messages are limited to 6 per minute per viewer per artifact and 60 per minute per organization.
+- **Sign-ins are rate-limited**: 30 per minute per client address per application, and 600 per minute per application. Chat messages are limited to 6 per minute per viewer per artifact and 60 per minute per organization.
 - **Tools in app conversations** are currently limited to reading and querying data. Do not promise write actions or arbitrary MCP tools from an embedded assistant.
 
 ## Production checklist
@@ -489,16 +498,17 @@ The session stays signed in during these states. When the artifact becomes avail
 | What you see | What to check |
 | --- | --- |
 | The application is missing under **Embeddable in** | Configure its **Embedding** capability, then select **Refresh applications** |
-| The frame stays blank or the browser reports a refused frame | The page's origin must be listed exactly under **Allowed origins**, and the artifact must allow the application. Check your own CSP `frame-src` |
+| The frame stays blank or the browser reports a refused frame, and `embed.state.status` stays `'starting'` | The page's origin must be listed exactly under **Allowed origins**, the artifact reference must be right, the artifact must allow the application, and the application must be enabled. Check your own CSP `frame-src` |
 | This link only works inside the application it was embedded in. | The frame URL was opened directly. It works only inside a page that mounts it with the SDK |
 | The application's sign-in wasn't accepted. | Check the key, the issuer, the audience (the public ID), the lifetime, and the server clock |
 | That sign-in was already used. Try again. | Your endpoint returned the same assertion twice. Sign a new one, with a new `jti`, on every call |
-| Your account isn't set up in BOW yet. Ask your admin. | The subject matches nobody through **Match people by**. Check the stored identity or member attribute, or turn on **Create people on first sign-in** where the directory supports it |
+| Your account isn't set up in BOW yet. Ask your admin. | The subject matches nobody through **Match people by**. Check the stored identity or member attribute, or turn on **Create people on first sign-in** where the directory supports it. With that option on, the credential also needs an email claim, and the email must not already have a BOW account |
 | More than one BOW account matches you. Ask your admin. | Two members share the same subject, for example the same member attribute value. Make it unique |
 | This application's access to BOW is turned off. | The application is disabled in **General & access** |
 | The sign-in window was blocked | Allow pop-ups for the host page and select **Sign in** again (SSO mode) |
 | Chat is not available here, or No agent is available to you here. | No agent is left after the application, the employee's access and the artifact's agent settings are combined. New applications allow no agents |
 | An `unavailable` reason | See [When the artifact cannot be opened](#when-the-artifact-cannot-be-opened) |
 | Two launcher buttons, or an empty panel after minimizing | The artifact has a launcher of its own. Ask the agent to make it a full-height chat without a launcher; the SDK provides one |
-| Too many messages. Wait a moment and try again. | The per-viewer or per-organization message rate limit was reached |
+| Too many requests; try again later | The per-viewer or per-organization message rate limit was reached (`RATE_LIMITED`). Wait a minute |
+| Too many messages. Wait a moment and try again. | A message was sent while the conversation was still answering (`conversation.limit`). Wait for the answer, or stop it |
 | BOW answers, but Power BI or Fabric fails | Check the per-user connection, Entra consent, the token exchange and the employee's permissions on the data. See [Microsoft Entra with token exchange](#microsoft-entra-with-token-exchange) |

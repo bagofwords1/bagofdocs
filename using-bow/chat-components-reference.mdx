@@ -188,7 +188,21 @@ The low-level API under the components, for what they cannot do. Every call runs
 
 `bow.markdown(text)` turns an answer's Markdown into safe React elements, without raw HTML.
 
-Errors are thrown with a `code`, such as `UNAVAILABLE`, `INTERRUPTED`, `ABORTED` or `QUOTA_EXCEEDED`. Send messages only on a user action.
+Errors are thrown with a `code` and a `message`. Send messages only on a user action.
+
+| `code` | Meaning |
+| --- | --- |
+| `conversation.no_agents` | No agent is left for this viewer here |
+| `conversation.agent_forbidden` | `create` named an agent the viewer cannot use here |
+| `conversation.limit` | A message was sent while the conversation was still answering |
+| `conversation.not_found` | The conversation or message does not exist, or is not the viewer's |
+| `conversation.unavailable` | The viewer is not a member of the organization |
+| `RATE_LIMITED` | Too many requests: the per-viewer or per-organization limit was reached |
+| `NOT_FOUND` | In the editor's preview, the conversation does not exist |
+| `embed.session_invalid` | The viewer is not signed in, or the embed session ended |
+| `UNAVAILABLE` | A server or network error with no more specific code |
+| `INTERRUPTED` | The answer's stream ended before it completed |
+| `ABORTED` | The call was aborted with its `AbortController` |
 
 ### Policy
 
@@ -335,7 +349,7 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | Event | Detail | When |
 | --- | --- | --- |
 | `authenticated` | `{ user: { name, email } }` | The frame signed in and shows the artifact, or an unavailable artifact became available |
-| `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed`, `signed_out` or `unavailable` (the frame could not start: opened outside its host, application disabled, or bootstrap failed) |
+| `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` |
 | `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
 | `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed or returned nothing |
 | `open` / `close` | `{}` | The floating panel opened or closed |
@@ -345,9 +359,11 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `reason` | Meaning | Message in the frame |
 | --- | --- | --- |
 | `not_published` | The artifact is not published. Told only to its editors and admins | This hasn't been published yet. It will appear here once it's published. |
-| `not_found` | Not found, or not published for this viewer | This isn't available. It may not be published yet, or it was removed. |
+| `not_found` | Not published for this viewer, or removed while the frame was open | This isn't available. It may not be published yet, or it was removed. |
 | `denied` | The viewer cannot open it | You don't have access to this. Ask its owner to share it with you. |
-| `not_allowed` | The artifact does not allow this application | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
+| `not_allowed` | The artifact stopped allowing this application while the frame was open | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
 | `failed` | A server or network error. The frame offers **Try again** | This couldn't be loaded. Try again in a moment. |
 
 A dead embed session is not an `unavailable` reason: it ends like an expired session and arrives as `authRequired`.
+
+A wrong artifact reference, an artifact that does not allow this application, a disabled application or an unlisted page origin produce no event at all. The browser refuses the frame, and `state.status` stays `'starting'`. Use a timeout of your own to treat a long `'starting'` as a failure.
