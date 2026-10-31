@@ -68,13 +68,13 @@ Open the artifact's settings, then **Viewers → Agents and model**.
 
 ![The Viewers tab with Agents and model: Only these agents with Music Store, and the default model](/images/guides/embedded-chat/agents-and-model.png)
 
-- **Agents: Auto** uses every agent each viewer can use, like a normal BOW chat. If the report the app was built from attached agents explicitly, Auto uses those.
-- **Agents: Only these agents** limits the app to the agents you check. Each viewer is still limited to the agents they can use.
-- **Default model**: **Each viewer's default** follows the viewer's group and the organization, including Auto routing when it is on. Choose a model to pin it. A viewer who cannot use the pinned model gets their own default instead.
+- **Agents: Auto** uses every agent each viewer can use, like a normal BOW chat. If the report the app was built from attached agents explicitly, Auto uses those. In the chat bubble, Auto uses only the agents the dashboard's queries use.
+- **Agents: Only these agents** limits the app to the agents you check. Each viewer is still limited to the agents they can use. It cannot be chosen while **Chat can use** is set to **Dashboard data only**.
+- **Default model**: **Each viewer's default** uses the viewer's personal default, then their group's, then the organization's, including Auto routing when it is on. Choose a model to pin it. A viewer who cannot use the pinned model gets their own default instead.
 
 These settings apply to app conversations and to the chat bubble. They are separate from **Allow chat**, which only controls the chat bubble. An app that holds its own conversations hides the bubble.
 
-The settings are checked on every message, so a change applies at once, and a viewer whose access to an agent is removed loses it at once. If no agent is left for a viewer, the app shows that chat is not available instead of the composer. Inside an embedded application, the [application's allowed agents](/guides/embed-chatbot#2-register-the-application) narrow the list further.
+The settings are checked on every message, so a change applies at once, and a viewer whose access to an agent is removed loses it at once. If no agent is left for a viewer, the composer stays visible but disabled, with a note under it that chat is not available. Inside an embedded application, the [application's allowed agents](/guides/embed-chatbot#2-register-the-application) narrow the list further.
 
 Inside the app, the agent knows it answers in an app: it replies in the person's language and skips narration. Tools in app conversations are currently limited to reading and querying data.
 
@@ -148,9 +148,9 @@ Editors can watch everything an app does. In the artifact toolbar, open **More (
 
 ![The Inspect pane under a chat app, listing requests and a click with their status and duration](/images/guides/embedded-chat/inspect-pane.png)
 
-- Each row has the time, the **Source**, the kind (request, stream, filter, click or error), the event (for example `conversations.send`), the status, the duration and the version.
-- **Source** is **Editor** for your own page, and **Preview** for BOW's automatic check. **Live** means your page's events appear as they happen; the preview's arrive every few seconds.
-- Filter by **All**, **Requests**, **Streams**, **Filters**, **Clicks** and **Errors**, by source, or by text. Drag the pane's top edge to resize it.
+- Each row has the time, the **Source**, the kind (request, stream, filter, click, error or console), the event (for example `conversations.send`), the status, the duration and the version.
+- **Source** is **Editor** for your own page, and **Preview** for BOW's automatic check. Activity is recorded only for editors' own sessions and BOW's preview, never for viewers or inside embeds. **Live** means your page's events appear as they happen; the preview's arrive every few seconds.
+- Filter by **All**, **Requests**, **Streams**, **Filters**, **Clicks** and **Errors** (which also lists console events), by source, or by text. Drag the pane's top edge to resize it.
 - Open a row to see its detail, and for requests and streams the **Request**, **Response** and **Stream** that the call carried.
 
 Recorded payloads are redacted for PII, kept for 24 hours, and private to the person whose session made them. A co-editor sees the event and **Private to** that person, never the payload.
