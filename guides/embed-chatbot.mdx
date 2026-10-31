@@ -432,12 +432,12 @@ When the frame loads and the employee is signed in but cannot open the artifact,
 | `reason` | Message in the frame | What to do |
 | --- | --- | --- |
 | `not_published` | This hasn't been published yet. It will appear here once it's published. | Publish the artifact. Only its editors and admins see this reason; everyone else gets `not_found` |
-| `not_found` | This isn't available. It may not be published yet, or it was removed. | Publish the artifact. It is also sent when the artifact is removed while the frame is open |
+| `not_found` | This isn't available. It may not be published yet, or it was removed. | Publish the artifact. An artifact removed while the frame is open is reported the next time the frame loads it, for example after a new sign-in. Until then, the app's requests fail with `artifact.not_found` |
 | `denied` | You don't have access to this. Ask its owner to share it with you. | Share the artifact with this person or their group |
-| `not_allowed` | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. | The artifact stopped allowing the application while the frame was open. Check your application under **Embeddable in** on the artifact's Embed tab |
+| `not_allowed` | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. | Check your application under **Embeddable in** on the artifact's Embed tab. When the artifact stops allowing the application while the frame is open, this is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `embed.not_allowed` and the app shows "This isn't available in this application." |
 | `failed` | This couldn't be loaded. Try again in a moment. | A server or network error. The frame offers **Try again** |
 
-The session stays signed in during these states. When the artifact becomes available, for example after it is shared, the frame shows it at the next renewal or retry and the host receives `authenticated`. A failed sign-in arrives as `authRequired`. An application disabled while the frame is open ends its sessions, so it also arrives as `authRequired`, with `status: 'failed'`.
+The session stays signed in during these states. When the artifact becomes available, for example after it is shared, the frame shows it at the next renewal or retry and the host receives `authenticated`. A failed sign-in arrives as `authRequired`. An application disabled while the frame is open ends its sessions. This arrives as `authRequired` with `status: 'failed'` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid`.
 
 ## Sessions and renewal
 

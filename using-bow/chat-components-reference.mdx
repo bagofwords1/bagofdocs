@@ -349,7 +349,7 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | Event | Detail | When |
 | --- | --- | --- |
 | `authenticated` | `{ user: { name, email } }` | The frame signed in and shows the artifact, or an unavailable artifact became available |
-| `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` |
+| `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid` |
 | `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
 | `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed or returned nothing |
 | `open` / `close` | `{}` | The floating panel opened or closed |
@@ -359,11 +359,11 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `reason` | Meaning | Message in the frame |
 | --- | --- | --- |
 | `not_published` | The artifact is not published. Told only to its editors and admins | This hasn't been published yet. It will appear here once it's published. |
-| `not_found` | Not published for this viewer, or removed while the frame was open | This isn't available. It may not be published yet, or it was removed. |
+| `not_found` | Not published for this viewer, or removed. A removal while the frame is open is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `artifact.not_found` | This isn't available. It may not be published yet, or it was removed. |
 | `denied` | The viewer cannot open it | You don't have access to this. Ask its owner to share it with you. |
-| `not_allowed` | The artifact stopped allowing this application while the frame was open | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
+| `not_allowed` | The artifact does not allow this application. When it stops allowing it while the frame is open, this is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `embed.not_allowed` and the app shows "This isn't available in this application." | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
 | `failed` | A server or network error. The frame offers **Try again** | This couldn't be loaded. Try again in a moment. |
 
-A dead embed session is not an `unavailable` reason: it ends like an expired session and arrives as `authRequired`.
+A dead embed session is not an `unavailable` reason: it ends like an expired session and arrives as `authRequired` with status `'failed'` (`sign_in_required` in BOW sign-in mode). The frame notices when it next loads the artifact's content or queries, or at the latest when the current session would have ended. Until then, the app's conversation calls fail with `embed.session_invalid` in `chat.error`.
 
 A wrong artifact reference, an artifact that does not allow this application, a disabled application or an unlisted page origin produce no event at all. The browser refuses the frame, and `state.status` stays `'starting'`. Use a timeout of your own to treat a long `'starting'` as a failure.
