@@ -16,10 +16,14 @@ Use BOW as the identity and data backend for your own application. Each person s
 BOW supports the OAuth 2.1 Authorization Code flow with PKCE `S256`. Use the `app` scope for reports, completions, artifacts, and the rest of the BOW API.
 
 <Note>
+  OAuth is one capability of a **Connected application**. Register your system once in **Settings → Channels → Connected applications**; the same registration can also embed BOW artifacts in your system. To show a BOW-built chat assistant inside your application without writing a chat UI, see [Embed a chat assistant](/guides/embed-chatbot). To build your own chat UI on the API, see [Embed BOW Chat](/guides/embed).
+</Note>
+
+<Note>
   OAuth handles both local BOW accounts and configured single sign-on providers. With Authorization Code + PKCE, your application redirects to BOW; BOW handles the user's local or Microsoft Entra ID sign-in and returns them to your registered callback. Applications that already authenticate users with Entra can optionally use [External Entra applications](/guides/external-entra-applications) to exchange a delegated token through their backend without a BOW sign-in screen.
 </Note>
 
-![OAuth Apps in Settings, showing registered apps, access surfaces, trust, and token activity](https://raw.githubusercontent.com/bagofwords1/bagofwords/codex/oauth-app-coverage/docs/screenshots/pending-changes/oauth-apps/oauth-apps-list.jpg)
+![The API & MCP (OAuth) tab of a Connected application, with Configure OAuth and the OAuth endpoint reference](/images/guides/embedded-chat/oauth-capability.png)
 
 ## Recommended architecture
 
@@ -41,13 +45,13 @@ A browser-only application can also use PKCE as a public client. If its JavaScri
 
 You need the `manage_settings` permission.
 
-1. In BOW, open **Settings → Channels → OAuth Apps**.
-2. Select **Register app**.
-3. Enter a recognizable app name.
-4. Select **BOW app** for API access. Select **MCP tools** when the client connects to BOW's MCP endpoint — see [MCP](/using-bow/mcp#option-2-oauth-app-admin-registered) for connecting Claude and other MCP clients.
+1. In BOW, open **Settings → Channels → Connected applications**.
+2. Select **Add application** and enter a recognizable name, or open an existing application. The OAuth app uses the application's name.
+3. In **General & access**, choose the **Allowed agents**: **Only selected agents** with the agents the app needs, or **All agents the user can access**. New applications start with no agents allowed. Save.
+4. Open **API & MCP (OAuth)** and select **Configure OAuth**. Select **BOW app** for API access. Select **MCP tools** when the client connects to BOW's MCP endpoint — see [MCP](/using-bow/mcp#option-2-oauth-app-admin-registered) for connecting Claude and other MCP clients.
 5. Add every allowed redirect URI, one exact URI per line.
 6. Enable **Trusted** only for an internal application operated by your organization.
-7. Register the app and copy its client ID. Store the one-time client secret if your backend will use it.
+7. Select **Configure OAuth** and copy the client ID. Store the one-time client secret if your backend will use it.
 
 ![Register an OAuth app with BOW app and MCP access surfaces, exact redirect URIs, and the optional Trusted setting](https://raw.githubusercontent.com/bagofwords1/bagofwords/codex/oauth-app-coverage/docs/screenshots/pending-changes/oauth-apps/oauth-register-app.jpg)
 
@@ -62,7 +66,7 @@ A public PKCE client does not need the client secret. A backend application shou
 | `app` | Reports, completions, artifacts, and the rest of the BOW application API |
 | `mcp` | The BOW MCP endpoint for AI assistants and MCP clients |
 
-Scopes separate the two surfaces; they do not replace BOW permissions. An `app` token can perform only the actions its user can already perform in that organization. An `app`-only token cannot call MCP, and an `mcp`-only token cannot call the application API.
+Scopes separate the two surfaces; they do not replace BOW permissions. The application's **Allowed agents** also apply to every token it issues: a token can reach an agent only when the application allows it and its user can use it. Changes apply to existing tokens at once. Applications registered before Connected applications existed keep access to all agents their users can use. An `app` token can perform only the actions its user can already perform in that organization. An `app`-only token cannot call MCP, and an `mcp`-only token cannot call the application API.
 
 Changing an app's access surfaces revokes its existing authorization codes, access tokens, and refresh tokens.
 
@@ -235,11 +239,14 @@ The authorization server metadata advertises the authorize and token endpoints, 
 
 ## Manage and revoke access
 
-OAuth Apps shows each client ID, access surfaces, trusted status, active token count, and last-used time. Use its actions menu to:
+The **API & MCP (OAuth)** tab shows the client ID, access surfaces, trusted status, active token count, and last-used time. Use its actions menu to:
 
-- edit the name, scopes, trust setting, or redirect URIs
+- edit the scopes, trust setting, or redirect URIs
 - rotate the client secret
-- delete the app and revoke its codes and tokens
+
+The name, the enabled state and deletion belong to the whole application, in **General & access**. Disabling or deleting the application revokes its OAuth codes and tokens and ends its embed sessions. Re-enabling it does not revive old tokens; users sign in again.
+
+Existing OAuth apps were moved into Connected applications with their client IDs, secrets, redirect URIs, scopes and tokens unchanged. They do not need to be registered again.
 
 <Warning>
   Treat **Trusted** as an organization-wide security decision. A trusted app receives access without an individual consent click after sign-in, so enable it only for software operated and reviewed by your organization.
