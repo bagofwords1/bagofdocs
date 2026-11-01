@@ -342,8 +342,8 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `open()` / `close()` | Open or close the floating panel |
 | `updateContext(context)` | Replace the host context |
 | `setLocale(locale)` | Change the language of BOW's messages in the frame |
-| `logout()` | End the BOW embed session in the frame |
-| `destroy()` | Remove the frame and launcher and stop listening |
+| `logout()` | Ask the frame to end its BOW embed session. The frame emits `authRequired` with `status: 'signed_out'` and asks BOW to revoke the session |
+| `destroy()` | Remove the frame and launcher and stop listening. Called right after `logout()`, it removes the frame before the frame handles the sign-out, so the session is not revoked and stays valid for up to an hour. Wait for `signed_out`, then destroy after a short pause. See [Sign-out and switching users](/guides/embed-chatbot#sign-out-and-switching-users) |
 | `state` | `{ status, user, open }`. `status` is `'starting'`, `'authenticated'`, `'unavailable'`, `'sign_in_required'`, `'failed'` or `'signed_out'`. `user` is not cleared after `logout()` |
 | `iframe` | The frame element |
 | `version` | `'1'` |

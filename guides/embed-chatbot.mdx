@@ -399,10 +399,20 @@ What happens to it depends on the artifact:
 When an employee signs out of your system, or another employee takes over the same browser:
 
 ```javascript
-embed.logout();   // ends the BOW embed session in the frame
-embed.destroy();  // removes the frame and launcher and stops listening
+embed.on('authRequired', ({ status }) => {
+  if (status !== 'signed_out') return;
+  // The frame is sending its sign-out request now. Give it a moment to leave.
+  setTimeout(() => embed.destroy(), 1000);
+});
+embed.logout();   // asks the frame to end its BOW embed session
 // …end your own session, then mount again for the next user
 ```
+
+`logout()` only sends a message to the frame. The frame then discards the session, emits `authRequired` with `status: 'signed_out'`, and asks BOW to revoke the session (`DELETE /api/embed/{host}/session`). `destroy()` removes the frame and launcher and stops listening.
+
+<Warning>
+  Do not call `destroy()` right after `logout()`. The frame is removed before it handles the sign-out message, so the session is discarded without being revoked: no request reaches BOW, no `authRequired` event fires, and the session stays valid on the server until it expires, up to one hour later. Wait for `signed_out` first. Destroying the frame in the same moment as that event can still cancel the revocation request on a slow network, so leave it a short pause, as above. If the frame never finished loading, no event arrives, so also destroy it after a timeout of your own.
+</Warning>
 
 Your assertion endpoint must stop issuing assertions for the old session. If the frame signs in a different person while mounted, it unloads the previous person's app first, so nothing of theirs remains on screen.
 
@@ -480,7 +490,7 @@ The session stays signed in during these states. When the artifact becomes avail
     The application allows only the agents the assistant needs. The artifact is published, shared with the right groups, and allows the application.
   </Step>
   <Step title="Sign-out">
-    Your sign-out calls `embed.logout()` and `embed.destroy()`. A second employee in the same browser cannot see the first one's conversations.
+    Your sign-out calls `embed.logout()`, waits for `authRequired` with `status: 'signed_out'`, and only then calls `embed.destroy()`. A second employee in the same browser cannot see the first one's conversations.
   </Step>
   <Step title="Denied paths">
     An employee without access to the artifact sees `denied`. An unlisted origin cannot show the frame. Disabling the application stops access.
