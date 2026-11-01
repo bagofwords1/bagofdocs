@@ -20,7 +20,8 @@
           "quickstart",
           "install",
           "day-2-operations",
-          "sign-in-and-sso"
+          "sign-in-and-sso",
+          "kubernetes-persistent-storage"
         ]
       },
       {
