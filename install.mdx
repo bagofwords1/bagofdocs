@@ -189,6 +189,10 @@ The `bow/bagofwords` Helm chart (chart version `3.0.0`) runs BOW on any Kubernet
 The chart validates your values against a strict schema. Unknown keys, or a wrong type such as `--set ingress.tls=false`, fail the install with `values don't meet the specifications of the schema`. If you are coming from older docs or an older values file, see [Upgrading from chart 2.x](#upgrading-from-chart-2-x) and [Upgrading from chart 1.x](#upgrading-from-chart-1-x).
 </Note>
 
+<Warning>
+  The PostgreSQL volume does not persist application files. Before a production install or any rollout of an existing deployment, configure [Kubernetes persistent storage](/kubernetes-persistent-storage). The guide covers AWS, Azure, other clusters, and copying files out of existing pods before replacing them.
+</Warning>
+
 ### Quick start
 
 <Steps>

@@ -90,7 +90,7 @@ Recommendations:
 - Do not forget the Caddy certificate volume (`caddy_data`) if you want to avoid re-issuing TLS certificates after a rebuild.
 
 <Note>
-On Kubernetes the Helm chart does not mount a volume for uploads or branding by default. Add them with `extraVolumes` and `extraVolumeMounts`, otherwise uploaded files disappear when a pod is rescheduled.
+On Kubernetes the Helm chart does not mount a volume for uploads or branding by default. Follow [Kubernetes persistent storage and migration](/kubernetes-persistent-storage) to choose storage for AWS, Azure, or another cluster and configure the mounts. For an existing installation, copy files from every current pod before restarting, upgrading, or scaling down.
 </Note>
 
 ## High availability
