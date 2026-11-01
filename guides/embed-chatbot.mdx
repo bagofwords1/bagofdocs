@@ -362,8 +362,12 @@ If your system signs employees in with Entra and the assistant must query Power 
 
 1. In **API & MCP (OAuth)**, select **Configure OAuth**, choose the **BOW app** access surface, and turn on **Enable Entra token exchange**. Choose the **Entra SSO provider** and enter your **External Entra application (client) ID**.
 2. Follow [External Entra applications](/guides/external-entra-applications): your backend requests a BOW-audience delegated token from Entra and exchanges it at BOW's token endpoint (OAuth 2.0 Token Exchange, RFC 8693). The exchange admits the user and provisions their delegated data connections. Keep the exchanged BOW token on your backend.
-3. Configure **Embedding** in **Signed by your backend** mode, with **Match people by** set to your Entra provider. Configure that provider with `uid_claim: oid` and sign each assertion with the user's Entra object ID as `sub`, so the embedded frame signs in as the same BOW user the exchange admitted.
+3. Configure **Embedding** in **Signed by your backend** mode, with **Match people by** set to your Entra provider. Configure that provider with `uid_claim: oid` and sign each assertion with the user's Entra object ID as `sub`. This matches people who have signed in to BOW through that Entra provider while `uid_claim: oid` was in place. A person admitted only by the token exchange is stored under a different identifier, so the assertion does not match them: the frame says their account isn't set up, or, with **Create people on first sign-in** on, refuses to create them because their email address already has a BOW account. Ask such people to sign in to BOW once through the Entra provider.
 4. Configure the per-user [Power BI](/data-sources/connectors/power-bi) or [Fabric](/data-sources/connectors/microsoft-fabric) connection and the required consent, and test real queries as two users with different permissions.
+
+<Warning>
+  Changing `uid_claim` on a provider that already has users does not update the identifiers BOW stored for them. Each existing member keeps the old value, for example their `sub`, until they sign in to BOW through the provider again. Until then, an assertion that sends their object ID matches nobody.
+</Warning>
 
 ![The API & MCP (OAuth) tab of the same application, ready to configure](/images/guides/embedded-chat/oauth-capability.png)
 
