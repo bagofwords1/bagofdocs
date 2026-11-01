@@ -178,7 +178,7 @@ The low-level API under the components, for what they cannot do. Every call runs
 | --- | --- |
 | `policy()` | [Policy](#policy) |
 | `list({ limit, before })` | `{ items: Conversation[], next_before }`, newest first. `limit` 1 to 50, default 20 |
-| `create({ title, agents })` | `{ id, title, created_at, updated_at, agents }`. `agents` only to narrow. Without `title`, the conversation is named "Chat: " and the artifact's title. Titles are cut to 120 characters |
+| `create({ title, agents })` | `{ id, title, created_at, updated_at, agents }`. `agents` only to narrow. Without `title`, the conversation is named "Chat: " and the artifact's title. Titles are cut to 120 characters (more than 200 is refused with `VALIDATION`) |
 | `get(id)` | One conversation |
 | `rename(id, title)` | Renames the conversation |
 | `archive(id)` | Archives it, stopping its running answer first |
@@ -201,7 +201,7 @@ Embed and artifact access codes are passed through as they are, for example `emb
 | `conversation.unavailable` | The viewer is not a member of the organization |
 | `VALIDATION` | HTTP 422: the request was refused as invalid, for example a message over 8,000 characters or a `historyLimit` over 100 |
 | `FORBIDDEN` | The call is not allowed in the editor's preview or in view-as |
-| `RATE_LIMITED` | Too many requests: the per-viewer or per-organization limit was reached |
+| `RATE_LIMITED` | "Too many requests; wait before trying again": the per-viewer limit (6 messages or 240 reads per minute per artifact) or the per-organization limit (60 per minute) was reached. "Too many requests": the app already has 12 requests in flight. The embed sign-in limit (30 per minute per client address per application) shows the first text in the frame, as `authRequired` with `status: 'failed'` |
 | `NOT_FOUND` | In the editor's preview, the conversation does not exist |
 | `embed.session_invalid` | The viewer is not signed in, or the embed session ended |
 | `UNAVAILABLE` | A server or network error with no more specific code |
@@ -352,10 +352,10 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 
 | Event | Detail | When |
 | --- | --- | --- |
-| `authenticated` | `{ user: { name, email } }` | The frame signed in and shows the artifact, or an unavailable artifact became available |
+| `authenticated` | `{ user: { name, email } }` | BOW accepted the sign-in. Sent before the artifact loads; if loading then fails, `unavailable` follows. Sent again after every successful silent renewal, and when an unavailable artifact becomes available |
 | `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid` |
 | `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
-| `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed or returned nothing |
+| `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed, returned nothing, or is not configured. `authRequired` with `status: 'failed'` follows |
 | `open` / `close` | `{}` | The floating panel opened or closed |
 
 ### unavailable reasons

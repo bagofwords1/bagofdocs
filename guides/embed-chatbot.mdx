@@ -62,7 +62,7 @@ sequenceDiagram
 ## Before you start
 
 - An administrator with the `manage_settings` permission, to register the application.
-- An editor of the chat artifact, to publish it, share it and allow the application. The artifact's **Embed** tab also needs the organization permission `publish_reports`: with it, people who can edit the artifact can see the tab, and people who can change the artifact's settings can save it.
+- An editor of the chat artifact, to publish it, share it and allow the application. Editors see the artifact's **Embed** tab; using it also needs the organization permission `publish_reports`. Without it, opening the tab shows only an error notice.
 - An agent with connected data and a working model. The [Music Store demo](/guides/demo-dataset) works for a first integration.
 - Employees who are already members of your BOW organization, or an identity source that can create them on first sign-in.
 - A host page that can load a script and show an iframe from your BOW deployment. On managed platforms such as ServiceNow, use a custom page or component that allows this. There is no BOW plugin for those platforms.
@@ -212,7 +212,7 @@ For the first two modes, **Match people by** decides what the subject in the cre
 | An OpenID Connect provider, for example Microsoft Entra ID | The user's identifier at that provider, read from the provider's configured identity claim (`uid_claim`, `sub` by default) | Available in both modes |
 | Google | The user's Google subject | Signed assertion only |
 | A SAML provider | The SAML subject used at sign-in | Signed assertion only |
-| **Active Directory (LDAP)** | The user's LDAP subject, the AD `objectGUID` by default | Signed assertion only |
+| **Active Directory (LDAP)** | The user's AD `objectGUID`, as a canonical UUID string. This cannot be changed | Signed assertion only |
 | **SCIM external id** | The `externalId` your identity provider sent through SCIM | Signed assertion only |
 | **Member attribute** | The value of a member attribute you name, such as `employee_id` | Signed assertion only. Set the value per member in **Settings → Access → Members**: select the pencil icon (**Edit attributes**) next to the member's attributes, or **Add attribute** when the member has none |
 
@@ -431,10 +431,10 @@ embed.on('error', ({ code, message }) => console.error('BOW', code, message));
 
 | Event | When | Detail |
 | --- | --- | --- |
-| `authenticated` | The frame signed the user in and is showing the artifact. Also sent after an `unavailable` artifact becomes available | `{ user: { name, email } }` |
+| `authenticated` | BOW accepted the sign-in. It is sent before the artifact loads: if loading then fails, `unavailable` follows. Also sent again after every successful silent renewal, and when an `unavailable` artifact becomes available | `{ user: { name, email } }` |
 | `authRequired` | The frame is not signed in: it needs a sign-in, sign-in failed, the user signed out, or the session ended | `{ status, message }` |
 | `unavailable` | The user is signed in, but this artifact cannot be shown to them here | `{ reason, message }` |
-| `error` | Your `getAssertion` or `getIdToken` callback failed or returned nothing | `{ code: 'credential_failed', message }` |
+| `error` | Your `getAssertion` or `getIdToken` callback failed, returned nothing, or is not configured ("identity.getAssertion is not configured"). `authRequired` with `status: 'failed'` follows | `{ code: 'credential_failed', message }` |
 | `open`, `close` | The floating panel opened or closed | `{}` |
 
 ## When the artifact cannot be opened
@@ -526,6 +526,7 @@ The session stays signed in during these states. When the artifact becomes avail
 | Chat is not available here, or No agent is available to you here. | No agent is left after the application, the employee's access and the artifact's agent settings are combined. New applications allow no agents |
 | An `unavailable` reason | See [When the artifact cannot be opened](#when-the-artifact-cannot-be-opened) |
 | Two launcher buttons, or an empty panel after minimizing | The artifact has a launcher of its own. Ask the agent to make it a full-height chat without a launcher; the SDK provides one |
-| Too many requests; try again later | The per-viewer or per-organization message rate limit was reached (`RATE_LIMITED`). Wait a minute |
+| Too many requests; wait before trying again | A rate limit was reached (`RATE_LIMITED`): 6 chat messages or 240 conversation reads per minute per viewer per artifact, 60 messages per minute per organization, or, at sign-in, 30 sign-ins per minute per client address per application. Wait a minute |
+| Too many requests | The app has 12 requests to BOW in flight at once (`RATE_LIMITED`). Wait for some to finish, and avoid sending calls in a loop |
 | Too many messages. Wait a moment and try again. | A message was sent while the conversation was still answering (`conversation.limit`). Wait for the answer, or stop it |
 | BOW answers, but Power BI or Fabric fails | Check the per-user connection, Entra consent, the token exchange and the employee's permissions on the data. See [Microsoft Entra with token exchange](#microsoft-entra-with-token-exchange) |
