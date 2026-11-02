@@ -1,0 +1,145 @@
+---
+title: "Connect gpt-oss on vLLM, NVIDIA NIM or OpenShift AI"
+sidebarTitle: "gpt-oss on vLLM / NIM"
+description: "Run BOW agents on a self-hosted gpt-oss model, and fix tool calls that come back empty or flaky."
+icon: "server"
+---
+
+This guide connects a self-hosted **gpt-oss** model (served by vLLM, NVIDIA NIM or Red Hat OpenShift AI) to BOW, and makes sure the agent can call its tools.
+
+BOW agents work by calling tools: running queries, building charts and reading instructions. If the model server doesn't return those calls in a form BOW can read, the agent stops with an empty answer. With gpt-oss this happens often on the **Chat Completions** endpoint. The model decides to call a tool, but the server drops the call. The **Responses API** endpoint on the same server usually returns tool calls correctly, so this guide connects BOW through it.
+
+## Before you start
+
+- **You are an admin** with permission to manage LLM settings.
+- **BOW 0.0.605 or later.** That release adds the **Use Responses API** option for custom providers. On older versions, see [Older BOW versions](#older-bow-versions).
+- **The model server's base URL**, ending in `/v1`. For example `https://llm.example.internal/v1`.
+- **The model name** the server reports. List it with:
+
+  ```bash
+  curl -s https://llm.example.internal/v1/models
+  ```
+
+  For gpt-oss this is usually `openai/gpt-oss-120b` or `openai/gpt-oss-20b`.
+
+## Step 1: Check the server returns tool calls
+
+Run these two requests against your server before you touch BOW. They tell you which endpoint to use.
+
+<CodeGroup>
+
+```bash Chat Completions
+curl -s https://llm.example.internal/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "openai/gpt-oss-120b",
+    "messages": [{"role": "user", "content": "What is the weather in Paris?"}],
+    "tools": [{"type": "function", "function": {
+      "name": "get_weather",
+      "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}}],
+    "tool_choice": "auto"
+  }'
+```
+
+```bash Responses API
+curl -sN https://llm.example.internal/v1/responses \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "openai/gpt-oss-120b",
+    "stream": true,
+    "input": "What is the weather in Paris?",
+    "tools": [{"type": "function", "name": "get_weather",
+      "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}]
+  }'
+```
+
+</CodeGroup>
+
+Add `-H 'Authorization: Bearer <key>'` if your server needs a key.
+
+| What you see | What it means | What to do |
+| --- | --- | --- |
+| Chat Completions returns `"tool_calls": [...]` and `"finish_reason": "tool_calls"` | The server parses tool calls. | Use the default setup. Skip the **Use Responses API** box in Step 2. |
+| Chat Completions returns `"content": null`, no `tool_calls`, `"finish_reason": "stop"` | The model made the call but the server dropped it. | Use the Responses API (Step 2), or fix the server ([below](#fix-it-on-the-server-instead)). |
+| Chat Completions returns a 400 error about `tool_choice` or auto tool choice | Tool parsing is turned off on the server. | Same as above. |
+| Responses API streams `response.function_call_arguments.delta` events and a `function_call` item | The Responses API works for tools. | Turn on **Use Responses API** in Step 2. |
+
+<Note>
+If the `reasoning` field of the Chat Completions reply says the model wants to call `get_weather` but there is no `tool_calls`, the model is fine. The tool call is lost in the server's output parser.
+</Note>
+
+## Step 2: Add the provider
+
+1. Go to **Settings → LLMs** and click **Add Provider**.
+2. Choose **Custom (OpenAI Compatible)**.
+3. Fill in:
+   - **Name**: for example `gpt-oss`.
+   - **Base URL**: your server's URL, ending in `/v1`.
+   - **API key**: leave empty if the server doesn't need one.
+   - **Verify SSL**: leave on, unless the server uses a self-signed certificate.
+   - **Use Responses API**: tick it if the Responses API check in Step 1 worked and Chat Completions didn't.
+4. Add the model under custom models. Use the exact name from `/v1/models`, for example `openai/gpt-oss-120b`.
+5. Save.
+
+## Step 3: Test and make it the default
+
+1. Click the new model's row to open its settings.
+2. In **Reasoning**, leave **Automatic (from model catalog)** selected. gpt-oss accepts `low`, `medium` and `high` effort.
+3. Open **Raw request fields per level (advanced)** and click **Test** on **Medium**. This sends one tool-calling request. A ✓ means the model called the tool and BOW read the call.
+4. In the same settings card, click **Make Default**.
+
+Ask a question that needs data, like "How many customers do we have?". The agent should show its tool steps and return an answer.
+
+## Fix it on the server instead
+
+If you control the model server, you can fix Chat Completions at the source. Then BOW works without the **Use Responses API** box.
+
+<Tabs>
+  <Tab title="vLLM">
+    Start vLLM with tool parsing turned on:
+
+    ```bash
+    vllm serve openai/gpt-oss-120b \
+      --enable-auto-tool-choice \
+      --tool-call-parser openai
+    ```
+  </Tab>
+  <Tab title="NVIDIA NIM">
+    Use NIM for LLMs **1.12.4 or later**. In 1.12.0 to 1.12.3, tool calling doesn't work on Chat Completions for gpt-oss. If tool calls still come back empty, check your NIM version's docs for how to pass vLLM's tool-parser options to the container.
+  </Tab>
+  <Tab title="OpenShift AI">
+    OpenShift AI serves models with vLLM. Add `--enable-auto-tool-choice` and `--tool-call-parser openai` to the serving runtime's arguments. If tool calls work only sometimes, upgrade the serving runtime: newer vLLM versions fix gpt-oss tool calls being dropped mid-stream.
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The agent replies with nothing, or stops after thinking">
+    The server is dropping tool calls on Chat Completions. Run the checks in [Step 1](#step-1-check-the-server-returns-tool-calls), then either turn on **Use Responses API** or fix the server.
+  </Accordion>
+  <Accordion title="Tool calls work sometimes and fail other times">
+    vLLM's gpt-oss parser can fail mid-stream, sometimes with `HarmonyError: Unexpected token` in the server logs, or miss some calls when the model calls several tools at once. Turn on **Use Responses API**, which avoids that parser, or upgrade vLLM.
+  </Accordion>
+  <Accordion title="It works in Open WebUI but not in BOW">
+    Open WebUI's default tool mode writes the tool list into the prompt and reads JSON back from the reply, so it never relies on the server's tool parser. BOW uses native tool calls. Switch Open WebUI to **Native** function calling to compare like with like. If Open WebUI is set to the **Responses** API type on its connection, turn on **Use Responses API** in BOW too.
+  </Accordion>
+  <Accordion title="The Test button fails with a 400 error">
+    Read the error message. A message about `tool_choice` means tool parsing is off on the server; turn on **Use Responses API**. A message about the model name means the model ID doesn't match `/v1/models` exactly.
+  </Accordion>
+</AccordionGroup>
+
+## Older BOW versions
+
+Before 0.0.605, the **Use Responses API** box isn't shown for custom providers, but BOW already honors the setting. A database admin can turn it on for an existing custom provider (PostgreSQL):
+
+```sql
+UPDATE llm_providers
+SET additional_config =
+  (COALESCE(additional_config::jsonb, '{}'::jsonb)
+   || '{"use_responses_api": true}'::jsonb)::json
+WHERE provider_type = 'custom'
+  AND name = '<your provider name>';
+```
+
+Restart BOW after the change. Editing the provider later keeps the setting. To turn it off, set the value to `false`.
