@@ -131,7 +131,11 @@ If you control the model server, you can fix Chat Completions at the source. The
 
 ## Older BOW versions
 
-Before 0.0.605, the **Use Responses API** box isn't shown for custom providers, but BOW already honors the setting. A database admin can turn it on for an existing custom provider (PostgreSQL):
+Before 0.0.605, the **Use Responses API** box isn't shown for custom providers. There are two ways to use the Responses API anyway.
+
+### Option A: turn the setting on in the database
+
+BOW already honors the setting for custom providers; only the box is missing. A database admin can turn it on for an existing custom provider (PostgreSQL):
 
 ```sql
 UPDATE llm_providers
@@ -143,3 +147,34 @@ WHERE provider_type = 'custom'
 ```
 
 Restart BOW after the change. Editing the provider later keeps the setting. To turn it off, set the value to `false`.
+
+### Option B: OpenAI provider that behaves like GPT-5.6 (no database access)
+
+On the **OpenAI** provider with a custom base URL, BOW uses the Responses API for GPT-5.6 models. You can tell BOW to treat gpt-oss like GPT-5.6, and its requests then go to `/v1/responses` on your server.
+
+<Warning>
+This is a workaround. BOW also applies GPT-5.6's reasoning settings to gpt-oss, so a couple of levels need overriding (below). Run the test in step 4 before you rely on it, and move to the custom provider with **Use Responses API** once you upgrade.
+</Warning>
+
+1. **Add the provider.** Go to **Settings → LLMs**, click **Add Provider** and choose **OpenAI**.
+   - **API key**: any value, for example `dummy`, unless your server needs a real key.
+   - Click **Set custom base URL** and enter your server's URL, ending in `/v1`.
+   - Add the model under custom models, with the exact name from `/v1/models`, for example `openai/gpt-oss-120b`.
+   - Save.
+2. **Make it behave like GPT-5.6.** Click the model's row to open its settings. In **Reasoning**:
+   - Choose **Behaves like another model**.
+   - In **Behaves like**, type `gpt-5.6`.
+   - Set **Default level** to **Medium**.
+3. **Override Max.** Open **Raw request fields per level (advanced)** and paste this into **Max**, so it sends an effort gpt-oss accepts:
+
+   ```json
+   {"reasoning": {"effort": "high"}}
+   ```
+
+   Leave **Low**, **Medium** and **High** empty. The grey text in those boxes is only a placeholder.
+4. **Test.** Click **Test** on **Medium**. A ✓ followed by **Responses** means BOW reached `/v1/responses` and read a tool call.
+5. Save, then click **Make Default**.
+
+Tell users not to pick **Fast** in the effort picker for this model: BOW sends GPT-5.6's lightest effort there, which gpt-oss doesn't have.
+
+If the test fails with an error that mentions `summary` or `effort`, your server rejects a GPT-5.6-only field. Use Option A instead.
