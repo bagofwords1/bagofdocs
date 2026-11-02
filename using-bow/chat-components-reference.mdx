@@ -144,6 +144,20 @@ It always shows the table. It draws a chart only when the result's chart hint na
 
 All components accept the same `labels` object. Missing keys fall back to English. Pass every key in the app's language.
 
+A result's table has words of its own. Without `labels` they are in Hebrew when the chat labels are Hebrew or the viewer's BOW language is Hebrew, and in English otherwise. For another language, add these keys to the same object. The same keys work as a `labels` prop on `DataTable`.
+
+| Key | English default |
+| --- | --- |
+| `search` | Search... |
+| `download` | Download CSV |
+| `csv` | CSV |
+| `range` | \{start\}–\{end\} of \{total\} |
+| `matches` | \{shown\} of \{total\} rows match |
+| `printCap` | first \{n\} rows in print/PDF |
+| `empty` | No data available |
+
+The chat keys:
+
 | Key | English default | Used by |
 | --- | --- | --- |
 | `rowsShown` | Showing \{shown\} of \{total\} rows | `ChatResult` |
@@ -326,7 +340,8 @@ Load it from your BOW deployment, then mount:
 | `identity.getAssertion` | Signed assertion mode | A function that returns, or resolves to, a fresh assertion string from your backend |
 | `identity.getIdToken` | Identity provider token mode | A function that returns, or resolves to, the user's current ID token |
 | `context` | | A plain JSON object: what the user is looking at. Advisory |
-| `locale` | | The language of BOW's messages in the frame, for example `'he'` |
+| `locale` | | The language of BOW's messages in the frame, for example `'he'`. The artifact receives it too, so its table controls follow it |
+| `startTimeout` | | Milliseconds to wait for the frame's first answer before emitting `unavailable` with `reason: 'no_response'`. Default `15000`; `0` turns it off |
 | `title` | | The frame's title, and the launcher's accessible label. Default `'BOW'` for the frame and `'Open assistant'` for the launcher |
 | `accentColor` | | Floating: the launcher's color. Default `#2563eb` |
 | `position` | | Floating: `'bottom-right'` (default) or `'bottom-left'` |
@@ -342,8 +357,8 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `open()` / `close()` | Open or close the floating panel |
 | `updateContext(context)` | Replace the host context |
 | `setLocale(locale)` | Change the language of BOW's messages in the frame |
-| `logout()` | Ask the frame to end its BOW embed session. The frame emits `authRequired` with `status: 'signed_out'` and asks BOW to revoke the session |
-| `destroy()` | Remove the frame and launcher and stop listening. Called right after `logout()`, it removes the frame before the frame handles the sign-out, so the session is not revoked and stays valid for up to an hour. Wait for `signed_out`, then destroy after a short pause. See [Sign-out and switching users](/guides/embed-chatbot#sign-out-and-switching-users) |
+| `logout()` | Ask the frame to end its BOW embed session. The frame asks BOW to revoke the session, waits for any sign-in still in progress, and then emits `authRequired` with `status: 'signed_out'`, at most five seconds later |
+| `destroy()` | Remove the frame and launcher and stop listening. Right after `logout()`, it hides them at once and removes the frame when `signed_out` arrives, or after six seconds at most. No events reach the host after `destroy()`. If your page removes the frame's element itself, wait for `signed_out` first. See [Sign-out and switching users](/guides/embed-chatbot#sign-out-and-switching-users) |
 | `state` | `{ status, user, open }`. `status` is `'starting'`, `'authenticated'`, `'unavailable'`, `'sign_in_required'`, `'failed'` or `'signed_out'`. `user` is not cleared after `logout()` |
 | `iframe` | The frame element |
 | `version` | `'1'` |
@@ -354,7 +369,7 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | --- | --- | --- |
 | `authenticated` | `{ user: { name, email } }` | BOW accepted the sign-in. Sent before the artifact loads; if loading then fails, `unavailable` follows. Sent again after every successful silent renewal, and when an unavailable artifact becomes available |
 | `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid` |
-| `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
+| `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here. Also sent by the SDK itself, with reason `no_response`, when the frame never answers |
 | `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed, returned nothing, or is not configured. On the first sign-in, `authRequired` with `status: 'failed'` follows. During a renewal the frame keeps the current session and retries, so `authRequired` comes only if that session ends first |
 | `open` / `close` | `{}` | The floating panel opened or closed |
 
@@ -367,7 +382,8 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `denied` | The viewer cannot open it | You don't have access to this. Ask its owner to share it with you. |
 | `not_allowed` | The artifact does not allow this application. When it stops allowing it while the frame is open, this is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `embed.not_allowed` and the app shows "This isn't available in this application." | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
 | `failed` | A server or network error. The frame offers **Try again** | This couldn't be loaded. Try again in a moment. |
+| `no_response` | Sent by the SDK: the frame did not answer within `startTimeout`. The browser refused it (wrong artifact reference, artifact does not allow this application, disabled application, unlisted page origin) or it could not start | None: nothing shows in a refused frame. The SDK's `message` names the likely causes |
 
 A dead embed session is not an `unavailable` reason: it ends like an expired session and arrives as `authRequired` with status `'failed'` (`sign_in_required` in BOW sign-in mode). The frame notices when it next loads the artifact's content or queries. Failed conversation calls do not tell the frame, so a chat-only app only shows `embed.session_invalid` in `chat.error` until the next renewal. In the backend-signed and identity-provider modes, that silent renewal, about five minutes before the session would have ended, asks the host for a new credential. After **Sign everyone out** it usually succeeds and signs the user straight back in, so the host receives `authenticated`, not `authRequired`. Renewal fails when the application is disabled, the key was rotated, or the host stops issuing credentials for the user. In SSO mode the frame asks for a new sign-in when the session would have ended.
 
-A wrong artifact reference, an artifact that does not allow this application, a disabled application or an unlisted page origin produce no event at all. The browser refuses the frame, and `state.status` stays `'starting'`. Use a timeout of your own to treat a long `'starting'` as a failure.
+A wrong artifact reference, an artifact that does not allow this application, a disabled application or an unlisted page origin make the browser refuse the frame, so BOW cannot report them from inside it. The SDK reports them as `unavailable` with reason `no_response` after `startTimeout`. A frame that answers later carries on normally.

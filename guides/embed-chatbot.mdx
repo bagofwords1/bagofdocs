@@ -403,19 +403,15 @@ What happens to it depends on the artifact:
 When an employee signs out of your system, or another employee takes over the same browser:
 
 ```javascript
-embed.on('authRequired', ({ status }) => {
-  if (status !== 'signed_out') return;
-  // The frame is sending its sign-out request now. Give it a moment to leave.
-  setTimeout(() => embed.destroy(), 1000);
-});
-embed.logout();   // asks the frame to end its BOW embed session
+embed.logout();    // the frame ends its BOW embed session
+embed.destroy();   // removes the frame once it has signed out
 // …end your own session, then mount again for the next user
 ```
 
-`logout()` only sends a message to the frame. The frame then discards the session, emits `authRequired` with `status: 'signed_out'`, and asks BOW to revoke the session (`DELETE /api/embed/{host}/session`). `destroy()` removes the frame and launcher and stops listening.
+`logout()` sends a message to the frame. The frame asks BOW to revoke the session (`DELETE /api/embed/{host}/session`). If a sign-in or renewal is still in progress, the frame waits for it and revokes that session too. Only then does it emit `authRequired` with `status: 'signed_out'`, at most five seconds later. `destroy()` right after `logout()` hides the frame and launcher at once, and removes the frame when `signed_out` arrives, or after six seconds at most. The host receives no events after `destroy()`.
 
 <Warning>
-  Do not call `destroy()` right after `logout()`. The frame is removed before it handles the sign-out message, so the session is discarded without being revoked: no request reaches BOW, no `authRequired` event fires, and the session stays valid on the server until it expires, up to one hour later. Wait for `signed_out` first. Destroying the frame in the same moment as that event can still cancel the revocation request on a slow network, so leave it a short pause, as above. If the frame never finished loading, no event arrives, so also destroy it after a timeout of your own.
+  The SDK can only wait when it removes the frame itself. If your page removes the element that holds the frame, or navigates away, right after `logout()`, the sign-out is cut short and the session can stay valid on the server for up to an hour. In that case wait for `authRequired` with `status: 'signed_out'` before you remove the element or navigate.
 </Warning>
 
 Your assertion endpoint must stop issuing assertions for the old session. If the frame signs in a different person while mounted, it unloads the previous person's app first, so nothing of theirs remains on screen.
@@ -433,13 +429,15 @@ embed.on('error', ({ code, message }) => console.error('BOW', code, message));
 | --- | --- | --- |
 | `authenticated` | BOW accepted the sign-in. It is sent before the artifact loads: if loading then fails, `unavailable` follows. Also sent again after every successful silent renewal, and when an `unavailable` artifact becomes available | `{ user: { name, email } }` |
 | `authRequired` | The frame is not signed in: it needs a sign-in, sign-in failed, the user signed out, or the session ended | `{ status, message }` |
-| `unavailable` | The user is signed in, but this artifact cannot be shown to them here | `{ reason, message }` |
+| `unavailable` | The user is signed in, but this artifact cannot be shown to them here, or the frame never answered (`no_response`) | `{ reason, message }` |
 | `error` | Your `getAssertion` or `getIdToken` callback failed, returned nothing, or is not configured ("identity.getAssertion is not configured"). On the first sign-in, `authRequired` with `status: 'failed'` follows. During a renewal the frame keeps the current session and retries, so `authRequired` comes only if that session ends first | `{ code: 'credential_failed', message }` |
 | `open`, `close` | The floating panel opened or closed | `{}` |
 
 ## When the artifact cannot be opened
 
-BOW lets your page frame the artifact only when the artifact exists and allows an enabled application. It then names the application's allowed origins in the frame policy. Otherwise the browser refuses the frame and the SDK emits no event at all: `embed.state.status` stays `'starting'`. This happens with a wrong artifact reference, an artifact that does not allow this application, a disabled application, or a page origin that is not listed. Treat a `'starting'` state that lasts too long as a failure, with a timeout of your own.
+BOW lets your page frame the artifact only when the artifact exists and allows an enabled application. It then names the application's allowed origins in the frame policy. Otherwise the browser refuses the frame, and BOW's page never runs, so it cannot say why. This happens with a wrong artifact reference, an artifact that does not allow this application, a disabled application, or a page origin that is not listed.
+
+The SDK reports it instead. If the frame has not answered within 15 seconds, the SDK emits `unavailable` with `reason: 'no_response'` and `embed.state.status` becomes `'unavailable'`. If the frame answers later, for example on a very slow network, it carries on as usual. Change the wait with the `startTimeout` mount option, in milliseconds, or set it to `0` to turn it off.
 
 When the frame loads and the employee is signed in but cannot open the artifact, the frame shows a message in place of the artifact and the SDK emits `unavailable`:
 
@@ -450,6 +448,7 @@ When the frame loads and the employee is signed in but cannot open the artifact,
 | `denied` | You don't have access to this. Ask its owner to share it with you. | Share the artifact with this person or their group |
 | `not_allowed` | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. | Check your application under **Embeddable in** on the artifact's Embed tab. When the artifact stops allowing the application while the frame is open, this is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `embed.not_allowed` and the app shows "This isn't available in this application." |
 | `failed` | This couldn't be loaded. Try again in a moment. | A server or network error. The frame offers **Try again** |
+| `no_response` | No message: the browser refused the frame, so nothing shows in it. The SDK's `message` names the likely causes | Check the artifact reference, that the artifact allows the application, that the application is enabled, and that the page's origin is listed exactly under **Allowed origins** |
 
 The session stays signed in during these states. When the artifact becomes available, for example after it is shared, the frame shows it at the next renewal or retry and the host receives `authenticated`. A failed sign-in arrives as `authRequired`. An application disabled while the frame is open ends its sessions. This arrives as `authRequired` with `status: 'failed'` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid`.
 
@@ -497,7 +496,7 @@ The session stays signed in during these states. When the artifact becomes avail
     The application allows only the agents the assistant needs. The artifact is published, shared with the right groups, and allows the application.
   </Step>
   <Step title="Sign-out">
-    Your sign-out calls `embed.logout()`, waits for `authRequired` with `status: 'signed_out'`, and only then calls `embed.destroy()`. A second employee in the same browser cannot see the first one's conversations.
+    Your sign-out calls `embed.logout()` and then `embed.destroy()`. If your page removes the frame's element or navigates away itself, it first waits for `authRequired` with `status: 'signed_out'`. A second employee in the same browser cannot see the first one's conversations.
   </Step>
   <Step title="Denied paths">
     An employee without access to the artifact sees `denied`. An unlisted origin cannot show the frame. Disabling the application stops access.
@@ -515,7 +514,7 @@ The session stays signed in during these states. When the artifact becomes avail
 | What you see | What to check |
 | --- | --- |
 | The application is missing under **Embeddable in** | Configure its **Embedding** capability, then select **Refresh applications** |
-| The frame stays blank or the browser reports a refused frame, and `embed.state.status` stays `'starting'` | The page's origin must be listed exactly under **Allowed origins**, the artifact reference must be right, the artifact must allow the application, and the application must be enabled. Check your own CSP `frame-src` |
+| The frame stays blank or the browser reports a refused frame, and the SDK emits `unavailable` with `reason: 'no_response'` | The page's origin must be listed exactly under **Allowed origins**, the artifact reference must be right, the artifact must allow the application, and the application must be enabled. Check your own CSP `frame-src` |
 | This link only works inside the application it was embedded in. | The frame URL was opened directly. It works only inside a page that mounts it with the SDK |
 | The application's sign-in wasn't accepted. | Check the key, the issuer, the audience (the public ID), the lifetime, and the server clock |
 | That sign-in was already used. Try again. | Your endpoint returned the same assertion twice. Sign a new one, with a new `jti`, on every call |
