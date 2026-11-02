@@ -48,10 +48,7 @@ The section holds the posture, the limits and the model:
 
 ## Other AI settings
 
-* **Allow LLM to See Data**: Enable the AI to view sample data from tables for better context and more accurate analysis.
-  <Note>
-    If false, the system will use metadata only
-  </Note>
+* **Allow LLM to See Data**: Let the AI see your data's values (rows, samples, file contents) for better context and more accurate analysis. On by default. See [What the AI sees when it's off](#what-the-ai-sees-when-allow-llm-to-see-data-is-off).
 
 * **Allow File Upload**: Let users upload spreadsheets (xls/csv) and PDFs. The AI will parse and incorporate the data into analysis.
    <Note>When file upload is allowed, the LLM will see the data of the file (for indexing) - this cannot be avoided.</Note>
@@ -72,3 +69,23 @@ The section holds the posture, the limits and the model:
 * **Top K schema**: Set how many schema tables are expanded and included in the initial system prompt.
 
 * **Top K metadata resources**: Set how many metadata resources (dbt, markdown, etc.) are expanded and shown in the initial system prompt.
+
+## What the AI sees when Allow LLM to See Data is off
+
+Turn the setting off when your data must not be sent to the model provider. The AI then works from structure and aggregates, never from individual values.
+
+| The AI still sees | The AI no longer sees |
+| --- | --- |
+| Table and column names, types, row counts | Result rows and sample rows |
+| Aggregates: counts, mean, standard deviation, sum, and date ranges | Single values such as the most frequent value, minimum, maximum and percentiles of a non-date column |
+| File names, sizes and row counts | The text and rows of files it reads |
+| Query, chart and file references, parameters, errors | What its own code prints while it runs, and the value a failed conversion names in its error |
+
+This also applies to the earlier steps of a conversation. Results the AI saw while the setting was on aren't shown to it again once the setting is off: it sees their structure only. Results stay visible to you in the conversation as before.
+
+With the setting off, **Inspect data** is not available to the AI, and **Verify data apps** doesn't run, because both need to see values.
+
+<Note>
+  Text the AI wrote while the setting was on, such as an earlier answer, a chart title or the SQL of a query, may contain values and is kept as written. Files you upload are indexed as described under **Allow File Upload** above.
+</Note>
+
