@@ -79,9 +79,9 @@ Turn the setting off when your data must not be sent to the model provider. The 
 | Table and column names, types, row counts | Result rows and sample rows |
 | Aggregates: counts, mean, standard deviation, sum, and date ranges | Single values such as the most frequent value, minimum, maximum and percentiles of a non-date column |
 | File names, sizes and row counts | The text and rows of files it reads |
-| Query, chart and file references, parameters, errors | What its own code prints while it runs, and the value a failed conversion names in its error |
+| Query, chart and file references, parameters, and errors up to the point where they name a value. Errors about structure, such as a missing column or table, a syntax error or a timeout, keep their full text | What its own code prints while it runs, and any value an error names: a failed conversion, a database error that quotes a cell, a key that wasn't found |
 
-This also applies to the earlier steps of a conversation. Results the AI saw while the setting was on aren't shown to it again once the setting is off: it sees their structure only. Results stay visible to you in the conversation as before.
+This also applies to the earlier steps of a conversation. Results the AI saw while the setting was on aren't shown to it again once the setting is off: it sees their structure only. Errors recorded then are cut the same way. Results stay visible to you in the conversation as before.
 
 With the setting off, **Inspect data** is not available to the AI, and **Verify data apps** doesn't run, because both need to see values.
 
