@@ -144,7 +144,7 @@ It always shows the table. It draws a chart only when the result's chart hint na
 
 All components accept the same `labels` object. Missing keys fall back to English. Pass every key in the app's language.
 
-A result's table has words of its own. Without `labels` they are in Hebrew when the chat labels are Hebrew or the viewer's BOW language is Hebrew, and in English otherwise. For another language, add these keys to the same object. The same keys work as a `labels` prop on `DataTable`.
+A result's table has words of its own. Without `labels` they are in Hebrew when the chat labels are Hebrew. Otherwise they follow the viewer's BOW language when it is Hebrew or Spanish, and are in English for any other language. For another language, add these keys to the same object. The same keys work as a `labels` prop on `DataTable`.
 
 | Key | English default |
 | --- | --- |

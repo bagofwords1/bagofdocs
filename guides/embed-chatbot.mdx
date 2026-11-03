@@ -408,7 +408,7 @@ embed.destroy();   // removes the frame once it has signed out
 // …end your own session, then mount again for the next user
 ```
 
-`logout()` sends a message to the frame. The frame asks BOW to revoke the session (`DELETE /api/embed/{host}/session`). If a sign-in or renewal is still in progress, the frame waits for it and revokes that session too. Only then does it emit `authRequired` with `status: 'signed_out'`, at most five seconds later. `destroy()` right after `logout()` hides the frame and launcher at once, and removes the frame when `signed_out` arrives, or after six seconds at most. The host receives no events after `destroy()`.
+`logout()` sends a message to the frame. The frame asks BOW to revoke the session (`DELETE /api/embed/{host}/session`). If a sign-in or renewal is still in progress, the frame waits for it and revokes that session too. A `logout()` sent while the frame is still starting (for example while it loads the host's language) also wins: the frame does not sign in afterwards. Only then does it emit `authRequired` with `status: 'signed_out'`, at most five seconds later. `destroy()` right after `logout()` hides the frame and launcher at once, and removes the frame when `signed_out` arrives, or after six seconds at most. The host receives no events after `destroy()`.
 
 <Warning>
   The SDK can only wait when it removes the frame itself. If your page removes the element that holds the frame, or navigates away, right after `logout()`, the sign-out is cut short and the session can stay valid on the server for up to an hour. In that case wait for `authRequired` with `status: 'signed_out'` before you remove the element or navigate.

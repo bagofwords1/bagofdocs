@@ -58,7 +58,7 @@ The agent builds the chat from components that BOW provides inside every artifac
 
 Answers render as safe Markdown. Results are the real query results of the answer, not numbers parsed from the text: each table holds up to 200 rows and 30 columns, and a chart appears only when the result can draw it as it is. Otherwise the app shows the table alone.
 
-Every component takes a `labels` object for its visible texts, so the whole chat can speak the app's language, right to left included. A result table's own words, such as its **CSV** button and paging text ("1–10 of 24"), follow along: they are in Hebrew when the chat labels are Hebrew or the viewer's BOW language is Hebrew. For other languages, pass the table keys in the same `labels` object (see [Labels](/using-bow/chat-components-reference#labels)).
+Every component takes a `labels` object for its visible texts, so the whole chat can speak the app's language, right to left included. A result table's own words, such as its **CSV** button and paging text ("1–10 of 24"), follow along: they are in Hebrew when the chat labels are Hebrew, and otherwise in the viewer's BOW language when that is Hebrew or Spanish. For other languages, pass the table keys in the same `labels` object (see [Labels](/using-bow/chat-components-reference#labels)).
 
 ![A Hebrew sales assistant built from the same components, answering with a chart and a table](/images/guides/embedded-chat/chat-answer-hebrew.png)
 
