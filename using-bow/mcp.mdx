@@ -84,8 +84,8 @@ BOW does **not** support dynamic client registration for its own MCP server — 
 
 You need `manage_settings`.
 
-1. Open **Settings → Channels → OAuth Apps** and select **Register app**.
-2. Name it after the client people will recognize, such as "Claude".
+1. Open **Settings → Channels → Connected applications** and select **Add application**.
+2. Name it after the client people will recognize, such as "Claude". In **General & access**, choose its **Allowed agents** and save: new applications allow no agents. Then open **API & MCP (OAuth)** and select **Configure OAuth**.
 3. Under **Access surfaces**, select **MCP tools**. Add **BOW app** only if the same client also calls the BOW API.
 4. Add the client's exact redirect URIs, one per line. For Claude on the web, use `https://claude.ai/api/mcp/auth_callback`; for other clients, use the callback URL their documentation gives you.
 5. Optionally enable **Trusted** to skip the consent screen. Do this only for software your organization operates.
