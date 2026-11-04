@@ -336,18 +336,21 @@ Load it from your BOW deployment, then mount:
 | `artifact` | Yes | The artifact's name or ID, as in the snippet |
 | `mode` | | `'floating'` for a launcher and panel. Anything else is inline |
 | `container` | Inline | A CSS selector or element to fill. `mount` throws without it in inline mode |
-| `height` | | Inline height of the wrapper. Default `'100%'` |
+| `width` | | Floating: the panel's width, as a number of pixels or one CSS length such as `'40rem'` (`px`, `rem`, `em`, `%`, `vw`, `vh`, `dvh`, `svh`, `lvh`), at least 1. Default `600` |
+| `height` | | Floating: the panel's height, in the same form as `width`. Default `720`. Inline: the wrapper's height, a number of pixels or any CSS height the browser accepts, such as `'calc(100vh - 80px)'`. Default `'100%'`. A height the browser reads back as a pixel length below 1 (`'0'`, `'0px'`, `'0.5px'`) is refused; other zero heights (`'0%'`, `'0rem'`) are your choice |
 | `identity.getAssertion` | Signed assertion mode | A function that returns, or resolves to, a fresh assertion string from your backend |
 | `identity.getIdToken` | Identity provider token mode | A function that returns, or resolves to, the user's current ID token |
 | `context` | | A plain JSON object: what the user is looking at. Advisory |
 | `locale` | | The language of BOW's messages in the frame, for example `'he'`. The artifact receives it too, so its table controls follow it |
 | `startTimeout` | | Milliseconds to wait for the frame's first answer before emitting `unavailable` with `reason: 'no_response'`. Default `15000`; `0` turns it off |
 | `title` | | The frame's title, and the launcher's accessible label. Default `'BOW'` for the frame and `'Open assistant'` for the launcher |
-| `accentColor` | | Floating: the launcher's color. Default `#2563eb` |
+| `accentColor` | | Floating: the launcher's color, any CSS color the browser accepts, such as `'#2563eb'`, `'hsl(220deg 80% 50%)'` or `'var(--brand)'`. Default `#2563eb` |
 | `position` | | Floating: `'bottom-right'` (default) or `'bottom-left'` |
-| `zIndex` | | Floating: the stacking order of the panel and launcher. Default `2147483000` |
+| `zIndex` | | Floating: the stacking order of the panel and launcher, a whole number or a string of digits such as `'1000'` (`0` included). Default `2147483000` |
 
-In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher in the chosen corner. SSO mode needs no `identity`.
+In floating mode the panel is 600 × 720 pixels unless you set `width` and `height`, above a 56-pixel launcher in the chosen corner. The browser window caps both: the panel is never wider than the window minus 32 pixels, or taller than the window minus 120 pixels, so on a phone it fits the screen. A browser without `dvh`, `svh` or `lvh` units uses the same size in `vh`.
+
+If the SDK refuses a `width`, `height`, `zIndex` or `accentColor`, it logs a `[bow-embed] ignoring …` warning in the browser console and uses the default. SSO mode needs no `identity`.
 
 ### Methods and properties
 

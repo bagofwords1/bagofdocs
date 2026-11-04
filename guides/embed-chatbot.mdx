@@ -153,6 +153,8 @@ The SDK is served by your own BOW deployment at `/api/embed/sdk/v1/bow-embed.js`
         title: 'Sales assistant',        // frame title and launcher label
         accentColor: '#4f46e5',          // launcher color
         position: 'bottom-right',        // or 'bottom-left'
+        width: 600,                      // panel size in pixels (the default);
+        height: 720,                     //   the browser window caps both
         identity: {
           getAssertion: () => fetch('/bow/assertion', { method: 'POST', credentials: 'same-origin' })
             .then(r => r.json()).then(b => b.assertion),
@@ -191,7 +193,7 @@ Keep `baseUrl` at the BOW site root, without `/api`. Call `BOWEmbed.mount` after
 
 In floating mode the SDK owns the launcher and the open and closed state. Closing the panel hides it without unloading it, so a running answer and the open conversation are still there when the employee reopens it. You can also call `embed.open()` and `embed.close()` from your own buttons. The chat inside should be a full-height surface without a launcher of its own; the chatbot skill builds it that way.
 
-`title`, `accentColor` and `position` style only the outer launcher and panel. The look of the assistant itself comes from the artifact: change it by asking the agent.
+`title`, `accentColor`, `position`, `width` and `height` style only the outer launcher and panel. The panel opens at 600 × 720 pixels; set `width` and `height` to change it. The [mount options](/using-bow/chat-components-reference#mount-options) list the values each one takes. The look of the assistant itself comes from the artifact: change it by asking the agent.
 
 ## Identity modes
 
