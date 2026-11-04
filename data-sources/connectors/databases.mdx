@@ -23,7 +23,8 @@ Connectors with real external setup have their own pages: [Snowflake](/data-sour
 | **SQLite** `sqlite` | `database` | No auth *(shared only)* | `database` is an absolute path on the BOW host. |
 | **DuckDB** `duckdb` | `uris` | No auth *(shared)*, AWS Keys *(shared)*, GCP Service Account, Azure Connection String *(shared)* | Queries files in object storage as views. See below. |
 | **ClickHouse** `clickhouse` | `host`, `port` (8123), `database`, `secure` (true) | Username / Password | `database` is optional and takes a comma-separated list; blank means all databases. |
-| **Trino** `trino` | `host`, `port` (8080), `catalog`, `schema`, `protocol` (`http`) | Username / Password | `catalog` and `schema` are both required. See below. |
+| **Trino** `trino` | `host`, `port` (8080), `protocol` (`http`), `catalog`, `schema`, `additional_catalogs`, `role`, `verify_ssl` (true), `ca_certificate`, `timezone` | Username / Password, Access token (JWT) | `schema` is optional and takes a comma-separated list. See below. |
+| **Starburst** `starburst` | Same as Trino, with `port` 443 and `protocol` `https` | Username / Password, Access token (JWT) | Starburst Galaxy and Starburst Enterprise. See below. |
 | **Vertica** `vertica` | `host`, `port` (5433), `database`, `schema` (`public`) | Username / Password | |
 | **Teradata Vantage** `teradata` | `host`, `port` (1025), `database`, `logmech` (`TD2`) | Username / Password | `database` is the namespace (≈ schema) and takes a comma-separated list. See below. |
 | **Apache Druid** `druid` <sup>beta</sup> | `host`, `port` (8082), `secure` (false), `path` (`/druid/v2/sql/`), `schema` | Username / Password, API Token (Bearer), API Token (Basic) | Queried through the Broker or Router SQL API. See below. |
@@ -70,9 +71,20 @@ When `database` lists several databases, queries run against the first one; agen
 
 ClickHouse supports [custom tables](/bow-fast/custom-queries): scheduled, locally cached query results that agents answer from instead of querying the service each time. On ClickHouse Cloud that lets an idle service stay idle — see [Cut ClickHouse Cloud costs](/bow-fast/clickhouse-cloud-costs). For that, the user needs `SELECT` on the source tables and on `system.parts` (used to estimate scan size), and `KILL QUERY` so an aborted refresh can stop its own query on the server. `Enum` columns are stored in the cached copy as their labels.
 
-### Trino
+### Trino and Starburst
 
-`catalog` and `schema` are both required — a Trino connection is scoped to a single catalog/schema pair, so create one data source per pair you want the agent to reach. Set `protocol` to `https` for a TLS-terminated coordinator; the `password` field is only needed in that case.
+Trino, Starburst Galaxy and Starburst Enterprise are the same engine, so both connectors share one client. Pick **Starburst** for a Galaxy or Enterprise cluster — it defaults to port `443` over `https` and shows a setup guide; pick **Trino** for a self-managed coordinator (port `8080`, plain `http` by default).
+
+- `catalog` is where queries run by default; its tables are listed as `schema.table`. `schema` is optional and takes a comma-separated list; blank indexes every schema in the catalog.
+- `additional_catalogs` indexes other catalogs on the same cluster, listed as `catalog.schema.table`. The agent can join across catalogs with those three-part names.
+- `role` sets the session role (Starburst built-in access control). A service account whose default role has no grants sees no tables until this is set — or use the Galaxy `user/role` username form.
+- `protocol` must be `https` for any authenticated coordinator; it is passed to the driver explicitly, so a Starburst Enterprise coordinator on `8443` works. Turn `verify_ssl` off only for a self-signed lab certificate; for an internal CA paste its PEM chain into `ca_certificate` instead.
+- `timezone` (IANA name) fixes the session timezone that `current_date` and friends use; blank keeps the cluster default.
+- **Access token (JWT)** sends a token the cluster's JWT or OAuth2 authenticator accepts instead of a password.
+
+**Starburst Galaxy setup.** Create a role (Access control → Roles and privileges) with *Use cluster* on the cluster and *Select from table* on each catalog or schema; create a service account (Access control → Service accounts) with that role as its default and generate a password; copy the host (`<account>-<cluster>.trino.galaxy.starburst.io`, port 443) from the cluster's *Connection info → Other clients*. The username is the service account's full name, for example `bagofwords@<account>.galaxy.starburst.io`. Galaxy clusters auto-suspend, so the first test after an idle period can take half a minute.
+
+Table and column comments are indexed, views are flagged, a query the agent abandons on timeout is cancelled on the cluster, and queries carry the source `bagofwords` in Starburst's query history.
 
 ### Teradata
 
