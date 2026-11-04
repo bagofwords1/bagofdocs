@@ -434,7 +434,7 @@ embed.on('error', ({ code, message }) => console.error('BOW', code, message));
 | `authenticated` | BOW accepted the sign-in. It is sent before the artifact loads: if loading then fails, `unavailable` follows. Also sent again after every successful silent renewal, and when an `unavailable` artifact becomes available | `{ user: { name, email } }` |
 | `authRequired` | The frame is not signed in: it needs a sign-in, sign-in failed, the user signed out, or the session ended | `{ status, message }` |
 | `unavailable` | The user is signed in, but this artifact cannot be shown to them here | `{ reason, message }` |
-| `error` | Your `getAssertion` or `getIdToken` callback failed, returned nothing, or is not configured ("identity.getAssertion is not configured"). `authRequired` with `status: 'failed'` follows | `{ code: 'credential_failed', message }` |
+| `error` | Your `getAssertion` or `getIdToken` callback failed, returned nothing, or is not configured ("identity.getAssertion is not configured"). On the first sign-in, `authRequired` with `status: 'failed'` follows. During a renewal the frame keeps the current session and retries, so `authRequired` comes only if that session ends first | `{ code: 'credential_failed', message }` |
 | `open`, `close` | The floating panel opened or closed | `{}` |
 
 ## When the artifact cannot be opened

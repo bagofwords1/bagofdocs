@@ -355,7 +355,7 @@ In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher
 | `authenticated` | `{ user: { name, email } }` | BOW accepted the sign-in. Sent before the artifact loads; if loading then fails, `unavailable` follows. Sent again after every successful silent renewal, and when an unavailable artifact becomes available |
 | `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid` |
 | `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
-| `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed, returned nothing, or is not configured. `authRequired` with `status: 'failed'` follows |
+| `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed, returned nothing, or is not configured. On the first sign-in, `authRequired` with `status: 'failed'` follows. During a renewal the frame keeps the current session and retries, so `authRequired` comes only if that session ends first |
 | `open` / `close` | `{}` | The floating panel opened or closed |
 
 ### unavailable reasons
