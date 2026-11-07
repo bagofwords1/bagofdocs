@@ -16,7 +16,7 @@ New to deployment? Start with [Deployment Options](/install), then come back her
 | --- | --- |
 | Database | Use PostgreSQL, not the default SQLite. Change the default password. |
 | Encryption key | Set `BOW_ENCRYPTION_KEY` explicitly and store it in a secrets manager. |
-| File storage | Use object storage (S3, S3-compatible, Azure Blob) or a persistent volume. See [File storage](/kubernetes-persistent-storage). |
+| File storage | Use object storage (S3, S3-compatible, Azure Blob) or a persistent volume. See [File storage](/file-storage). |
 | Backups | Schedule DB backups, back up the file volumes, the key and `bow-config.yaml`. Test a restore. |
 | Image version | Pin a version tag instead of `latest`. |
 | TLS and URL | Serve over HTTPS and set `base_url` to the public URL. |
@@ -91,7 +91,7 @@ Recommendations:
 - Do not forget the Caddy certificate volume (`caddy_data`) if you want to avoid re-issuing TLS certificates after a rebuild.
 
 <Note>
-On Kubernetes, files stay on the pod's own disk unless you configure storage. Follow [File storage](/kubernetes-persistent-storage) to use Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. For an existing installation, copy files from every current pod before restarting, upgrading, or scaling down.
+On Kubernetes, files stay on the pod's own disk unless you configure storage. Follow [File storage](/file-storage) to use Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. For an existing installation, copy files from every current pod before restarting, upgrading, or scaling down.
 </Note>
 
 ## High availability
@@ -108,7 +108,7 @@ A single container is a single point of failure, and every deploy or restart int
     Every replica must receive an identical `BOW_ENCRYPTION_KEY`. Without it each replica generates its own key and cannot read credentials written by the other, and sessions break between replicas.
   </Step>
   <Step title="Share file storage">
-    Use object storage (`storage.backend: s3` or `azure`) so every replica reads the same files from the bucket; no shared volume is needed. Without it, mount a shared (ReadWriteMany) volume for `/app/backend/uploads`, and for `BOW_ARTIFACT_STORAGE` if you use it. See [File storage](/kubernetes-persistent-storage).
+    Use object storage (`storage.backend: s3` or `azure`) so every replica reads the same files from the bucket; no shared volume is needed. Without it, mount a shared (ReadWriteMany) volume for `/app/backend/uploads`, and for `BOW_ARTIFACT_STORAGE` if you use it. See [File storage](/file-storage).
   </Step>
   <Step title="Budget your database connections">
     Each worker process keeps its own connection pool. The ceiling is:

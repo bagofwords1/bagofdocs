@@ -19,6 +19,8 @@ To use PostgreSQL, you need to set the `BOW_DATABASE_URL` environment variable.
 For example: `BOW_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bagofwords`
 </Info>
 
+This command keeps uploaded files inside the container, so they are lost when it is recreated. Mount a volume at `/app/backend/uploads` (`-v bow_uploads:/app/backend/uploads`) or store files in S3 or Azure Blob; see [File storage](/file-storage).
+
 ### Update
 
 - Re-run the same `docker run --pull always ...` command to fetch and start the latest image.
@@ -75,7 +77,7 @@ Run BOW with Docker Compose and Caddy (built-in TLS on port 443). We recommend u
 Caddy is included by default as a reverse proxy on port 443. If you prefer to run without Caddy, remove the `caddy` service from `docker-compose.yaml` and expose the app directly on port 3000. For local, no-SSL testing, you can also use `docker-compose.dev.yaml`.
 </Info>
 
-Files are kept in the `uploads_data` volume. To keep them in Amazon S3, an S3-compatible store or Azure Blob Storage instead, set the `BOW_STORAGE_*` variables in `.env`; see [File storage](/kubernetes-persistent-storage).
+Files are kept in the `uploads_data` volume. To keep them in Amazon S3, an S3-compatible store or Azure Blob Storage instead, set the `BOW_STORAGE_*` variables in `.env`; see [File storage](/file-storage).
 
 ### Update
 
@@ -160,7 +162,7 @@ encryption_key: ${BOW_ENCRYPTION_KEY}
 intercom:
   enabled: true
 
-# File storage: local (default), s3 or azure. See /kubernetes-persistent-storage.
+# File storage: local (default), s3 or azure. See /file-storage.
 # storage:
 #   backend: s3
 #   prefix: bow/
@@ -200,7 +202,7 @@ The chart validates your values against a strict schema. Unknown keys, or a wron
 </Note>
 
 <Warning>
-  The PostgreSQL volume does not persist application files. Before a production install or any rollout of an existing deployment, configure [file storage](/kubernetes-persistent-storage): Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. The guide also covers copying files out of existing pods before replacing them.
+  The PostgreSQL volume does not persist application files. Before a production install or any rollout of an existing deployment, configure [file storage](/file-storage): Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. The guide also covers copying files out of existing pods before replacing them.
 </Warning>
 
 ### Quick start
@@ -564,7 +566,7 @@ Setting `config.smtp.host` also enables SMTP. If `enabled` is `true` and `host` 
 
 ### File storage
 
-By default, uploads and other files live on the pod's own disk and are lost when the pod is replaced. Choose one of these before going to production. See [File storage](/kubernetes-persistent-storage) for permissions, Workload Identity, S3-compatible stores and migration.
+By default, uploads and other files live on the pod's own disk and are lost when the pod is replaced. Choose one of these before going to production. See [File storage](/file-storage) for permissions, Workload Identity, S3-compatible stores and migration.
 
 <CodeGroup>
 ```yaml Amazon S3
