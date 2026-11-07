@@ -75,6 +75,8 @@ Run BOW with Docker Compose and Caddy (built-in TLS on port 443). We recommend u
 Caddy is included by default as a reverse proxy on port 443. If you prefer to run without Caddy, remove the `caddy` service from `docker-compose.yaml` and expose the app directly on port 3000. For local, no-SSL testing, you can also use `docker-compose.dev.yaml`.
 </Info>
 
+Files are kept in the `uploads_data` volume. To keep them in Amazon S3, an S3-compatible store or Azure Blob Storage instead, set the `BOW_STORAGE_*` variables in `.env`; see [File storage](/kubernetes-persistent-storage).
+
 ### Update
 
 ```bash
@@ -157,6 +159,14 @@ encryption_key: ${BOW_ENCRYPTION_KEY}
 
 intercom:
   enabled: true
+
+# File storage: local (default), s3 or azure. See /kubernetes-persistent-storage.
+# storage:
+#   backend: s3
+#   prefix: bow/
+#   s3:
+#     bucket: my-bow-files
+#     region: us-east-1
 ```
 
 To use the custom config file, you can run the following command:
@@ -190,7 +200,7 @@ The chart validates your values against a strict schema. Unknown keys, or a wron
 </Note>
 
 <Warning>
-  The PostgreSQL volume does not persist application files. Before a production install or any rollout of an existing deployment, configure [Kubernetes persistent storage](/kubernetes-persistent-storage). The guide covers AWS, Azure, other clusters, and copying files out of existing pods before replacing them.
+  The PostgreSQL volume does not persist application files. Before a production install or any rollout of an existing deployment, configure [file storage](/kubernetes-persistent-storage): Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. The guide also covers copying files out of existing pods before replacing them.
 </Warning>
 
 ### Quick start
@@ -552,25 +562,49 @@ config:
 
 Setting `config.smtp.host` also enables SMTP. If `enabled` is `true` and `host` is empty, the install fails. See [SMTP Settings](#smtp-settings) for what email is used for.
 
-### Persistent storage for uploads
+### File storage
 
-The chart does not mount a volume for uploaded files or branding assets. Without one, they are lost when a pod is rescheduled. Create a PersistentVolumeClaim and mount it:
+By default, uploads and other files live on the pod's own disk and are lost when the pod is replaced. Choose one of these before going to production. See [File storage](/kubernetes-persistent-storage) for permissions, Workload Identity, S3-compatible stores and migration.
 
-```yaml
-extraVolumes:
-  - name: uploads
-    persistentVolumeClaim:
-      claimName: bow-uploads
-extraVolumeMounts:
-  - name: uploads
-    mountPath: /app/backend/uploads
-    subPath: uploads
-  - name: uploads
-    mountPath: /app/backend/branding_uploads
-    subPath: branding
+<CodeGroup>
+```yaml Amazon S3
+storage:
+  backend: s3
+  prefix: bow/prod/
+  s3:
+    bucket: acme-bow-files
+    region: eu-west-1
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/bow-files
 ```
 
-If you run more than one replica, the claim must support `ReadWriteMany` (for example EFS, Filestore or Azure Files).
+```yaml Azure Blob
+storage:
+  backend: azure
+  prefix: bow/prod/
+  azure:
+    accountUrl: https://acmebowfiles.blob.core.windows.net
+    container: bow-files
+    clientId: <managed identity client id>
+serviceAccount:
+  annotations:
+    azure.workload.identity/client-id: <managed identity client id>
+podLabels:
+  azure.workload.identity/use: "true"
+```
+
+```yaml Persistent volume
+storage:
+  local:
+    persistence:
+      enabled: true
+      size: 50Gi
+      accessModes: ["ReadWriteOnce"]   # ReadWriteMany for replicas across nodes
+```
+</CodeGroup>
+
+With object storage, each pod uses an `emptyDir` cache (`storage.cache.sizeLimit`, default `10Gi`), and replicas need no shared volume. These values need chart 3.2.0 or later.
 
 ### Scaling and availability
 
@@ -593,7 +627,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
 ```
 
-Running more than one replica needs PostgreSQL and shared upload storage. Read [High availability](/day-2-operations#high-availability) before you scale out.
+Running more than one replica needs PostgreSQL and either object storage or a shared `ReadWriteMany` volume for files (see [File storage](#file-storage)). Read [High availability](/day-2-operations#high-availability) before you scale out.
 
 ### Observability
 

@@ -1,106 +1,302 @@
 ---
-title: "Persist Kubernetes files and migrate existing installs"
-sidebarTitle: "Persistent storage"
-description: "Keep BOW uploads and artifact files across Kubernetes restarts, choose storage for AWS or Azure, and migrate existing pods without losing their files."
+title: "File storage"
+sidebarTitle: "File storage"
+description: "Keep uploads, thumbnails, decks and other BOW files safe: store them in Amazon S3, an S3-compatible store or Azure Blob Storage, or on a persistent volume. Includes migrating existing installs."
 icon: "hard-drive"
-hidden: true
 ---
 
-BOW stores application records in its database and file contents on disk. Configure both before using a Kubernetes deployment for production. This guide shows which paths to preserve, how to choose storage for your environment, and how to migrate an existing installation before replacing its pods.
+BOW keeps records in its database and file contents in file storage. Configure both before you use a deployment in production. The database alone is not enough: a file stays listed in BOW after its bytes are lost, because its database record still exists.
+
+BOW supports three file storage options:
+
+| Option | Setting | Use it when |
+| --- | --- | --- |
+| **Amazon S3 or an S3-compatible store** (MinIO, Cloudflare R2, Wasabi, Ceph) | `storage.backend: s3` | You run on AWS, run more than one replica, or want storage managed outside the cluster. |
+| **Azure Blob Storage** | `storage.backend: azure` | You run on Azure, run more than one replica, or want storage managed outside the cluster. |
+| **Local disk** (default) | `storage.backend: local` | One replica with a persistent volume, or Docker Compose with its volumes. |
+
+<Note>
+  Object storage (`s3` and `azure`) requires Helm chart **3.2.0** or later. With it, more than one replica does not need a shared `ReadWriteMany` volume.
+</Note>
+
+## What BOW stores
+
+| Files | Local path | With object storage |
+| --- | --- | --- |
+| Uploads, files agents create, files read from connections | `/app/backend/uploads/files` | Stored in the bucket |
+| Dashboard thumbnails, slide decks and slide previews | `/app/backend/uploads/thumbnails`, `pptx`, `pptx_previews` | Stored in the bucket |
+| Organization logo and profile pictures | `/app/backend/uploads/branding`, `avatars` | Stored in the bucket |
+| Generated demo datasets | `/app/backend/uploads/demo_data` | Stored in the bucket |
+| Data app file resources | `BOW_ARTIFACT_STORAGE` | Stored in the bucket under `artifact_files/` |
+| Fast mode extracts; Power BI and Qlik caches | `/app/backend/uploads/fast`, `pbix_*`, `qvd_cache` | Stored in the bucket |
+| Learned SSH host keys for Git | `/app/backend/uploads/git_state` | Stored in the bucket, merged across replicas |
+| Git clones, PDF renders, compile and read caches | `/app/backend/uploads/repo_cache`, `pdfs`, `artifact_js`, `filecache` | Kept on each replica; rebuilt when missing |
+| Encryption key | `BOW_ENCRYPTION_KEY` | Not file storage: supply it from a Secret |
+
+Current versions store the organization logo under `uploads/branding`. The `/app/backend/branding_uploads` directory is no longer used.
+
+## Object storage
+
+With `s3` or `azure`, the bucket or container holds every file BOW needs to keep. Each replica keeps a local cache in `/app/backend/uploads` and downloads a file the first time it needs it, so a new or restarted pod serves every file. For files that can be replaced, such as thumbnails and logos, BOW checks the bucket before serving a cached copy, so a replica never serves a file that another replica replaced or deleted.
+
+BOW checks the bucket when it starts. It writes, reads and deletes a small file under `<prefix>/_healthcheck/`, logs the result and exits if any step fails:
+
+```text
+File storage: s3://acme-bow-files/bow/prod/ (aws)
+```
+
+```text
+❌ File storage is not usable: Storage backend s3://acme-bow-files/bow/prod/ (aws) failed its startup check (needs read, write, delete and list on the prefix): ...
+```
+
+With the Helm chart, `/app/backend/uploads` becomes an `emptyDir` sized by `storage.cache.sizeLimit` (default `10Gi`). Size it for the files your users work with at the same time, plus Git clones.
+
+<Tabs>
+  <Tab title="Amazon S3 (EKS)">
+    Use [IAM roles for service accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) (IRSA) or [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html). No key is stored.
+
+    <Steps>
+      <Step title="Create a private bucket">
+        Block public access. Server-side encryption is on by default; use SSE-KMS if your policy requires it.
+      </Step>
+      <Step title="Create an IAM role for the BOW service account">
+        Give it access to the bucket and prefix only:
+
+        ```json
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+              "Resource": "arn:aws:s3:::acme-bow-files/bow/prod/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": "s3:ListBucket",
+              "Resource": "arn:aws:s3:::acme-bow-files",
+              "Condition": { "StringLike": { "s3:prefix": "bow/prod/*" } }
+            }
+          ]
+        }
+        ```
+
+        With SSE-KMS, also allow `kms:GenerateDataKey` and `kms:Decrypt` on the key.
+      </Step>
+      <Step title="Set the Helm values">
+        ```yaml
+        storage:
+          backend: s3
+          prefix: bow/prod/
+          s3:
+            bucket: acme-bow-files
+            region: eu-west-1
+            # sse: aws:kms
+            # kmsKeyId: arn:aws:kms:eu-west-1:123456789012:key/...
+        serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/bow-files
+        ```
+
+        For a bucket in another account, set `storage.s3.auth: assume_role` and `storage.s3.roleArn` (and `externalId` if the role requires one). BOW refreshes the temporary credentials itself.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="S3-compatible">
+    MinIO, Cloudflare R2, Wasabi, Ceph and other S3-compatible stores use static keys and a custom endpoint.
+
+    Put the keys in the Secret named by `config.secretRef`:
+
+    ```bash
+    kubectl create secret generic bow-secrets -n bow \
+      --from-literal=BOW_ENCRYPTION_KEY='<your key>' \
+      --from-literal=BOW_STORAGE_S3_ACCESS_KEY_ID='<access key>' \
+      --from-literal=BOW_STORAGE_S3_SECRET_ACCESS_KEY='<secret key>'
+    ```
+
+    ```yaml
+    config:
+      secretRef: bow-secrets
+    storage:
+      backend: s3
+      prefix: bow/
+      s3:
+        bucket: bow-files
+        endpointUrl: https://minio.internal.example.com
+        addressingStyle: path   # MinIO usually needs path-style addressing
+        auth: static
+    ```
+
+    Keys need read, write, delete and list on the bucket or prefix.
+  </Tab>
+  <Tab title="Azure Blob (AKS)">
+    Use [AKS Workload Identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview). No key is stored.
+
+    <Steps>
+      <Step title="Create a storage account and a private container">
+        Keep anonymous access disabled.
+      </Step>
+      <Step title="Grant a managed identity access">
+        Create a user-assigned managed identity, assign it **Storage Blob Data Contributor** on the container, and add a federated credential for the BOW service account (`system:serviceaccount:<namespace>:bowapp` by default).
+      </Step>
+      <Step title="Set the Helm values">
+        ```yaml
+        storage:
+          backend: azure
+          prefix: bow/prod/
+          azure:
+            accountUrl: https://acmebowfiles.blob.core.windows.net
+            container: bow-files
+            clientId: <managed identity client id>
+        serviceAccount:
+          annotations:
+            azure.workload.identity/client-id: <managed identity client id>
+        podLabels:
+          azure.workload.identity/use: "true"
+        ```
+      </Step>
+    </Steps>
+
+    Other sign-in methods put a secret in the Secret named by `config.secretRef`:
+
+    | `storage.azure.auth` | Also set | Secret key |
+    | --- | --- | --- |
+    | `service_principal` | `tenantId`, `clientId` | `BOW_STORAGE_AZURE_CLIENT_SECRET` |
+    | `connection_string` | — | `BOW_STORAGE_AZURE_CONNECTION_STRING` |
+    | `sas` | `accountUrl` | `BOW_STORAGE_AZURE_SAS_TOKEN` (container scope, permissions `racwdl`) |
+  </Tab>
+  <Tab title="Docker Compose">
+    The Compose file passes these variables to the app container. Set them in `.env`:
+
+    ```bash
+    # Amazon S3 or S3-compatible
+    BOW_STORAGE_BACKEND=s3
+    BOW_STORAGE_S3_BUCKET=acme-bow-files
+    BOW_STORAGE_S3_REGION=eu-west-1
+    BOW_STORAGE_S3_AUTH=static
+    BOW_STORAGE_S3_ACCESS_KEY_ID=...
+    BOW_STORAGE_S3_SECRET_ACCESS_KEY=...
+    # BOW_STORAGE_S3_ENDPOINT_URL=https://minio.example.com
+
+    # or Azure Blob
+    # BOW_STORAGE_BACKEND=azure
+    # BOW_STORAGE_AZURE_ACCOUNT_URL=https://acmebowfiles.blob.core.windows.net
+    # BOW_STORAGE_AZURE_CONTAINER=bow-files
+    # BOW_STORAGE_AZURE_AUTH=sas
+    # BOW_STORAGE_AZURE_SAS_TOKEN=...
+    ```
+
+    Then run `docker compose up -d`. The `uploads_data` volume becomes the local cache.
+  </Tab>
+</Tabs>
+
+### Settings
+
+Every setting can be given in `bow-config.yaml` under `storage:` or as an environment variable. A value in `bow-config.yaml` wins over the variable. The Helm chart sets the variables from `storage.*` values.
+
+| `bow-config.yaml` | Environment variable | Default | Notes |
+| --- | --- | --- | --- |
+| `storage.backend` | `BOW_STORAGE_BACKEND` | `local` | `local`, `s3` or `azure` |
+| `storage.prefix` | `BOW_STORAGE_PREFIX` | empty | Key prefix inside the bucket or container, e.g. `bow/prod/` |
+| `storage.s3.bucket` | `BOW_STORAGE_S3_BUCKET` | — | Required for `s3` |
+| `storage.s3.region` | `BOW_STORAGE_S3_REGION` | — | |
+| `storage.s3.endpoint_url` | `BOW_STORAGE_S3_ENDPOINT_URL` | AWS | S3-compatible stores |
+| `storage.s3.addressing_style` | `BOW_STORAGE_S3_ADDRESSING_STYLE` | `auto` | `auto`, `path` or `virtual` |
+| `storage.s3.auth` | `BOW_STORAGE_S3_AUTH` | `default` | `default` (IRSA, Pod Identity, instance role, environment), `static` or `assume_role` |
+| `storage.s3.access_key_id` / `secret_access_key` / `session_token` | `BOW_STORAGE_S3_ACCESS_KEY_ID` / `..._SECRET_ACCESS_KEY` / `..._SESSION_TOKEN` | — | `static`, or as the base for `assume_role` |
+| `storage.s3.role_arn` / `external_id` | `BOW_STORAGE_S3_ROLE_ARN` / `..._EXTERNAL_ID` | — | `assume_role` |
+| `storage.s3.sse` / `kms_key_id` | `BOW_STORAGE_S3_SSE` / `..._KMS_KEY_ID` | bucket default | `AES256` or `aws:kms` |
+| `storage.azure.account_url` | `BOW_STORAGE_AZURE_ACCOUNT_URL` | — | `https://<account>.blob.core.windows.net` |
+| `storage.azure.container` | `BOW_STORAGE_AZURE_CONTAINER` | — | Required for `azure` |
+| `storage.azure.auth` | `BOW_STORAGE_AZURE_AUTH` | `default` | `default` (Workload or Managed Identity), `service_principal`, `connection_string` or `sas` |
+| `storage.azure.tenant_id` / `client_id` / `client_secret` | `BOW_STORAGE_AZURE_TENANT_ID` / `..._CLIENT_ID` / `..._CLIENT_SECRET` | — | `client_id` also selects a user-assigned managed identity |
+| `storage.azure.connection_string` | `BOW_STORAGE_AZURE_CONNECTION_STRING` | — | `connection_string` |
+| `storage.azure.sas_token` | `BOW_STORAGE_AZURE_SAS_TOKEN` | — | `sas` |
+
+Keep keys, secrets and SAS tokens in a Secret or `.env`, not in `bow-config.yaml`. Use `${VAR}` placeholders in the file if you need to reference them.
+
+With object storage, `BOW_ARTIFACT_STORAGE` is optional. Unset, data app files are cached in `/app/backend/uploads/artifact_files`.
+
+### Move an existing installation to object storage
+
+Plan a maintenance window and pause writes, as in [the migration procedure](#migrate-an-existing-installation) below. Then copy the existing files into the bucket under the same names.
+
+<Tabs>
+  <Tab title="Docker Compose">
+    Keep the `uploads_data` volume mounted. Set the storage variables, update to a version with object storage, then copy the files from inside the container:
+
+    ```bash
+    docker compose up -d
+    docker compose exec app sh -c 'cd /app/backend && python scripts/migrate_uploads_to_object_storage.py --dry-run'
+    docker compose exec app sh -c 'cd /app/backend && python scripts/migrate_uploads_to_object_storage.py'
+    ```
+
+    The script uploads every file BOW keeps, skips files that are already in the bucket, and never changes the local files. It also copies `BOW_ARTIFACT_STORAGE` when that is set. You can run it again safely.
+  </Tab>
+  <Tab title="Kubernetes">
+    Copy the files out of every running pod as in [steps 1–3 of the migration procedure](#migrate-an-existing-installation). In each copy, delete the folders BOW keeps per replica: `repo_cache`, `pdfs`, `artifact_js` and `filecache`. Then upload each copy, keeping paths relative to `uploads`:
+
+    ```bash
+    # Amazon S3 or S3-compatible (add --endpoint-url for MinIO and others)
+    aws s3 sync ./bow-storage-backup/pod-a/uploads s3://acme-bow-files/bow/prod/
+
+    # Azure Blob
+    az storage blob upload-batch --account-name acmebowfiles -d bow-files \
+      --destination-path bow/prod -s ./bow-storage-backup/pod-a/uploads
+    ```
+
+    Upload data app files from `BOW_ARTIFACT_STORAGE` to `<prefix>artifact_files/`. Then apply the object storage values. Every new pod starts with an empty cache and reads from the bucket.
+  </Tab>
+</Tabs>
+
+## Local disk on a persistent volume
+
+Without object storage, files live in `/app/backend/uploads` on the pod. A container's writable layer and an `emptyDir` are lost when the pod is removed, so mount a persistent volume.
 
 <Warning>
   If your existing pods have no persistent file mounts, back up their files before a rollout, upgrade, scale-down, or pod deletion. Adding a PVC does not copy files out of the old containers. Once those containers or pods are gone, missing files require a backup or re-upload.
 </Warning>
 
-## What must survive a restart
-
-The Helm chart enables persistence for bundled PostgreSQL by default. Application file mounts are separate and must be configured through `extraVolumes` and `extraVolumeMounts`.
-
-| State | Location | What to preserve |
-| --- | --- | --- |
-| Database | Bundled PostgreSQL PVC or your external PostgreSQL service | Application records and file metadata. A database backup does not include the file contents below. |
-| Uploads and generated files | `/app/backend/uploads` | Preserve the whole directory, including user uploads, generated files, previews, and file caches. |
-| Branding | `/app/backend/branding_uploads` | Preserve this directory if your installation uses it. Branding stored beneath `uploads` is covered by the uploads mount. |
-| Artifact app file resources | The directory configured by `BOW_ARTIFACT_STORAGE`, if used | Mount persistent storage at that path. Keep its existing location when migrating. |
-| Encryption key | `BOW_ENCRYPTION_KEY` | Supply the same original key from a Kubernetes Secret to every replica, and keep a protected backup. |
-| Deployment configuration | Helm values, Secrets, and custom configuration | Preserve what you need to recreate the deployment. Keep secret values out of Git. |
-
-A file can remain listed in BOW after its bytes are lost because its database record still exists. A healthy PostgreSQL PVC therefore does not prove that uploads are safe.
-
-Container writable layers are ephemeral. An `emptyDir` survives a container crash within the same pod but is deleted when that pod is removed. Use a PVC backed by durable storage for files you need to keep. See [Kubernetes volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
-
-## Choose storage for your environment
-
-NFS is one way to provide shared file storage. You can use your cluster's existing storage services instead.
+### Choose a volume
 
 | Environment | One application replica | Replicas on multiple nodes |
 | --- | --- | --- |
-| AWS EKS | An EBS-backed filesystem PVC on supported EC2 nodes | An EFS-backed shared filesystem PVC |
-| Azure AKS | An Azure Disk-backed PVC | An Azure Files-backed shared filesystem PVC |
-| Other Kubernetes or on-premises | A durable CSI-backed disk PVC | NFS or another supported shared filesystem with `ReadWriteMany` access |
+| AWS EKS | An EBS-backed PVC on EC2 nodes ([EBS CSI](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html)) | An EFS-backed PVC ([EFS CSI](https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html)), or object storage |
+| Azure AKS | An Azure Disk PVC | An Azure Files PVC ([setup](https://learn.microsoft.com/en-us/azure/aks/create-volume-azure-files)), or object storage |
+| Other Kubernetes or on-premises | A durable CSI-backed disk PVC | NFS or another `ReadWriteMany` filesystem, or an S3-compatible store |
 
-For a single replica, `ReadWriteOnce` disk storage is sufficient when the pod can be scheduled on a node that can attach that disk. Plan for disk attachment and zone constraints. Use `Recreate` for this deployment to stop the previous pod before starting its replacement; expect downtime during updates.
+For a single replica, `ReadWriteOnce` storage is enough. `ReadWriteOnce` means one node, not one pod, so keep the chart's default `strategy: Recreate` to stop the old pod before its replacement starts. See [Kubernetes access modes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes).
 
-For replicas across nodes, use `ReadWriteMany` storage and mount the same claims at the same application paths in every replica. All replicas also need the same PostgreSQL database and encryption key. Shared storage alone does not provide full application high availability; see [Day 2 Operations](/day-2-operations#high-availability).
+### Mount the volume
 
-<Note>
-  `ReadWriteOnce` means read/write access from one node, not necessarily one pod. It does not provide a shared filesystem across nodes. See [Kubernetes access modes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes).
-</Note>
-
-### AWS EKS
-
-For a single replica on EC2 nodes, follow the [EBS CSI setup](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html). EBS volumes cannot be mounted by Fargate pods.
-
-For shared files, follow the [EFS CSI setup](https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html). Configure the filesystem, access permissions, and network access before attaching it to BOW. Fargate uses static EFS provisioning rather than dynamic provisioning.
-
-### Azure AKS
-
-Use Azure Disk for a single replica or Azure Files for files shared across nodes. Follow the [AKS storage overview](https://learn.microsoft.com/en-us/azure/aks/concepts-storage) and [Azure Files volume setup](https://learn.microsoft.com/en-us/azure/aks/create-volume-azure-files).
-
-### Other clusters
-
-Ask your cluster administrator for a durable StorageClass and its supported access modes. A PVC backed by a node-local directory can still become unavailable when the workload moves to another node.
-
-BOW's file storage settings expect filesystem paths. A plain S3 bucket URL or Azure Blob URL is not a value you can substitute for a mounted directory.
-
-## Mount application file storage
-
-For an existing installation, complete [the migration procedure](#migrate-an-existing-installation) before applying these values.
-
-Create two PVCs in the application's namespace using your provider's provisioning instructions:
-
-- `bow-uploads` for `/app/backend/uploads`.
-- `bow-branding` for `/app/backend/branding_uploads`.
-
-Choose their sizes for your workload and use `ReadWriteMany` if replicas must mount them across nodes. Confirm the claims provision successfully; some StorageClasses wait for the first consumer before binding.
-
-Add the following excerpt to your existing Helm values. This example uses one application replica and two existing PVCs; it does not create the claims or configure the database.
+With chart 3.2.0 or later, the chart creates and mounts the claim:
 
 ```yaml
-replicaCount: 1
+storage:
+  local:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""                  # empty uses the cluster default
+      accessModes: ["ReadWriteOnce"]    # ReadWriteMany to run replicas across nodes
+      # existingClaim: bow-uploads      # mount a claim you created instead
+```
 
-# Stop the old application pod before starting its replacement.
-strategy:
-  type: Recreate
+The chart keeps the claim when you uninstall the release (`helm.sh/resource-policy: keep`). On older charts, or to mount other paths, use `extraVolumes` and `extraVolumeMounts`:
 
+```yaml
 extraVolumes:
   - name: uploads
     persistentVolumeClaim:
       claimName: bow-uploads
-  - name: branding
-    persistentVolumeClaim:
-      claimName: bow-branding
-
 extraVolumeMounts:
   - name: uploads
     mountPath: /app/backend/uploads
-  - name: branding
-    mountPath: /app/backend/branding_uploads
 ```
 
-If you already use `extraVolumes` or `extraVolumeMounts`, merge these entries into those lists. Helm values files replace lists rather than appending to them.
+Helm replaces lists rather than appending to them, so merge these entries into any existing lists.
 
-For a new artifact app file store, you can place it inside the persistent uploads directory:
+For data app file resources, set `BOW_ARTIFACT_STORAGE` to a path on the same volume:
 
 ```yaml
 extraEnv:
@@ -108,20 +304,9 @@ extraEnv:
     value: /app/backend/uploads/artifact-files
 ```
 
-Merge this entry with your existing `extraEnv` list. If you already use another `BOW_ARTIFACT_STORAGE` path, mount persistent storage there and migrate its contents as well.
-
-Ensure the application user can create, read, and write files on every mount. Check the user ID and group ID in your pinned image and configure filesystem ownership, export permissions, or CSI mount options accordingly. A mount hides directories from the container image; prepare any required directory structure on the volume.
+Ensure the application user can create, read, and write files on the volume. BOW creates the folders it needs under `/app/backend/uploads` when it starts.
 
 Keep your existing `config.secretRef` pointing at a Secret containing the original `BOW_ENCRYPTION_KEY`. Do not generate a replacement key during a storage migration.
-
-After preparing storage and copying existing files, apply your complete values file:
-
-```bash
-helm upgrade -i bowapp bow/bagofwords -n bow --version <installed-chart-version> -f values.yaml
-kubectl rollout status deployment/bowapp -n bow
-```
-
-Replace `bowapp` and `bow` if your release and namespace differ, and replace `<installed-chart-version>` with your current chart version. Keep the image version pinned in your complete values file during the storage migration.
 
 ## Migrate an existing installation
 
@@ -129,43 +314,42 @@ Use a maintenance window. Do not scale down or restart the old pods to begin thi
 
 1. **Pause changes without replacing pods.** Suspend automated deployments and scaling, block new writes at your ingress or maintenance layer, and let active runs finish. Account for scheduled jobs and integrations that can still create files.
 2. **Inventory every application pod.** Record the image version, mounted paths, artifact storage path, Helm values, and encryption-key source. With several replicas, each pod may contain different files.
-3. **Back up the database, original encryption key, and files.** Copy the whole uploads directory from every pod into a separate backup directory. Repeat for branding and the configured artifact storage path. For example, replace `<pod-name>` with one running application pod:
+3. **Back up the database, original encryption key, and files.** Copy the whole uploads directory from every pod into a separate backup directory, and the configured artifact storage path. For example, replace `<pod-name>` with one running application pod:
    ```bash
    mkdir -p bow-storage-backup/pod-a
    kubectl cp -n bow <pod-name>:/app/backend/uploads ./bow-storage-backup/pod-a/uploads
-   kubectl cp -n bow <pod-name>:/app/backend/branding_uploads ./bow-storage-backup/pod-a/branding_uploads
    ```
-   Repeat with a different backup directory for each pod. If a directory is absent, record that explicitly. Keep backups outside the pods and verify file counts, sizes, and checksums.
-4. **Prepare the target PVCs.** Provision storage, prepare directories and permissions, and mount it in a temporary migration pod using your cluster's storage procedures.
-5. **Restore files into the target volumes.** Preserve directory structure and filenames. Combine copies from every source pod without silently overwriting conflicting files. Investigate conflicts and retain the original backups. Confirm checksums after copying.
-6. **Deploy the persistent mounts.** Stop the temporary migration pod so single-node disks can detach before the application mounts them. Apply the values above only after verifying the copies. Keep the same database, encryption key, and configured file paths. Account for any autoscaler or GitOps controller that could override your maintenance settings.
-7. **Verify before resuming writes.** Open existing uploads, generated files, branding, and artifact app files. Then run the replacement check below. Resume traffic, integrations, scheduling, and automated deployments after these checks pass.
+   Repeat with a different backup directory for each pod. Keep backups outside the pods and verify file counts, sizes, and checksums.
+4. **Copy the files to the new storage.** For object storage, upload them as in [Move an existing installation to object storage](#move-an-existing-installation-to-object-storage). For a persistent volume, mount it in a temporary pod and restore the files, preserving directory structure and filenames. Combine copies from every source pod without silently overwriting conflicting files.
+5. **Deploy the new storage settings.** For a volume, stop the temporary pod first so single-node disks can detach. Keep the same database, encryption key, and configured file paths.
+6. **Verify before resuming writes.** Open existing uploads, generated files, the logo, and data app files. Then run the replacement check below. Resume traffic, integrations, scheduling, and automated deployments after these checks pass.
 
 <Warning>
   Mounting an empty PVC can make existing files appear missing immediately because it hides the image or container directory beneath the mount. Restore your files before switching the application to the new volume.
 </Warning>
 
-## Verify persistence after pod replacement
+## Verify storage after pod replacement
 
 Test first in staging. In production, schedule this check because replacing a pod interrupts in-flight work.
 
-1. Upload a small test file through BOW and record its contents. If you use branding or artifact app file resources, test those too.
-2. Confirm the application's pod mounts reference your intended PVCs. Check both the pod specification and the actual mounted directories.
+1. Upload a small test file through BOW and record its contents. If you use data app file resources, test those too.
+2. With object storage, check the startup log line `File storage: ...` names your bucket and prefix, and that the file appears under `<prefix>files/`. With a volume, check the pod mounts your intended PVC.
 3. Replace the application pod with a controlled rollout:
    ```bash
    kubectl rollout restart deployment/bowapp -n bow
    kubectl rollout status deployment/bowapp -n bow
    ```
 4. Open and download the same file through BOW and compare its contents. Also verify a pre-migration file and a stored connection credential.
-5. If you run multiple replicas, verify file access through each replica and after rescheduling to another eligible node.
+5. If you run multiple replicas, verify file access through each replica.
 
 A successful health probe or a `Bound` PVC alone does not verify that BOW is reading the persisted files.
 
 ## Backups and recovery
 
-Back up PostgreSQL, application file volumes, the original encryption key, and deployment configuration together with a consistent recovery point. Quiesce writes or use a backup procedure that coordinates database and filesystem snapshots.
+Back up PostgreSQL, file storage, the original encryption key, and deployment configuration together with a consistent recovery point.
 
-Review your StorageClass reclaim policy and Helm uninstall behavior before deleting claims or a release. Persistent storage is not a backup.
+- **Object storage:** turn on bucket versioning (S3) or blob soft delete and versioning (Azure), and use your provider's backup or replication for the bucket or container.
+- **Volumes:** quiesce writes or use a backup procedure that coordinates database and filesystem snapshots. Review your StorageClass reclaim policy before deleting claims or a release. Persistent storage is not a backup.
 
 If files have already disappeared, restore the matching file backup and verify it against database records. Creating a new PVC cannot recover bytes from deleted ephemeral containers. If there is no recoverable copy, re-upload the original files or regenerate the affected outputs.
 

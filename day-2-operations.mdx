@@ -16,6 +16,7 @@ New to deployment? Start with [Deployment Options](/install), then come back her
 | --- | --- |
 | Database | Use PostgreSQL, not the default SQLite. Change the default password. |
 | Encryption key | Set `BOW_ENCRYPTION_KEY` explicitly and store it in a secrets manager. |
+| File storage | Use object storage (S3, S3-compatible, Azure Blob) or a persistent volume. See [File storage](/kubernetes-persistent-storage). |
 | Backups | Schedule DB backups, back up the file volumes, the key and `bow-config.yaml`. Test a restore. |
 | Image version | Pin a version tag instead of `latest`. |
 | TLS and URL | Serve over HTTPS and set `base_url` to the public URL. |
@@ -32,9 +33,8 @@ BOW keeps its state in five places. Back up all of them. A database backup alone
 | --- | --- | --- |
 | **Database** | PostgreSQL (`BOW_DATABASE_URL`), or `/app/backend/db/app.db` on SQLite | Users, agents, instructions, reports, dashboards, evals, audit logs, scheduled jobs and the stored license key. |
 | **Encryption key** | `BOW_ENCRYPTION_KEY` env var, or `/app/backend/data/encryption.key` if it was auto-generated | Encrypts LLM provider API keys, data source credentials and OAuth tokens. |
-| **Uploaded files** | `/app/backend/uploads` | Files users uploaded and the connector file cache. |
-| **Branding assets** | `/app/backend/branding_uploads` | Custom logos and branding. |
-| **Artifact storage** | The path in `BOW_ARTIFACT_STORAGE`, if you use it | Files behind artifact apps. |
+| **Files** | The bucket or container when `storage.backend` is `s3` or `azure`; otherwise `/app/backend/uploads` | Uploads, files agents create, thumbnails, slide decks, the organization logo and profile pictures. |
+| **Artifact storage** | With object storage, the bucket (`artifact_files/`); otherwise the path in `BOW_ARTIFACT_STORAGE`, if you use it | Files behind artifact apps. |
 | **Configuration** | `bow-config.yaml`, `.env`, `docker-compose.yaml`, `Caddyfile`, Helm values and Secrets | Everything needed to recreate the deployment. |
 
 ### The encryption key is the most important thing to back up
@@ -85,12 +85,13 @@ Recommendations:
 
 ### Back up files and configuration
 
-- Snapshot or copy the Docker volumes `uploads_data`, `branding_data` and `app_data` (Compose), or the equivalent persistent volumes.
+- With object storage, turn on bucket versioning (S3) or blob soft delete and versioning (Azure) and back up the bucket or container with your provider's tools. The local `uploads` folder is then only a cache.
+- Otherwise, snapshot or copy the Docker volumes `uploads_data` and `app_data` (Compose), or the equivalent persistent volumes. Current versions keep the logo under `uploads`; `branding_data` is no longer used.
 - Keep `bow-config.yaml`, `.env`, the Compose file, the `Caddyfile` and your Helm values in version control. Keep secrets out of Git and in a secrets manager.
 - Do not forget the Caddy certificate volume (`caddy_data`) if you want to avoid re-issuing TLS certificates after a rebuild.
 
 <Note>
-On Kubernetes the Helm chart does not mount a volume for uploads or branding by default. Follow [Kubernetes persistent storage and migration](/kubernetes-persistent-storage) to choose storage for AWS, Azure, or another cluster and configure the mounts. For an existing installation, copy files from every current pod before restarting, upgrading, or scaling down.
+On Kubernetes, files stay on the pod's own disk unless you configure storage. Follow [File storage](/kubernetes-persistent-storage) to use Amazon S3, an S3-compatible store, Azure Blob Storage, or a persistent volume. For an existing installation, copy files from every current pod before restarting, upgrading, or scaling down.
 </Note>
 
 ## High availability
@@ -107,7 +108,7 @@ A single container is a single point of failure, and every deploy or restart int
     Every replica must receive an identical `BOW_ENCRYPTION_KEY`. Without it each replica generates its own key and cannot read credentials written by the other, and sessions break between replicas.
   </Step>
   <Step title="Share file storage">
-    Uploaded files, the file cache and artifact storage live on local disk. Mount a shared (ReadWriteMany) volume for `/app/backend/uploads`, and for `BOW_ARTIFACT_STORAGE` if you use it, so both replicas see the same files.
+    Use object storage (`storage.backend: s3` or `azure`) so every replica reads the same files from the bucket; no shared volume is needed. Without it, mount a shared (ReadWriteMany) volume for `/app/backend/uploads`, and for `BOW_ARTIFACT_STORAGE` if you use it. See [File storage](/kubernetes-persistent-storage).
   </Step>
   <Step title="Budget your database connections">
     Each worker process keeps its own connection pool. The ceiling is:
@@ -436,7 +437,7 @@ otel:
 
 - `/health` failing, or containers restarting repeatedly.
 - Database: connection count approaching `max_connections`, disk usage, replication lag, failed backups.
-- Disk usage on the uploads and artifact volumes.
+- Disk usage on the uploads and artifact volumes, or on the per-pod cache (`storage.cache.sizeLimit`) with object storage.
 - Spikes in failed agent runs. Use [Runs and traces](/observe-and-govern/runs-and-traces) to investigate.
 - LLM spend and errors. Track them in [Usage, cost and quality](/observe-and-govern/usage-cost-quality) and set [quotas](/observe-and-govern/quotas-and-usage-limits).
 - TLS certificate expiry, if you manage certificates yourself.
@@ -478,6 +479,6 @@ otel:
 
 1. Provision a new environment and deploy the same image version you were running.
 2. Restore the PostgreSQL backup.
-3. Restore the file volumes (`uploads`, `branding_uploads`, artifact storage).
+3. Restore file storage: the bucket or container, or the file volumes (`uploads`, artifact storage).
 4. Supply the **original** `BOW_ENCRYPTION_KEY` and your `bow-config.yaml`.
 5. Start the application, point DNS at it, and verify sign-in, a data source and a test question.
