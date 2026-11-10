@@ -85,10 +85,10 @@ The **Require user authentication** toggle on the connection form decides whose 
 | Shared (toggle off) | Everyone with access to the agent | The connection's account or token |
 | Per-user (toggle on) | A member who has connected | That member's own KMS account or token |
 | Per-user (toggle on) | A member who has not connected | Nobody: BOW asks them to connect, and nothing is read from KMS |
-| Per-user (toggle on) | An org admin who has not connected | The connection's account or token |
+| Per-user (toggle on) | An org admin, or someone allowed to manage connections, who has not connected | The connection's account or token |
 
 <Note>
-  On a per-user connection, an org admin who has not connected their own account reads with the connection's account, not with their own KMS permissions. Connect your own account to read as yourself. Owning the agent does not change this: an owner who is not an admin connects like any other member.
+  On a per-user connection, an org admin (or someone allowed to manage connections) who has not connected their own account reads with the connection's account, not with their own KMS permissions. Connect your own account to read as yourself. Owning the agent does not change this: an owner who is not an admin connects like any other member.
 </Note>
 
 ### Connect your own KMS account
@@ -202,7 +202,7 @@ A failed run names the stage it stopped at ("Failed at: …").
   </Accordion>
 
   <Accordion title="An admin sees more than their own KMS account allows">
-    On a per-user connection, an admin who has not connected their own account reads with the connection's account. Connect your own account to read as yourself.
+    On a per-user connection, an admin or connection manager who has not connected their own account reads with the connection's account. Connect your own account to read as yourself.
   </Accordion>
 
   <Accordion title="The login fails again right after fixing the password in KMS">
