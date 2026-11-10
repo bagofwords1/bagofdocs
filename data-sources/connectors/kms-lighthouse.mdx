@@ -116,7 +116,7 @@ What one KMS identity can see is decided by KMS: that account's permissions, plu
 
 The agent's **Files** tab says the same: the KMS Lighthouse card shows **Browsing only** as its scope, with the note "A root folder limits browsing only. KMS permissions for the connected identity decide what the agent can search and read, including items outside that folder."
 
-To keep content away from the agent, restrict the KMS account's permissions in KMS, or use a layout. The root folder does not do that.
+To keep content away from the agent, restrict the KMS account's permissions in KMS. Neither the root folder nor a layout does that: a layout only narrows search, and reading ignores it.
 
 ## Online and offline content
 
@@ -194,7 +194,7 @@ A failed run names the stage it stopped at ("Failed at: …").
 
 <AccordionGroup>
   <Accordion title="An item outside the root folder still shows up in search">
-    This is expected. **Root folder ID** limits browsing only. Search and reads follow the KMS account's permissions. To hide content, restrict the account in KMS or use a **Layout ID**.
+    This is expected. **Root folder ID** limits browsing only. Search and reads follow the KMS account's permissions. To hide content, restrict the account's permissions in KMS. A **Layout ID** only narrows search; an item outside it can still be read.
   </Accordion>
 
   <Accordion title="A member is asked to connect">
