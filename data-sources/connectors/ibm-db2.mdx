@@ -1,0 +1,147 @@
+---
+title: "IBM Db2 and IBM i"
+description: "Connect Db2 for Linux, Unix and Windows, Db2 for z/OS, or Db2 for IBM i (AS/400) for read-only SQL"
+icon: "database"
+---
+
+BOW has two read-only connectors for the IBM Db2 family. Both read the tables, views, and columns in the schemas you point them at, including their comments and primary and foreign keys, and run Db2 SQL against them.
+
+| Your system | Connector in the picker | Driver | License needed |
+| :-- | :-- | :-- | :-- |
+| Db2 for Linux, Unix and Windows (LUW), including Db2 on Cloud and Db2 Warehouse | **IBM Db2** | IBM's `ibm_db` driver | None |
+| Db2 for z/OS (mainframe) | **IBM Db2** | IBM's `ibm_db` driver | Db2 Connect |
+| Db2 for IBM i (AS/400, iSeries) | **IBM i (Db2 for i)** — recommended | IBM's open-source Mapepire | None |
+| Db2 for IBM i, alternative | **IBM Db2** with **Db2 product** set to `ibmi` | IBM's `ibm_db` driver | Db2 Connect |
+
+Both connectors support one shared credential for the whole workspace or per-user credentials, where each person saves their own login.
+
+<Note>
+  Per-user authentication on a database connector requires an Enterprise license. See [Authentication](/data-sources/authentication).
+</Note>
+
+## Read-only queries
+
+Queries on both connectors are limited to a single statement that starts with `SELECT`, `WITH`, or `VALUES`. Anything else is refused before it reaches the server, as are write keywords inside a query (including `SELECT … FROM FINAL TABLE (INSERT …)`) and Db2-specific statements and routines that change state, such as `QCMDEXC`, `ADMIN_CMD`, `SYSPROC` routines, `LOCK`, `REFRESH`, `RUNSTATS`, and `REORG`.
+
+The **IBM i** connector also opens every database job with read-only access, so the IBM i itself refuses writes.
+
+<Warning>
+  This check is a safeguard, not a substitute for a read-only account: a `SELECT` can still call a function with side effects. Connect with a user that has read-only access, limited to the schemas or libraries the agent should use. The agent only sees the tables you select, but a query naming another table on these connectors is not blocked, so database permissions are what limit it.
+</Warning>
+
+---
+
+## IBM Db2 (LUW and z/OS)
+
+Go to **Data Sources → Add data source → IBM Db2**.
+
+<Note>
+  IBM publishes no `ibm_db` driver for Linux ARM64, so **IBM Db2** does not appear in the picker when BOW runs on an ARM64 Linux host. Run BOW on an x86_64 host to use it. **IBM i (Db2 for i)** works on every architecture.
+</Note>
+
+### Connection fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| **Host** | Yes | — | Db2 server hostname or IP address. |
+| **Port** | No | `50000` | `50000` on LUW, `446` on z/OS. With TLS on, use the server's TLS port. |
+| **Database** | Yes | — | The database name on Db2 LUW; the location name on Db2 for z/OS; the relational database (RDB) name on IBM i. |
+| **Schema** | No | — | A schema, or a comma-separated list of schemas, to index (on IBM i, libraries). Leave empty to index every non-system schema. Unqualified table names in queries resolve against the first schema listed. |
+| **Db2 product** | No | `auto` | `auto` detects the product on connect. Set `luw` (Linux/Unix/Windows, Db2 on Cloud), `zos` (mainframe), or `ibmi` (IBM i / AS/400) to force it. |
+| **Use TLS** | No | Off | Connect over TLS. Point **Port** at the server's TLS port. |
+| **CA Certificate (PEM)** | No | — | The certificate authority that signed the Db2 server certificate, pasted as PEM text. Needed when TLS is on and the certificate is signed by an internal CA. |
+
+Credentials (**Username / Password**):
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| **User** | Yes | Database user. On z/OS, the RACF user ID. Use an account with read-only access. |
+| **Password** | Yes | The user's password. |
+
+```text
+Host:         db2.example.internal
+Port:         50000
+Database:     SAMPLEDB
+Schema:       SALES,FINANCE
+Db2 product:  auto
+```
+
+### Product detection
+
+With **Db2 product** set to `auto`, BOW reads the product from the server on first connect and reads the matching system catalog: `SYSCAT` on LUW, `SYSIBM` on z/OS, and `QSYS2` on IBM i. A successful connection test names the detected product and its version, for example *Successfully connected to Db2 LUW 12.01.0500*.
+
+When **Schema** is empty, system schemas are skipped: names starting with `SYS`, plus `NULLID` and `SQLJ`, and on z/OS also names starting with `DSN`.
+
+### Db2 for z/OS and the Db2 Connect license
+
+Db2 for z/OS — and Db2 for IBM i reached through this connector — accept `ibm_db` connections only with a **Db2 Connect** entitlement, either activated on the server (`db2connectactivate`, the usual case on z/OS) or installed as a client license file in the driver's `clidriver/license` folder on the BOW host. Without one, the server answers `SQL1598N`, and the connection test says that a Db2 Connect license is required and how to provide it.
+
+If you connect to an IBM i and have no Db2 Connect license, use the **IBM i (Db2 for i)** connector instead.
+
+---
+
+## IBM i (Db2 for i)
+
+The **IBM i (Db2 for i)** connector talks to IBM's open-source **Mapepire** server on the IBM i. It needs no Db2 Connect license and no ODBC driver, and works on every architecture BOW runs on.
+
+### Before you start
+
+Install and start the Mapepire server on the IBM i once:
+
+```bash
+yum install mapepire-server
+sc start mapepire
+```
+
+Mapepire listens on port `8076` by default. Make sure that port is reachable from the BOW host.
+
+### Connect in BOW
+
+Go to **Data Sources → Add data source → IBM i (Db2 for i)**.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| **Host** | Yes | — | IBM i hostname or IP address. |
+| **Mapepire port** | No | `8076` | The Mapepire server's port. |
+| **Libraries** | No | — | A library (schema), or a comma-separated list of libraries, to index. Leave empty to index every non-system library. Unqualified table names in queries resolve against the first library listed. |
+| **Verify TLS certificate** | No | On | Check the Mapepire server certificate. |
+| **Server Certificate (PEM)** | No | — | The certificate, or the CA that signed it, to trust for the Mapepire server, pasted as PEM text. |
+
+Credentials (**User profile / Password**):
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| **User profile** | Yes | IBM i user profile. Use a profile with read-only authority to the libraries you index. |
+| **Password** | Yes | The profile's password. |
+
+When **Libraries** is empty, system libraries are skipped: names starting with `Q` or `SYS`, plus `SQLJ`. To index a library whose name starts with `Q`, list it in **Libraries**.
+
+### Server certificate
+
+Mapepire generates a self-signed certificate unless you install one. With **Verify TLS certificate** on, BOW checks the server certificate and host name against the certificate you paste in **Server Certificate (PEM)**, or, if that is empty, against the BOW host's system trust store. An unknown self-signed certificate is refused.
+
+So, for a default Mapepire install, paste its certificate into **Server Certificate (PEM)**. Turn **Verify TLS certificate** off only on a trusted network.
+
+### Writing queries
+
+Queries use SQL naming — `LIBRARY.TABLE`, not `LIBRARY/TABLE`. Libraries are schemas.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+| :-- | :-- |
+| **IBM Db2** is missing from the data source picker | BOW runs on a Linux ARM64 host, where IBM's `ibm_db` driver is not available. Run BOW on x86_64, or use **IBM i (Db2 for i)** for an IBM i. |
+| `SQL1598N` and a message about a Db2 Connect license | Db2 for z/OS or IBM i over **IBM Db2** without a Db2 Connect entitlement. Activate it on the server or install the client license file — or, for IBM i, use **IBM i (Db2 for i)**. |
+| TLS errors on **IBM Db2** | **Port** is not the server's TLS port, or the server certificate is signed by an internal CA that is not pasted in **CA Certificate (PEM)**. |
+| *Is the Mapepire server running on the IBM i (sc start mapepire) and the port reachable?* | The Mapepire server is not started, or **Mapepire port** is blocked between BOW and the IBM i. |
+| Certificate verification fails on **IBM i (Db2 for i)** | Mapepire is using its self-signed certificate. Paste it into **Server Certificate (PEM)**. |
+| A query is refused as not allowed | It is not a single `SELECT`, `WITH`, or `VALUES` statement, or it contains a write keyword or a Db2 command. See [Read-only queries](#read-only-queries). |
+| A timed-out query keeps running on the server | Neither driver can cancel a query on the server. Long-running queries continue until Db2 finishes them. |
+
+## Related
+
+- [Connecting data sources](/data-sources/connecting)
+- [Authentication](/data-sources/authentication)
+- [SQL databases](/data-sources/connectors/databases)

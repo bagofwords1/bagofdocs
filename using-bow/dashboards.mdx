@@ -45,6 +45,20 @@ Share an artifact with the people who need the operating view and choose the app
 
 When the source data or business definition changes, ask the agent to validate the difference before publishing an updated version. The report preserves the prompt and tool history behind the dashboard.
 
+## Show details on widgets
+
+Each widget can carry an **ⓘ** that opens the data, code and calculation behind it, so people can check where a number comes from instead of taking it on trust.
+
+To turn it on, click the gear (**Dashboard settings**) next to Refresh in the artifact toolbar, open **Viewers**, and switch on **Show details on widgets**. Click **Save**, and the ⓘ appears on the dashboard without a reload.
+
+- **Off by default.** New dashboards and dashboards that existed before the setting start with it off. Turn it on per dashboard.
+- **One setting for everyone.** It belongs to the dashboard, not to a person: when it's on, everyone who opens the dashboard sees the ⓘ, you and your editors included; when it's off, nobody does.
+- **Owner and editors decide.** Only people who can change the dashboard's settings — its owner and editors — can switch it. Viewers can't.
+
+<Note>
+  **Show details on widgets** is separate from **Include Data Tab** on the same page. If viewers shouldn't see the queries and results behind the dashboard, leave both off.
+</Note>
+
 ## Add interactive filters
 
 Ask the agent to make a field a filter — "let the viewer filter by region", "add a customer selector" — and it adds a control to the top of the dashboard backed by a [parameterized query](/using-bow/parameterized-queries). Changing the control re-runs the affected queries at the source and refreshes those visualizations in place; the rest of the dashboard is untouched. Choices for a control come from a fixed list or from another query in the report, never from the rows the control filters.

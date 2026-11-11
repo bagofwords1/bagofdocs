@@ -15,6 +15,7 @@ Once linked, users can interact with the bot through Direct Messages (1:1 chats)
 - **Threaded conversations** — each @mention in a channel starts a thread; replies within it continue the same conversation and report.
 - **Rich responses** — text and markdown tables directly in Teams.
 - **Permission-aware** — channel mentions query only public agents; DMs also include the user's private agents.
+- **Channel → agent routing** — point each team channel at its own agents, so the Finance channel answers from your finance agent and the Sales channel from your sales agent.
 
 ---
 
@@ -173,3 +174,22 @@ If a user's Teams email matches their BOW account email, they are linked automat
 <Note>
   When using channel mentions, only public agents are queried since responses are visible to everyone. For access to private agents, use DMs instead.
 </Note>
+
+### Channel → agent routing
+
+By default, a channel @mention can query every public agent. An admin can narrow this per channel, so each team channel answers from the agents that fit it — for example, a Finance channel from your finance agent and a Sales channel from your sales agent.
+
+1. In BOW, go to **Settings \> Integrations** and open the settings for the connected Microsoft Teams integration.
+2. Scroll to the **Channel → agent routing** panel.
+3. Optionally set the **Connection default** — the agents used for any channel without its own mapping.
+4. Under **Channels**, pick one or more agents for each channel from the **Choose agents…** menu.
+
+Changes save automatically; a green check appears next to the row you just changed.
+
+How it works:
+
+- **Channels appear automatically** — a channel is added to the list the first time someone @mentions the bot there. Until then the panel shows "No channels yet". Because the bot only receives messages where it is @mentioned, a channel shows up only after its first @mention.
+- **Channel names are resolved** — BOW looks up the channel's display name with the bot's own credentials, so no extra Microsoft Graph permissions are needed. If a name can't be resolved (this can happen for a team's General channel), the channel is listed by its ID.
+- **Most specific wins** — a channel with its own mapping uses those agents. A channel without one uses the **Connection default**. With no default set either, the channel can query every agent it could before.
+- **Routing only narrows access** — mapped agents are always intersected with what the user can already reach. Channel mentions still query only public agents, so mapping a private agent to a channel doesn't expose it there.
+- **1:1 and group chats** — per-channel mappings apply only to team channels. 1:1 chats and group chats are narrowed only by the **Connection default**, if one is set.

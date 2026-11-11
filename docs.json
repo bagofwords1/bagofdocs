@@ -95,6 +95,7 @@
               "data-sources/connectors/snowflake",
               "data-sources/connectors/bigquery",
               "data-sources/connectors/sql-server",
+              "data-sources/connectors/ibm-db2",
               "data-sources/connectors/sap",
               "data-sources/connectors/power-bi",
               "data-sources/connectors/power-bi-report-server",

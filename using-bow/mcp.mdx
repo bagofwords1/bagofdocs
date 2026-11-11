@@ -128,10 +128,33 @@ An unauthenticated request to the endpoint returns `401` with a `WWW-Authenticat
 | `list_instructions` | Lists instructions from the current live build. |
 | `create_instruction` | Creates an instruction. Admins publish immediately; other users submit for approval. Requires `manage_instructions`. |
 | `delete_instruction` | Removes an instruction. Requires `manage_instructions`. |
+| `search_evals` | Lists or searches eval test cases, so you can check for an existing case before creating one. Requires `manage_evals`. |
+| `create_eval` | Creates an eval test case for one or more agents. Requires `manage_evals`. |
+| `edit_eval` | Edits a case: rename, re-tag, move to another suite, change its prompt or expectations, promote a draft to active, or archive it. Requires `manage_evals`. |
+| `run_eval` | Runs selected cases or the active cases in a suite. Returns a `run_id` right away and runs in the background. Requires `manage_evals`. |
+| `stop_eval_run` | Stops an eval run that is still in progress. Requires `manage_evals`. |
+| `get_eval_runs` | Lists recent eval runs with status and pass/fail counts. Requires `manage_evals`. |
+| `get_eval_run` | Reads one eval run in detail, including per-case verdicts and why a case failed. Safe to call while the run is still going. Requires `manage_evals`. |
 
 Tools the user lacks permission for are left out of `tools/list`. Clients that support **MCP Apps** also render charts and dashboards inline from `create_data`, `create_artifact`, and `edit_artifact`.
 
 For apps with saved data, enable **Artifact resources** in organization AI settings first; it is off by default. Use resource management for schemas and policies, and artifact editing for the interface. Authoring remains subject to report ownership and organization permissions. See [Build apps with artifacts](/using-bow/artifact-apps).
+
+### Agent history and evals
+
+Org admins and agent managers can review how their agents are used and maintain [evals](/agents/evals) from an MCP client, without opening the web app.
+
+- **Run history** — the built-in, read-only **BOW** source and its two tables, `bow.runs` (one row per run) and `bow.tool_calls` (one row per tool call), appear in `get_context` and can be queried with `create_data`. Admins with **Manage settings** or **Manage connections** see every agent; anyone with **Manage** on an agent sees only the runs of the agents they manage. See [Analyze your agents' usage in chat](/guides/usage-analysis) for what the tables contain.
+- **Evals** — the seven eval tools are listed for anyone who holds `manage_evals` organization-wide or on at least one agent (a **Manage** grant on an agent includes it). Search results and run lists show only the cases and runs for agents whose evals you can manage. To create, edit or run a case you need eval-management rights on **every** agent it targets; cases not scoped to any agent need the organization-wide **Manage evals** permission.
+
+Ordinary members don't get the history tables or the eval tools.
+
+A typical flow:
+
+1. Ask the assistant to find real questions in `bow.runs`, for example recent failed runs or answers with negative feedback.
+2. Call `search_evals` to check that no case already covers that question, then `create_eval` with the agent's ID in `data_source_ids`.
+3. Start it with `run_eval`. It returns a `run_id` and keeps running in the background; set `wait_s` (up to 600 seconds) to wait for the results instead.
+4. Poll `get_eval_run` with that `run_id` to read each case's verdict and the reason it failed. Use `stop_eval_run` to cancel.
 
 ### Controls
 
@@ -158,4 +181,5 @@ BOW does not see the external assistant's own conversation. It records every too
 
 * In Claude: "What were our top 10 customers by revenue last month? Build a dashboard and email it to me."
 * In Cursor: validate data assumptions while you write a feature, or check production patterns before writing a migration.
+* As an agent manager: "Find last week's failed runs on the Sales agent, turn the three most common questions into evals, run them, and tell me which ones fail."
 * In any client: "Open a Linear issue for each failed load in yesterday's pipeline run" — through an agent's tools via `list_agent_tools` and `execute_mcp`.
