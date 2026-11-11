@@ -103,6 +103,18 @@ On the data source's settings tab:
 
 Schemas drift. Reload the table list after a migration, and re-run indexing when you add objects. On Enterprise, connections can re-index on a schedule instead — either every N hours or at a fixed time of day — so the agent's picture of your data stays current without anyone remembering to refresh it.
 
+## When a test or refresh fails
+
+A failed **Test** or schema refresh shows the reason, not just the headline. Under **Schema refresh failed**, the connection's status panel says where the run stopped — connecting to the source, reading the catalog, saving the catalog, or syncing agents — followed by the error type and the source's own message, for example:
+
+```text
+Indexing failed while connecting to the source: OperationalError: could not translate host name "db.internal" to address
+```
+
+The host, user, database, and table names in the message are the ones you configured, so you can see which setting to fix. Passwords, tokens, and keys are masked as `***`, including when a driver echoes a full connection string.
+
+If the message is **Internal server error** with a **support reference**, the failure was on the BOW server rather than in your settings. Give that reference to whoever operates your deployment; it matches the entry in the server log.
+
 ## Best practices
 
 * **Write a rich description.** More context about your domain means better queries.

@@ -45,6 +45,15 @@ Share an artifact with the people who need the operating view and choose the app
 
 When the source data or business definition changes, ask the agent to validate the difference before publishing an updated version. The report preserves the prompt and tool history behind the dashboard.
 
+## Choose what viewers can inspect
+
+Open **Dashboard settings** and go to the **Viewers** tab to decide what the people you share it with get.
+
+- **Show details on widgets.** Adds an ⓘ to each widget that opens the data, code, and calculation behind it. It is off by default, so a shared dashboard shows the finished view without its queries. Turn it on for audiences who need to check how a number was produced.
+- **Include Data Tab.** Shows viewers the data history and process behind the dashboard. Turn it off to share the dashboard alone.
+
+Both are presentation choices for one dashboard, not access controls: they change what the page displays, not which data a viewer's credentials can reach. To restrict data, use [per-user authentication](/data-sources/authentication) or [row-level security](/bow-fast/row-level-security).
+
 ## Add interactive filters
 
 Ask the agent to make a field a filter — "let the viewer filter by region", "add a customer selector" — and it adds a control to the top of the dashboard backed by a [parameterized query](/using-bow/parameterized-queries). Changing the control re-runs the affected queries at the source and refreshes those visualizations in place; the rest of the dashboard is untouched. Choices for a control come from a fixed list or from another query in the report, never from the rows the control filters.
