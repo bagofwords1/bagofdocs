@@ -257,5 +257,10 @@
       "destination": "/",
       "permanent": true
     }
-  ]
+  ],
+  "seo": {
+    "metatags": {
+      "canonical": "https://docs.bow.ai"
+    }
+  }
 }
