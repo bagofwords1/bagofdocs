@@ -1,0 +1,373 @@
+---
+title: "Chat components and embed SDK reference"
+sidebarTitle: "Chat and embed reference"
+description: "Options, return values, props, labels and data shapes of BOW's chat components and bow.conversations, and the methods and events of the host embed SDK."
+icon: "book-open"
+keywords:
+  - "useConversation"
+  - "ChatMessages"
+  - "ChatComposer"
+  - "ChatThreads"
+  - "bow.conversations"
+  - "BOWEmbed"
+  - "embed SDK"
+  - "unavailable"
+---
+
+This page lists what the chat components, `bow.conversations` and the host embed SDK accept and return. For how to use them, see [Build a chatbot app](/using-bow/chat-apps) and [Embed a chat assistant](/guides/embed-chatbot).
+
+The chat components and `bow.conversations` run inside an artifact. The agent writes this code for you; the tables help you review it or ask for a precise change. The host embed SDK runs on your own page.
+
+## useConversation
+
+```jsx
+const chat = useConversation({ conversationId, title, agents, historyLimit });
+```
+
+Call it once, at the top of the component. Every option is optional.
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `conversationId` | string | The conversation to open. Without it, the hook reopens the newest conversation whose answer is still running, if any |
+| `title` | string | The title of a conversation created by the first send. Without it, each conversation is named after the first 80 characters of its first question |
+| `agents` | string[] | Agent IDs to narrow new conversations to. Use only to narrow on purpose; it can never widen the app's agents |
+| `historyLimit` | number | Messages per history page. Default `30` |
+
+It returns:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `messages` | Message[] | The open conversation's messages, oldest first. See [Message](#message) |
+| `conversations` | Conversation[] | The viewer's 20 newest conversations on this app, newest first. The hook loads no older ones: use `bow.conversations.list({ before })` for those. See [Conversation](#conversation) |
+| `conversationId` | string \| null | The open conversation |
+| `policy` | Policy \| null | Whether chat is available, and with which agents and model. See [Policy](#policy) |
+| `loading` | boolean | A conversation is loading |
+| `sending` | boolean | A message is being sent |
+| `answering` | boolean | Sending, or an answer in the open conversation is still running, including one left running and reopened |
+| `error` | `{ code, message }` \| null | The last error |
+| `hasOlder` | boolean | Earlier messages exist |
+| `loadingOlder` | boolean | Earlier messages are loading |
+| `send(text)` | function | Sends a message. Creates the conversation on the first send. Ignored while an answer runs. Call it only on a user action |
+| `stop()` | function | Stops the running answer. Leaving a conversation does not stop its answer; only `stop()` does |
+| `select(id)` | function | Opens another conversation |
+| `newConversation()` | function | Starts a new, empty conversation |
+| `reload()` | function | Reloads the conversation list and the open conversation |
+| `loadOlder()` | function | Loads the page of messages before the oldest loaded one |
+| `rename(id, title)` | function | Renames a conversation. Optimistic; reverts on failure |
+| `archive(id)` | function | Archives a conversation and stops its running answer. Optimistic; reverts on failure |
+
+## Components
+
+Every component takes the hook's object as `chat` (except `ChatMessage` and `ChatResult`, which take one message or result), an optional `className`, and an optional `labels` object. Style around the components, not inside them.
+
+### ChatMessages
+
+```jsx
+<ChatMessages chat={chat} empty={node} showTools showResults showThinking={false} labels={labels} />
+```
+
+| Prop | Default | Description |
+| --- | --- | --- |
+| `chat` | | The `useConversation` object |
+| `empty` | | What to show before the first message, for example `<ChatSuggestions>` |
+| `showTools` | `true` | Show tool progress on each answer |
+| `showResults` | `true` | Show tables, charts and the incomplete-results note. `false` keeps the Markdown and steps |
+| `showThinking` | `false` | Show the model's reasoning in a collapsed section |
+
+It needs a bounded height: put it in a flex column with `min-h-0` on shrinking containers. It shows `chat.error`, except list errors when `ChatThreads` is mounted.
+
+### ChatComposer
+
+```jsx
+<ChatComposer chat={chat} placeholder="Ask about sales…" labels={labels} />
+```
+
+| Prop | Description |
+| --- | --- |
+| `chat` | The `useConversation` object |
+| `placeholder` | The input's placeholder |
+| `dir` | Text direction of the input. Default: automatic, from the text, or from the placeholder while empty |
+| `autoFocus` | Focus the input on mount |
+| `maxRows` | The most rows the input grows to before it scrolls. Default `6` |
+
+Enter sends, Shift+Enter adds a line, and the button becomes **Stop** while an answer runs. When chat is unavailable, the input and button stay visible but disabled, with the reason in a note under them.
+
+### ChatThreads
+
+```jsx
+<ChatThreads chat={chat} mode="auto" labels={labels} />
+```
+
+| Prop | Default | Description |
+| --- | --- | --- |
+| `chat` | | The `useConversation` object |
+| `mode` | `auto` | `list` (always a list), `drawer` (always a drawer) or `auto` (a toggle that opens a drawer below 640 pixels wide) |
+
+It lists the viewer's conversations with select, new, rename and archive, and a spinner on a conversation whose answer is running.
+
+### ChatSuggestions
+
+```jsx
+<ChatSuggestions chat={chat} items={['Top 5 customers by total spend', { label: 'Best month', text: 'Which month had the most revenue?' }]} />
+```
+
+| Prop | Description |
+| --- | --- |
+| `chat` | The `useConversation` object |
+| `items` | Strings, or `{ label, text }` objects that show `label` and send `text` |
+
+Suggestions send on a click, never on mount. They show only while the conversation is loaded, empty and available.
+
+### ChatMessage
+
+```jsx
+<ChatMessage message={m} showTools showResults showThinking={false} labels={labels} />
+```
+
+One message, as `ChatMessages` renders it: the Markdown answer with `dir="auto"` per block, the earlier steps collapsed, tool progress, each result as a `ChatResult`, and the running, stopped, failed and incomplete markers. Props as for `ChatMessages`, with `message` instead of `chat`.
+
+### ChatResult
+
+```jsx
+<ChatResult result={r} height={260} pageSize={10} labels={labels} />
+```
+
+| Prop | Default | Description |
+| --- | --- | --- |
+| `result` | | One [Result](#result) |
+| `height` | `260` | Chart height in pixels |
+| `pageSize` | `10` | Table rows per page |
+
+It always shows the table. It draws a chart only when the result's chart hint names real columns and fits the rows. It adds a note when rows or columns were cut.
+
+### Labels
+
+All components accept the same `labels` object. Missing keys fall back to English. Pass every key in the app's language.
+
+| Key | English default | Used by |
+| --- | --- | --- |
+| `rowsShown` | Showing \{shown\} of \{total\} rows | `ChatResult` |
+| `columnsShown` | \{shown\} of \{total\} columns | `ChatResult` |
+| `partial` | Partial table | `ChatResult` |
+| `incomplete` | Some results of this answer could not be shown | `ChatMessage` |
+| `inProgress` | Answer in progress... | `ChatMessage`, `ChatThreads` |
+| `steps` | Steps | `ChatMessage` |
+| `thinking` | Thinking | `ChatMessage` |
+| `failed` | The answer failed | `ChatMessage` |
+| `stopped` | The answer was stopped | `ChatMessage` |
+| `olderMessages` | Load earlier messages | `ChatMessages` |
+| `jumpToLatest` | Jump to latest | `ChatMessages` |
+| `send` | Send | `ChatComposer` |
+| `stop` | Stop | `ChatComposer` |
+| `unavailable` | Chat is not available here | `ChatComposer` |
+| `authRequired` | Sign in to chat | `ChatComposer` |
+| `conversations` | Conversations | `ChatThreads` |
+| `newConversation` | New chat | `ChatThreads` |
+| `rename` | Rename | `ChatThreads` |
+| `archive` | Archive | `ChatThreads` |
+| `archiveConfirm` | Archive this conversation? | `ChatThreads` |
+| `cancel` | Cancel | `ChatThreads` |
+
+`{shown}` and `{total}` are replaced with numbers.
+
+## bow.conversations
+
+The low-level API under the components, for what they cannot do. Every call runs as the viewer, on the viewer's own conversations with this artifact.
+
+| Method | Returns |
+| --- | --- |
+| `policy()` | [Policy](#policy) |
+| `list({ limit, before })` | `{ items: Conversation[], next_before }`, newest first. `limit` 1 to 50, default 20 |
+| `create({ title, agents })` | `{ id, title, created_at, updated_at, agents }`. `agents` only to narrow. Without `title`, the conversation is named "Chat: " and the artifact's title. Titles are cut to 120 characters (more than 200 is refused with `VALIDATION`) |
+| `get(id)` | One conversation |
+| `rename(id, title)` | Renames the conversation |
+| `archive(id)` | Archives it, stopping its running answer first |
+| `messages(id, { limit, before })` | `{ items: Message[], next_before }`, oldest first. `limit` 1 to 100, default 30 |
+| `send(id, text, { signal })` | An async iterator of [stream events](#stream-events). Abort with an `AbortController` |
+| `stop(id, messageId)` | Stops the answer. `messageId` comes from the `started` event |
+
+`bow.markdown(text)` turns an answer's Markdown into safe React elements, without raw HTML.
+
+Errors are thrown with a `code` and a `message`. Send messages only on a user action.
+
+Embed and artifact access codes are passed through as they are, for example `embed.not_allowed`, `artifact.not_found`, `dashboard.not_published` and `access.denied`.
+
+| `code` | Meaning |
+| --- | --- |
+| `conversation.no_agents` | No agent is left for this viewer here |
+| `conversation.agent_forbidden` | `create` named an agent the viewer cannot use here |
+| `conversation.limit` | A message was sent while the conversation was still answering |
+| `conversation.not_found` | The conversation or message does not exist, or is not the viewer's |
+| `conversation.unavailable` | The viewer is not a member of the organization |
+| `VALIDATION` | HTTP 422: the request was refused as invalid, for example a message over 8,000 characters or a `historyLimit` over 100 |
+| `FORBIDDEN` | The call is not allowed in the editor's preview or in view-as |
+| `RATE_LIMITED` | "Too many requests; wait before trying again": the per-viewer limit (6 messages or 240 reads per minute per artifact) or the per-organization limit (60 per minute) was reached. "Too many requests": the app already has 12 requests in flight. The embed sign-in limit (30 per minute per client address per application) shows the first text in the frame, as `authRequired` with `status: 'failed'` |
+| `NOT_FOUND` | In the editor's preview, the conversation does not exist |
+| `embed.session_invalid` | The viewer is not signed in, or the embed session ended |
+| `UNAVAILABLE` | A server or network error with no more specific code |
+| `INTERRUPTED` | The answer's stream ended before it completed |
+| `ABORTED` | The call was aborted with its `AbortController` |
+
+### Policy
+
+```json
+{
+  "available": true,
+  "agents_mode": "auto",
+  "agents": [{ "id": "…", "name": "Music Store" }],
+  "model": { "id": "…", "name": "Claude Haiku 5.5", "source": "pinned" }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `available` | Whether this viewer can chat here |
+| `reason` | When not available: `auth_required` (not signed in), `not_member` (not a member of the organization), `no_agents` (no agent is left for this viewer) |
+| `agents_mode` | `auto` (every agent the viewer can use) or `limited` (the owner's list, or the agents the report attached) |
+| `agents` | The agents this viewer can use here |
+| `model.source` | `default` (the viewer's default), `pinned` (the owner's choice) or `fallback` (the viewer cannot use the pinned model, so their default runs) |
+
+### Conversation
+
+`{ id, title, created_at, updated_at, in_progress }`. `in_progress` is `true` while an answer in it is still running.
+
+### Message
+
+```json
+{
+  "id": "…",
+  "role": "assistant",
+  "text": "Helena Holý is the top customer…",
+  "thinking": "",
+  "steps": ["Looking up invoices…"],
+  "status": "success",
+  "created_at": "2026-10-31T18:25:11Z",
+  "tools": [{ "name": "create_data", "title": "Top 5 customers by total spend", "status": "success" }],
+  "results": []
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `role` | `user` or `assistant` |
+| `text` | The final answer block, Markdown. Render with `bow.markdown` |
+| `steps` | Earlier blocks of the answer. A custom renderer must show both `text` and `steps` |
+| `thinking` | The model's reasoning, when it emitted any |
+| `status` | `in_progress` while the answer runs, then its final status |
+| `tools` | Assistant messages only. Render `title` or `name`, never the object |
+| `results` | Assistant messages only. See [Result](#result) |
+| `results_incomplete` | Present and `true` when some results of this answer could not be shown |
+
+### Result
+
+```json
+{
+  "id": "…",
+  "block": "…",
+  "title": "Top 5 customers by total spend",
+  "columns": [{ "field": "CustomerName", "headerName": "Customer name", "type": "string" }],
+  "rows": [{ "CustomerName": "Helena Holý", "TotalSpend": 49.62 }],
+  "row_count": 5,
+  "column_count": 2,
+  "truncated": false,
+  "chart": { "type": "bar", "x": "CustomerName", "y": ["TotalSpend"], "series": null }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `rows`, `columns` | The shaped result: at most 200 rows, 30 columns and 1,000 characters per cell |
+| `row_count`, `column_count` | The full size of the result |
+| `truncated` | `true` when rows, columns or cells were cut |
+| `chart` | `null`, or the agent's chart suggestion: `type` (`bar`, `line`, `area`, `pie` or `scatter`), `x`, `y[]`, `series`, and optionally `aggregate: 'count'` (rows per x). It is kept only when the rows can draw it as they are. When it is `null`, show the table only |
+
+Results are the answer's own query results, with your organization's display redaction applied. Never re-read numbers from the answer text.
+
+### Stream events
+
+`send()` yields these events, in order, ending with exactly one `completed`, or the iterator throws (`UNAVAILABLE` when the answer fails, `INTERRUPTED` when its stream breaks):
+
+| Event | Fields | Meaning |
+| --- | --- | --- |
+| `started` | `message_id` | The answer started. Use `message_id` with `stop()` |
+| `thinking_delta` | `block`, `text` | Append reasoning to that block |
+| `thinking` | `block`, `text` | Replace that reasoning block |
+| `tool` | `id`, `name`, `title`, `status` | A tool started or finished |
+| `text_delta` | `block`, `text` | Append text to that block |
+| `text` | `block`, `text` | Replace that block's text |
+| `result` | A [Result](#result) | A result of this answer. Keep it on the message by `id` |
+| `completed` | `status`, `results_incomplete?` | The answer ended. When `results_incomplete` is `true`, re-read `messages()` for that message's results |
+
+## Host context in the artifact
+
+`useArtifactData().host_context` holds the object the host page passed as `context` or with `updateContext`, or `null`. It changes while the app is open: read it during render. It is advisory and grants no access. See [Use host context](/using-bow/chat-apps#use-host-context).
+
+## Host embed SDK
+
+Load it from your BOW deployment, then mount:
+
+```html
+<script src="https://bow.example.com/api/embed/sdk/v1/bow-embed.js"></script>
+<script>
+  const embed = BOWEmbed.mount({ baseUrl, hostApp, artifact, mode: 'floating', identity: { getAssertion } });
+</script>
+```
+
+### Mount options
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `baseUrl` | Yes | Your BOW site root, without `/api` |
+| `hostApp` | Yes | The application's public ID (`host_…`) |
+| `artifact` | Yes | The artifact's name or ID, as in the snippet |
+| `mode` | | `'floating'` for a launcher and panel. Anything else is inline |
+| `container` | Inline | A CSS selector or element to fill. `mount` throws without it in inline mode |
+| `height` | | Inline height of the wrapper. Default `'100%'` |
+| `identity.getAssertion` | Signed assertion mode | A function that returns, or resolves to, a fresh assertion string from your backend |
+| `identity.getIdToken` | Identity provider token mode | A function that returns, or resolves to, the user's current ID token |
+| `context` | | A plain JSON object: what the user is looking at. Advisory |
+| `locale` | | The language of BOW's messages in the frame, for example `'he'` |
+| `title` | | The frame's title, and the launcher's accessible label. Default `'BOW'` for the frame and `'Open assistant'` for the launcher |
+| `accentColor` | | Floating: the launcher's color. Default `#2563eb` |
+| `position` | | Floating: `'bottom-right'` (default) or `'bottom-left'` |
+| `zIndex` | | Floating: the stacking order of the panel and launcher. Default `2147483000` |
+
+In floating mode the panel is up to 420 × 640 pixels, above a 56-pixel launcher in the chosen corner. SSO mode needs no `identity`.
+
+### Methods and properties
+
+| Member | Description |
+| --- | --- |
+| `on(name, fn)` / `off(name, fn)` | Add or remove an event listener. Both return the embed |
+| `open()` / `close()` | Open or close the floating panel |
+| `updateContext(context)` | Replace the host context |
+| `setLocale(locale)` | Change the language of BOW's messages in the frame |
+| `logout()` | Ask the frame to end its BOW embed session. The frame emits `authRequired` with `status: 'signed_out'` and asks BOW to revoke the session |
+| `destroy()` | Remove the frame and launcher and stop listening. Called right after `logout()`, it removes the frame before the frame handles the sign-out, so the session is not revoked and stays valid for up to an hour. Wait for `signed_out`, then destroy after a short pause. See [Sign-out and switching users](/guides/embed-chatbot#sign-out-and-switching-users) |
+| `state` | `{ status, user, open }`. `status` is `'starting'`, `'authenticated'`, `'unavailable'`, `'sign_in_required'`, `'failed'` or `'signed_out'`. `user` is not cleared after `logout()` |
+| `iframe` | The frame element |
+| `version` | `'1'` |
+
+### Events
+
+| Event | Detail | When |
+| --- | --- | --- |
+| `authenticated` | `{ user: { name, email } }` | BOW accepted the sign-in. Sent before the artifact loads; if loading then fails, `unavailable` follows. Sent again after every successful silent renewal, and when an unavailable artifact becomes available |
+| `authRequired` | `{ status, message }` | The frame is not signed in. `status` is `sign_in_required`, `failed` or `signed_out`. An application disabled while the frame is open arrives as `failed` (`sign_in_required` in BOW sign-in mode) once the frame notices, at the latest when the current session would have ended. Until then, the app's own calls fail with `embed.session_invalid` |
+| `unavailable` | `{ reason, message }` | Signed in, but this artifact cannot be shown here |
+| `error` | `{ code: 'credential_failed', message }` | `getAssertion` or `getIdToken` failed, returned nothing, or is not configured. On the first sign-in, `authRequired` with `status: 'failed'` follows. During a renewal the frame keeps the current session and retries, so `authRequired` comes only if that session ends first |
+| `open` / `close` | `{}` | The floating panel opened or closed |
+
+### unavailable reasons
+
+| `reason` | Meaning | Message in the frame |
+| --- | --- | --- |
+| `not_published` | The artifact is not published. Told only to its editors and admins | This hasn't been published yet. It will appear here once it's published. |
+| `not_found` | Not published for this viewer, or removed. A removal while the frame is open is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `artifact.not_found` | This isn't available. It may not be published yet, or it was removed. |
+| `denied` | The viewer cannot open it | You don't have access to this. Ask its owner to share it with you. |
+| `not_allowed` | The artifact does not allow this application. When it stops allowing it while the frame is open, this is reported the next time the frame loads the artifact, for example after a new sign-in. Until then, the app's requests fail with `embed.not_allowed` and the app shows "This isn't available in this application." | This isn't enabled for this application. An editor can allow it in its Embed settings in Bag of Words. |
+| `failed` | A server or network error. The frame offers **Try again** | This couldn't be loaded. Try again in a moment. |
+
+A dead embed session is not an `unavailable` reason: it ends like an expired session and arrives as `authRequired` with status `'failed'` (`sign_in_required` in BOW sign-in mode). The frame notices when it next loads the artifact's content or queries. Failed conversation calls do not tell the frame, so a chat-only app only shows `embed.session_invalid` in `chat.error` until the next renewal. In the backend-signed and identity-provider modes, that silent renewal, about five minutes before the session would have ended, asks the host for a new credential. After **Sign everyone out** it usually succeeds and signs the user straight back in, so the host receives `authenticated`, not `authRequired`. Renewal fails when the application is disabled, the key was rotated, or the host stops issuing credentials for the user. In SSO mode the frame asks for a new sign-in when the session would have ended.
+
+A wrong artifact reference, an artifact that does not allow this application, a disabled application or an unlisted page origin produce no event at all. The browser refuses the frame, and `state.status` stays `'starting'`. Use a timeout of your own to treat a long `'starting'` as a failure.

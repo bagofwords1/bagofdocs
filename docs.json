@@ -31,6 +31,8 @@
           "using-bow/reports",
           "using-bow/dashboards",
           "using-bow/artifact-apps",
+          "using-bow/chat-apps",
+          "using-bow/chat-components-reference",
           "using-bow/sub-agents",
           "using-bow/parameterized-queries",
           "using-bow/mcp",
