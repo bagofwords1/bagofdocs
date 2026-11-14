@@ -45,12 +45,19 @@ Share an artifact with the people who need the operating view and choose the app
 
 When the source data or business definition changes, ask the agent to validate the difference before publishing an updated version. The report preserves the prompt and tool history behind the dashboard.
 
-## Choose what viewers can inspect
+## Show details on widgets
 
-Open **Dashboard settings** and go to the **Viewers** tab to decide what the people you share it with get.
+Each widget can carry an **ⓘ** that opens the data, code and calculation behind it, so people can check where a number comes from instead of taking it on trust.
 
-- **Show details on widgets.** Adds an ⓘ to each widget that opens the data, code, and calculation behind it. It is off by default, so a shared dashboard shows the finished view without its queries. Turn it on for audiences who need to check how a number was produced.
-- **Include Data Tab.** Shows viewers the data history and process behind the dashboard. Turn it off to share the dashboard alone.
+To turn it on, click the gear (**Dashboard settings**) next to Refresh in the artifact toolbar, open **Viewers**, and switch on **Show details on widgets**. Click **Save**, and the ⓘ appears on the dashboard without a reload.
+
+- **Off by default.** New dashboards and dashboards that existed before the setting start with it off. Turn it on per dashboard.
+- **One setting for everyone.** It belongs to the dashboard, not to a person: when it's on, everyone who opens the dashboard sees the ⓘ, you and your editors included; when it's off, nobody does.
+- **Owner and editors decide.** Only people who can change the dashboard's settings — its owner and editors — can switch it. Viewers can't.
+
+<Note>
+  **Show details on widgets** is separate from **Include Data Tab** on the same page. If viewers shouldn't see the queries and results behind the dashboard, leave both off.
+</Note>
 
 Both are presentation choices for one dashboard, not access controls: they change what the page displays, not which data a viewer's credentials can reach. To restrict data, use [per-user authentication](/data-sources/authentication) or [row-level security](/bow-fast/row-level-security).
 

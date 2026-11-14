@@ -14,6 +14,7 @@ The Slack integration installs a bot into your Slack workspace so users can chat
 - **Visual feedback** — 👀 means processing, ✅ means done.
 - **Rich responses** — text, charts, and data files (CSV) delivered directly in Slack.
 - **Permission-aware** — channel mentions query only public agents; DMs also include the user's private agents.
+- **Channel → agent routing** — point each Slack channel at its own agents, so #finance answers from your finance agent and #sales from your sales agent.
 
 ## Connection modes
 
@@ -120,3 +121,25 @@ If a user's Slack email matches their BOW account email, they are **linked autom
 <Note>
   When using channel mentions, only public agents are queried since responses are visible to everyone in the channel. For access to private agents, use DMs instead.
 </Note>
+
+### Channel → agent routing
+
+By default, a channel @mention can query every public agent. An admin can narrow this per channel, so each channel answers from the agents that fit it — for example, #finance from your finance agent and #sales from your sales agent.
+
+1. In BOW, go to **Settings → Integrations** and open the connected **Slack** integration.
+2. Scroll to the **Channel → agent routing** panel.
+3. Optionally set the **Connection default** — the agents used for any channel without its own mapping.
+4. Under **Channels**, pick one or more agents for each channel from the **Choose agents…** menu.
+
+Changes save automatically; a green check appears next to the row you just changed.
+
+How it works:
+
+- **Channels appear automatically** — a channel is added to the list the first time someone @mentions the bot there. Until then the panel shows "No channels yet". BOW looks up the channel's name, so the list shows `#finance` rather than a raw channel ID.
+- **Most specific wins** — a channel with its own mapping uses those agents. A channel without one uses the **Connection default**. With no default set either, the channel can query every agent it could before.
+- **Routing only narrows access** — mapped agents are always intersected with what the user can already reach. Channel mentions still query only public agents, so mapping a private agent to a channel doesn't expose it there.
+- **DMs** — per-channel mappings don't apply to DMs. A DM is narrowed only by the **Connection default**, if one is set; otherwise it keeps the user's public and private agents.
+
+<Tip>
+  To resolve channel names, the bot needs the `channels:read` scope (and `groups:read` for private channels). Without it, routing still works — the channel is just listed by its ID.
+</Tip>

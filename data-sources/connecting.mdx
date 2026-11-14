@@ -12,7 +12,7 @@ Connecting a data source takes a few minutes. Making it *good* — so the agent 
 2. Pick the connector. Use the category chips or search; Enterprise-only connectors show a lock if you have no license.
 3. Fill in the connection fields and credentials. Every connector's fields are documented on its own page — see the [catalog](/data-sources/overview).
 4. Decide whether this connection uses shared credentials or [per-user authentication](/data-sources/authentication).
-5. **Test** the connection, then save. BOW validates the credentials before storing them, so a saved connection is a working one.
+5. Click **Test connection**, then save. BOW validates the credentials before storing them, so a saved connection is a working one. If the test fails, see [Troubleshoot a failed connection](#troubleshoot-a-failed-connection).
 
 <Note>
   Nothing is copied. BOW queries your data where it lives, every time, using the credentials you configured.
@@ -103,15 +103,29 @@ On the data source's settings tab:
 
 Schemas drift. Reload the table list after a migration, and re-run indexing when you add objects. On Enterprise, connections can re-index on a schedule instead — either every N hours or at a fixed time of day — so the agent's picture of your data stays current without anyone remembering to refresh it.
 
-## When a test or refresh fails
+## Troubleshoot a failed connection
 
-A failed **Test** or schema refresh shows the reason, not just the headline. Under **Schema refresh failed**, the connection's status panel says where the run stopped — connecting to the source, reading the catalog, saving the catalog, or syncing agents — followed by the error type and the source's own message, for example:
+When a connection test or a schema refresh fails, BOW shows the reason from the database driver itself, so you can fix the setting instead of guessing.
+
+**Test connection.** The result appears in the form, just above the **Test connection** button, and you can't save until a test passes. A failure gives the error type and the driver's message — plus the error it was caused by, when the driver wraps one:
 
 ```text
-Indexing failed while connecting to the source: OperationalError: could not translate host name "db.internal" to address
+OperationalError: password authentication failed for user "analytics_ro"
 ```
 
-The host, user, database, and table names in the message are the ones you configured, so you can see which setting to fix. Passwords, tokens, and keys are masked as `***`, including when a driver echoes a full connection string.
+**Indexing and schema refresh.** When reading the schema fails, the connection's status panel shows **Indexing failed** or **Schema refresh failed**, with the reason underneath. The reason says which stage the run stopped in — connecting to the source, reading the catalog, saving the catalog, syncing agents — then the error type and the driver's message:
+
+```text
+Indexing failed while connecting to the source: OperationalError: could not connect to server: Connection refused. Is the server running on host "db.example.com" and accepting connections on port 5432?
+```
+
+Open **Show logs** or **Details and logs** under the reason for the run's full log.
+
+What the message keeps and what it hides:
+
+- **Kept:** hosts, ports, user names and table names — they're your own settings, and usually the thing to fix.
+- **Masked as `***`:** passwords, tokens and keys, including the connection's own stored secrets wherever a driver echoes them.
+- **Shortened:** very long messages are cut, and server file paths are reduced to the file name.
 
 If the message is **Internal server error** with a **support reference**, the failure was on the BOW server rather than in your settings. Give that reference to whoever operates your deployment; it matches the entry in the server log.
 

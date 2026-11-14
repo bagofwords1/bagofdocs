@@ -42,6 +42,22 @@ Agents can be used in **Chat** mode for production work and **Training** mode fo
 
 An agent can be private to selected people and groups or made available to everyone in the organization. You can also control which channels can reach it, such as the web app, scheduled work, or external channels.
 
+Agent managers set access in the agent's settings:
+
+- **Access** — turn on public access to let everyone in the organization use the agent. The **Members** list then shows **Everyone in the organization** with **Can query**.
+- **Members** — explicit members are listed whether or not the agent is public, so you can still add people (and groups, on Enterprise) and give them more than query access. Each member shows **Can query**, **Can manage**, or **Custom access**.
+
+Select **Add member**, or edit an existing member, to open the same dialog. Choose who, then their access:
+
+| Access | Allows |
+|---|---|
+| **Can query** | Ask this agent questions |
+| **Can manage** | Configure the agent and manage its members |
+
+For a narrower set of rights, open **Advanced permissions** and pick individual permissions such as **Manage instructions**, **Manage entities**, **Manage evals**, or **Manage members**. A member with a combination other than the two tiers shows as **Custom access**.
+
+The owner can always manage the agent. **Remove** deletes a member's explicit membership and permissions only; they may still reach the agent through public, group, or organization access.
+
 <CardGroup cols={2}>
   <Card title="Instructions and knowledge" icon="book-open" href="/agents/instructions">
     Manage reusable, many-to-many knowledge and behavior rules.
