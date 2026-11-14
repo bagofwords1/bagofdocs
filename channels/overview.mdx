@@ -42,7 +42,7 @@ All chat channels share the same core model:
 
 - **Account linking** — every platform user maps to a BOW account, so all queries run with that user's permissions. On platforms that vouch for the user's email (Slack, Teams, Google Chat), accounts are **auto-linked by email** when it matches an existing BOW user (this can be disabled per integration). Otherwise, the bot sends a one-time verification link on first contact.
 - **Thread = conversation** — each thread maps to a single BOW report. Replies in a thread continue the same conversation and context; a new message starts a new one. Every conversation is saved as a report in BOW, with a link posted back into the chat.
-- **Permission-aware data access** — in public channels, only public agents (data sources) are queried, since answers are visible to everyone. In DMs, the user's private agents are available too.
+- **Permission-aware data access** — in public channels, only public agents (data sources) are queried, since answers are visible to everyone. In DMs, the user's private agents are available too. On Slack and Microsoft Teams, an admin can also route each channel to specific agents, which narrows — never widens — what that channel can query.
 - **Status feedback** — the bot signals progress while it works (for example 👀 → ✅ reactions on Slack, or a "Working on it…" message on Google Chat).
 - **Per-agent channel availability** — each agent (data source) can be enabled or disabled per channel from its settings, so you control which data is reachable from which surface.
 
