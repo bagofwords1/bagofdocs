@@ -21,7 +21,7 @@
           "install",
           "day-2-operations",
           "sign-in-and-sso",
-          "kubernetes-persistent-storage"
+          "file-storage"
         ]
       },
       {
@@ -259,6 +259,11 @@
     {
       "source": "/core/agentic-analytics",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-persistent-storage",
+      "destination": "/file-storage",
       "permanent": true
     }
   ],
