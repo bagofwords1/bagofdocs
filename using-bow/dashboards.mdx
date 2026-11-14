@@ -16,6 +16,8 @@ Ask for the audience, decisions, metrics, comparisons, and operating cadence in 
 
 The agent can inspect data, reconcile measures, create the artifact, and complete sharing or scheduling steps in the same run. The conversation remains visible on the left, so the request, evidence, and changes stay attached to the result.
 
+If the request is open-ended or could be read in materially different ways, the agent asks its clarifying questions before it starts building — usually with two or three concrete options to pick from. Once it has started, it finishes the build and notes any limits or surprises in the data on the page, asking again only if something truly blocks it.
+
 ## Refine the artifact in chat
 
 Continue the conversation to change the dashboard. Ask the agent to:
@@ -39,11 +41,42 @@ For resource-backed apps, **⋯ → Resources** opens the read-only record explo
 
 Use the artifact toolbar to refresh the view, inspect versions, open it in a larger view, or share it. Keep the chat open when you need the evidence trail; use the expanded artifact view for operating reviews and presentations.
 
+## Find a dashboard
+
+The **Dashboards** page in the sidebar lists every dashboard you can open, with **My dashboards** and **Shared with me** tabs. Each dashboard shows when it was created and last edited, who owns it, and whether it is published or has unpublished changes; on shared dashboards, a label says how it reached you — shared directly, through a group or project, or with the whole organization.
+
+- **Search** by dashboard title or owner.
+- **Filters** narrow the list by agent, created or edited date (presets such as **Last 7 days**, or a custom range), owner, and status (**Published**, **Unpublished changes**, **Draft**), or to **Starred only**.
+- **Sort** by **Recently edited**, **Newest created**, **Oldest created**, **Title A–Z**, or **Recently published**.
+- Switch between **Grid** and **List** view.
+- **Star** the dashboards you return to.
+
+**Needs attention** points out dashboards failing to refresh and ones not edited in 90 days.
+
 ## Share and schedule
 
 Share an artifact with the people who need the operating view and choose the appropriate visibility. Schedule recurring refreshes or delivery so the view stays current without rebuilding it each week.
 
 When the source data or business definition changes, ask the agent to validate the difference before publishing an updated version. The report preserves the prompt and tool history behind the dashboard.
+
+### Request access
+
+When you open a dashboard that is private or shared with specific people, and you aren't one of them, BOW shows **You don't have access** with the owner's name. Select **Request access**, add an optional note, and **Send request**. The owner and the editors added by name are notified in-app and by email.
+
+Any editor answers from the dashboard's **Share** dialog, under **Pending requests**, with **Approve** or **Deny**. The first answer wins. Approving adds the requester as a viewer — a private dashboard switches to **Specific people** — and tells them they can now view it. Denying is silent; the person can ask again after 7 days.
+
+Access requests are controlled by **Allow access requests** in **Settings → AI** (default: on). When it is off, the no-access page only names the owner to ask, and no new requests can be sent; requests already sent can still be answered.
+
+### What viewers get
+
+**Dashboard settings → Viewers** controls what the people you share a dashboard with see:
+
+- **Show details on widgets** — adds an ⓘ to each widget that opens its data, code, and calculation. Off by default.
+- **“Made with BOW” badge** — shown in the corner of the dashboard's pages. On by default; turn it off for this dashboard. **Show "Made with BOW" credit** in **Settings → General** turns it off for every dashboard in the organization.
+
+### Embed in other applications
+
+**Dashboard settings → Embed** picks the host applications that may show the dashboard and gives the snippet each one pastes. Under **Permissions**, **Allow links to open in a new tab** lets links and buttons in the dashboard open new tabs or pop-up windows. It is off by default, so the dashboard can't open them.
 
 ## Add interactive filters
 

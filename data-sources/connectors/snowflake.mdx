@@ -8,7 +8,7 @@ BOW connects to Snowflake with the standard Snowflake driver, reads the tables, 
 
 ## How it works
 
-BOW opens a connection scoped to one `database` and one or more `schema` values, using the `warehouse` you specify for compute (and the `role` you specify, if any). During indexing it reads:
+BOW opens a connection scoped to one or more `database` values (optionally narrowed by `schema`), using the `warehouse` you specify for compute (and the `role` you specify, if any). During indexing it reads:
 
 - **Tables and views** from `INFORMATION_SCHEMA`, including table and column comments where they exist.
 - **Semantic views** — discovered with `SHOW SEMANTIC VIEWS` and described with `DESC SEMANTIC VIEW`. These are exposed to the agent alongside regular tables, and the agent knows to query them through the `SEMANTIC_VIEW()` function rather than as ordinary tables.
@@ -124,11 +124,17 @@ Go to **Data Sources → Add data source → Snowflake** and fill in the form.
 | :-- | :-- | :-- | :-- |
 | `account` | Yes | — | Account identifier, for example `ABCDEF-GHIJKL`. Not the full `.snowflakecomputing.com` hostname. |
 | `warehouse` | Yes | — | Warehouse used for compute on every query. |
-| `database` | Yes | — | Database to connect to. |
-| `schema` | Yes | — | Schema to index. Accepts a **comma-separated list** (`SALES, MARKETING, FINANCE`); the first entry is used as the connection's default schema. |
+| `database` | Yes | — | Database to connect to, or a **comma-separated list** of databases on this account. The first is the default. See [Several databases](#several-databases-in-one-connection) below. |
+| `schema` | No | — | Schema to index, or a **comma-separated list** (`SALES, MARKETING, FINANCE`). Leave blank to index the whole database. |
 | `role` | No | — | Optional Snowflake role to activate for the connection. Leave blank to use the user's default role. |
 
 Then choose an authentication method (below), click **Test Connection**, and select the tables the agent may use.
+
+### Several databases in one connection
+
+List several databases on the same account in `database`, comma-separated (`ANALYTICS, FINANCE, MARKETING`), to let the agent join tables across them in one query — they share the connection's account, role, and warehouse. The first database is the session default.
+
+With more than one database, every table is named `DATABASE.SCHEMA.TABLE`; with one, tables are named `SCHEMA.TABLE`. To narrow indexing, write `DATABASE.SCHEMA` entries in `schema`: a plain `SCHEMA` belongs to the first database, and a database with no entry is indexed in full.
 
 ## Authentication modes
 

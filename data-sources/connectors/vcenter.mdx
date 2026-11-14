@@ -1,0 +1,115 @@
+---
+title: "VMware vCenter"
+description: "Query VMs, disks, snapshots, hosts, clusters, datastores, networks and tags, plus performance metrics, events, tasks and triggered alarms from vCenter Server or ESXi"
+icon: "server"
+---
+
+<Note>
+  The VMware vCenter connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+BOW connects to **vCenter Server or a standalone ESXi host** (vSphere 7–9) so an infrastructure team can ask questions like *"which VMs on datastore ds-prod-01 have snapshots older than three days?"* or *"what changed on this host in the last six hours?"* and get answers from the live inventory, performance data and event log.
+
+It reads through the vSphere Web Services API (the same API pyVmomi uses) and, for tags, the vSphere Automation REST API. Each query opens one session and logs out afterwards, so the connector never holds a vCenter session open between questions.
+
+## What the catalog looks like
+
+vSphere has no SQL surface, so BOW exposes a fixed catalog of 20 tables. Queries are JSON specs. The inventory tables follow the RVTools tabs operators already know (vInfo, vDisk, vNetwork, vSnapshot, ...), and managed object IDs (`vm-101`, `host-12`, `datastore-40`) are the join keys.
+
+| Table | What it holds |
+| :-- | :-- |
+| `about` | The endpoint itself: product, version, build, API version, and whether it is vCenter or a standalone ESXi host |
+| `datacenters` | Datacenters with object counts |
+| `clusters` | Compute clusters: capacity, demand, HA/DRS/vSAN configuration |
+| `hosts` | ESXi hosts: hardware, ESXi version, maintenance mode, connection state, current CPU and memory usage |
+| `vms` | Virtual machines and templates: configuration, placement, guest info, quick stats, storage use and snapshot burden |
+| `vm_disks` | Virtual disks, one row per disk — including whether the VM is writing to a snapshot delta |
+| `vm_nics` | Virtual network adapters, with the guest IPs on each |
+| `vm_partitions` | Guest file systems reported by VMware Tools: capacity and free space inside the guest |
+| `vm_snapshots` | VM snapshots, one row per snapshot in the tree |
+| `datastores` | Datastores: capacity, free space, thin-provisioning overcommit, type and backing device |
+| `networks` | Standard and distributed port groups, with VLAN and switch |
+| `resource_pools` | Resource pools: reservations, limits and shares |
+| `tags` | vSphere tags attached to objects |
+| `alarms` | Currently triggered alarms (red / yellow) across the inventory |
+| `events` | The vCenter event log: logins, power operations, vMotion/DRS moves, alarm transitions, ESXi problems |
+| `tasks` | Recent tasks: who did what to which object, state, error and duration |
+| `licenses` | Licenses in the vCenter license inventory, with keys masked |
+| `perf_counters` | The performance counter catalog: exact counter keys, unit and statistics level |
+| `metrics_available` | Which counters and instances actually have data for an object at a given interval |
+| `metrics` | Performance time series, one row per object × counter × instance × timestamp |
+
+`events` and `tasks` default to the last **24 hours** when a question gives no time range — set by `default_lookback_hours`. Historical performance data is usually kept at statistics level 1, so check `metrics_available` before relying on per-instance or higher-level counters.
+
+## Before you start
+
+<Steps>
+  <Step title="Create a service account">
+    Use a vCenter SSO or Active Directory user, for example `svc-bow@vsphere.local`. vCenter has no API keys.
+  </Step>
+
+  <Step title="Grant the Read-only role">
+    Assign the built-in **Read-only** role to that user on the vCenter root object, with **Propagate to children** checked.
+  </Step>
+
+  <Step title="Get the VMCA root certificate">
+    vCenter usually presents a certificate signed by its own VMCA. Download the root from `https://<vcenter>/certs/download.zip` so you can paste it into `ca_certificate` and keep verification on.
+  </Step>
+
+  <Step title="Connect">
+    Enter the host and credentials in the connect form and click **Test connection**. The result reports the version and how many datacenters, clusters, hosts, VMs and datastores the account can see.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Host name or URL of the vCenter Server or a standalone ESXi host, e.g. `vcenter.acme.local`. HTTPS only. |
+| `port` | No | `443` | HTTPS port. |
+| `verify_ssl` | No | `true` | Verify the vCenter certificate. Paste the VMCA root into `ca_certificate` rather than turning this off. |
+| `ca_certificate` | No | _(blank)_ | PEM certificate of the CA that signed the vCenter certificate. |
+| `include_tags` | No | `true` | Read tags and categories through the vSphere Automation REST API (vCenter 7.0 U2 or later). |
+| `default_lookback_hours` | No | `24` | Window for `events` and `tasks` when a question gives no explicit time range (1–720). |
+| `timeout` | No | `60` | Request timeout in seconds (5–300). |
+
+## Authentication
+
+**Username + Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A vCenter SSO or Active Directory user with the **Read-only** role on the vCenter root, propagated to children. |
+| `password` | Yes | That user's password. |
+
+Because the mode is also available at user scope, each analyst can use their own vCenter login, so vCenter's own permissions decide what they see. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Certificate verification fails">
+    vCenter is presenting a VMCA-signed certificate the BOW backend does not trust. Paste the VMCA root (from `https://<vcenter>/certs/download.zip`) into `ca_certificate` instead of turning off `verify_ssl`.
+  </Accordion>
+
+  <Accordion title="Clusters, tags and historical metrics are empty">
+    You connected to a standalone ESXi host. ESXi has no clusters, tags or historical performance data — the test result says so. Connect to vCenter Server for the full catalog.
+  </Accordion>
+
+  <Accordion title="The tags table is empty">
+    The tags API needs vCenter 7.0 U2 or later. **Test connection** reports whether it was reachable; if not, the rest of the catalog still works. Turn off `include_tags` to skip it.
+  </Accordion>
+
+  <Accordion title="A performance counter returns no data">
+    Historical intervals usually run at statistics level 1, which keeps aggregate values of level-1 counters only. Query `metrics_available` for the object to see what exists. Realtime 20-second samples exist only for VMs and hosts, and only for about the last hour.
+  </Accordion>
+
+  <Accordion title="Objects are missing from the inventory">
+    The account sees only what its role grants. Check that **Read-only** is assigned on the vCenter root with **Propagate to children** checked.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [VMware Aria Operations](/data-sources/connectors/aria-operations) — metrics with dynamic thresholds and management-pack data for the same estate.
+- [NetApp ONTAP](/data-sources/connectors/netapp-ontap) — the storage behind your datastores.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

@@ -1,0 +1,206 @@
+---
+title: "Lakehouse and query engines"
+description: "Connect Apache Iceberg catalogs (REST, AWS Glue, Amazon S3 Tables), Dremio, and Hive, Impala or Spark Thrift Server so the agent can query lakehouse tables read-only with SQL"
+icon: "warehouse"
+---
+
+These connectors reach data that lives in a lake: open table formats behind a catalog, and the SQL engines that sit on top of them. The agent sees ordinary tables with typed columns and writes SQL. BOW tells it which columns a table is partitioned by, because filtering on them is what keeps a lakehouse query from reading every file.
+
+All three are **read-only**. BOW checks every statement with its SQL guard, in the engine's dialect, and refuses anything that isn't a single read statement. Each query also has a row cap.
+
+Add them under **Data Sources → Add data source**, fill in the fields below, test the connection, and pick the tables the agent may use.
+
+| Connector | What it reads | Where queries run | SQL dialect | Edition |
+| :-- | :-- | :-- | :-- | :-- |
+| [Apache Iceberg](#apache-iceberg) | Iceberg tables through an Iceberg REST catalog, AWS Glue or Amazon S3 Tables | On the BOW server, in an in-memory DuckDB | DuckDB SQL | Beta |
+| [Dremio](#dremio) | Tables and views in Dremio Software or Dremio Cloud | On Dremio | Dremio SQL | Beta |
+| [Apache Hive and Impala](#apache-hive-and-impala) | Tables in Apache Hive, Apache Impala or Spark Thrift Server, over HiveServer2 | On the engine | HiveQL, Impala SQL or Spark SQL | Beta |
+
+<Tip>
+  To run Spark SQL on a cluster over **Spark Connect** (`sc://`), use the [Spark](/data-sources/connectors/databases#spark) connector instead. The Hive / Impala connector reaches Spark only through a Spark Thrift Server.
+</Tip>
+
+<Note>
+  None of these connectors needs an Enterprise license. Per-user credentials on a database connection do need one. See [Authentication](/data-sources/authentication).
+</Note>
+
+---
+
+## Apache Iceberg
+
+<Note>
+  The Apache Iceberg connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW reads Iceberg tables through their **catalog**, which lists namespaces and tables, their schemas, partition specs and snapshots. Three catalog types are supported:
+
+- **Iceberg REST catalog** — Polaris, Nessie, Gravitino, Lakekeeper, Unity, Snowflake Open Catalog and others. A REST catalog can also hand out short-lived storage credentials per table (vended credentials).
+- **AWS Glue Data Catalog**.
+- **Amazon S3 Tables** — reached through the S3 Tables Iceberg REST endpoint for your region, signed with your AWS credentials.
+
+Each Iceberg table becomes a catalog table named `namespace.table`. Nested namespaces are joined with `_`, so `sales.emea.orders` is written `sales_emea.orders`. A table's description shows its comment, its partitioning (e.g. `day(ts), region` or *Unpartitioned*), its row count and its current snapshot.
+
+The agent writes **DuckDB SQL**. Joins across Iceberg tables work. For each query, BOW:
+
+1. Finds the Iceberg tables the query names.
+2. Plans an Iceberg scan per table, reading only the columns the query mentions. For a single-table query, simple `WHERE` conditions are pushed down so partition and file pruning apply.
+3. Refuses the query if the files left after pruning hold more than `max_scan_rows` rows. The error names the partition columns to filter on.
+4. Loads the scans into an in-memory DuckDB on the BOW server and runs the SQL there.
+
+There is no write path, and DuckDB needs no network extensions, so the connector also works air-gapped. A result returns at most 200,000 rows.
+
+The agent can **time travel**: it can read every table in a query as of a timestamp, or at a specific snapshot ID.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `catalog_type` | No | `rest` | Where the table metadata lives: `rest` (Iceberg REST catalog), `glue` (AWS Glue Data Catalog) or `s3tables` (Amazon S3 Tables). |
+| `uri` | REST only | — | REST catalog base URL, e.g. `https://polaris.acme.com/api/catalog`. Not used for Glue or S3 Tables. |
+| `warehouse` | S3 Tables; REST if the catalog needs it | — | REST: the catalog or warehouse name. S3 Tables: the table bucket ARN (`arn:aws:s3tables:<region>:<account>:bucket/<name>`). Glue: optional. |
+| `region` | S3 Tables | — | Region of the Glue catalog, S3 Tables bucket or S3 data, e.g. `us-east-1`. |
+| `namespaces` | No | — | Comma-separated namespaces (databases) to expose. Leave blank for all. |
+| `vended_credentials` | No | `true` | Let a REST catalog hand out short-lived storage credentials per table. Recommended. |
+| `s3_endpoint` | No | — | Custom S3-compatible endpoint for the data files, e.g. MinIO or R2. Leave blank for AWS. |
+| `max_scan_rows` | No | `20000000` | Refuse a query whose files, after partition pruning, hold more rows than this. |
+| `extra_properties` | No | — | Advanced: extra PyIceberg catalog or FileIO properties as a JSON object, e.g. `{"adls.account-name": "acme"}`. |
+
+### Authentication modes
+
+The OAuth2, Bearer Token and No Authentication modes are for a REST catalog. The two AWS modes are for Glue and S3 Tables.
+
+**OAuth2 Client Credentials — `oauth2`** (the default; scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `client_id` | Yes | OAuth2 client (service principal) ID. |
+| `client_secret` | Yes | That client's secret. |
+| `scope` | No | OAuth2 scope, e.g. `PRINCIPAL_ROLE:ALL` for Polaris or Snowflake Open Catalog. Leave blank for the catalog's default. |
+| `oauth2_server_uri` | No | OAuth2 token URL. Leave blank to use `<catalog URI>/v1/oauth/tokens`. |
+
+**Bearer Token — `bearer`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | Bearer token for the REST catalog. |
+
+**No Authentication — `none`** (scope: system, no fields). For a local or network-protected REST catalog.
+
+**AWS Access Key (Glue / S3 Tables) — `aws_keys`** (scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key ID, used for the Glue or S3 Tables catalog and the S3 data. |
+| `secret_key` | Yes | AWS secret access key. |
+| `session_token` | No | Session token for temporary credentials. |
+
+**AWS Default Chain (Glue / S3 Tables) — `aws_default`** (scope: system, no fields). Uses the AWS default chain on the BOW host: instance profile, IRSA or environment variables.
+
+---
+
+## Dremio
+
+<Note>
+  The Dremio connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW talks to Dremio's REST API, so there is no driver to install. It submits each query as a SQL job, polls it, and pages through the results. Leave `project_id` blank for **Dremio Software** (`/api/v3`), or set it for **Dremio Cloud** (`/v0/projects/<id>`).
+
+The catalog comes from `INFORMATION_SCHEMA`: every table and view (virtual dataset) under the configured spaces and sources, with typed columns. Each table's description says whether it's a table or a view and gives the full dotted path to query, e.g. `"Marketing"."campaigns"`. The agent is told to prefer views, which are often the curated layer.
+
+The agent writes **Dremio SQL** (Apache Calcite dialect). BOW checks each statement before submitting it. Results stop at `max_rows`, and a job that runs longer than five minutes is cancelled.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | Dremio Software, e.g. `https://dremio.acme.com:9047`, or the Dremio Cloud API URL, `https://api.dremio.cloud`. |
+| `project_id` | Dremio Cloud | — | The Dremio Cloud project to query. |
+| `spaces` | No | — | Comma-separated top-level spaces or sources to expose, e.g. `Marketing,lakehouse`. Leave blank for all. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate. |
+| `max_rows` | No | `100000` | Most rows one query returns. |
+
+### Authentication modes
+
+Both modes support **system** and **user** scope.
+
+**Personal Access Token — `token`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | Create one under **Account Settings → Personal Access Tokens**. Works for Dremio Cloud and Dremio Software. |
+
+**Username / Password — `userpass`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A Dremio user. BOW signs in through Dremio Software's login endpoint. |
+| `password` | Yes | That user's password. |
+
+---
+
+## Apache Hive and Impala
+
+<Note>
+  The Apache Hive / Impala connector is available in every edition, and is currently in **beta**.
+</Note>
+
+One connector for every engine that speaks the **HiveServer2** protocol: **Apache Hive**, **Apache Impala** and **Spark Thrift Server**. The `engine` setting picks the SQL dialect the agent writes — HiveQL, Impala SQL or Spark SQL — and the dialect BOW's SQL guard checks it in.
+
+BOW reads the catalog with `SHOW DATABASES`, `SHOW TABLES` and `DESCRIBE`, so it needs no metastore access. Each table becomes `database.table`. Partition columns are marked, and the table's description lists them, because filtering on them is what stops the engine from reading the whole table.
+
+Each query must be a single read statement. Results are fetched in batches and stop at `max_rows`.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | HiveServer2, Impala daemon or Spark Thrift Server host. |
+| `port` | No | `10000` | `10000` for HiveServer2 and Spark Thrift Server, `21050` for Impala. |
+| `engine` | No | `hive` | `hive` (Apache Hive), `impala` (Apache Impala) or `spark` (Spark Thrift Server). |
+| `databases` | No | — | Comma-separated databases to expose, e.g. `sales,finance`. Leave blank for all. |
+| `max_rows` | No | `100000` | Most rows one query returns. |
+
+### Authentication modes
+
+**No Authentication — `none`** (the default; scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | No | Run queries as this user, with no password check. Leave blank to connect as `bow`. |
+
+**LDAP Username / Password — `ldap`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | An LDAP user HiveServer2 or Impala accepts. |
+| `password` | Yes | That user's password. |
+
+Kerberos (GSSAPI) isn't bundled. For a Kerberized cluster, put LDAP in front of HiveServer2 or connect through Knox.
+
+---
+
+## Troubleshooting
+
+**Iceberg: "would scan N rows (limit …)".** The query would read more rows than `max_scan_rows` after partition pruning. Filter on a partition column — the error and the table's description name them — or raise `max_scan_rows` if the BOW server has the memory for it. Filters are pushed down only for single-table queries.
+
+**Iceberg: "Catalog URI is required for a REST catalog."** Set `uri`, or switch `catalog_type` to `glue` or `s3tables`.
+
+**Iceberg: "AWS Region is required for an S3 Tables catalog" or "Warehouse must be the S3 table bucket ARN".** S3 Tables needs both `region` and `warehouse`, and `warehouse` must be the table bucket ARN.
+
+**Iceberg: tables are listed but queries can't read data files.** The data files live in object storage, which needs its own access. For a REST catalog, keep `vended_credentials` on if the catalog supports it. For S3-compatible storage, set `s3_endpoint`. Other storage settings, such as ADLS account properties, go in `extra_properties`.
+
+**Dremio: "Provide a personal access token or a username and password."** The selected mode has no credentials. Fill in the token, or the username and password.
+
+**Dremio: "Dremio query exceeded 300s and was cancelled."** The job ran longer than five minutes. Add filters or a `LIMIT`.
+
+**Hive / Impala: slow queries.** The query isn't filtering on partition columns, so the engine reads every file. Partition columns are in each table's description.
+
+**Hive / Impala: can't connect to Impala.** Impala listens on port `21050`, not the default `10000`. Set `engine` to `impala` too, so the agent writes Impala SQL.
+
+## Related
+
+- [Data sources overview](/data-sources/overview)
+- [SQL databases](/data-sources/connectors/databases) — including Spark Connect, Trino, Databricks SQL and AWS Athena
+- [NoSQL and graph databases](/data-sources/connectors/nosql)
+- [Authentication](/data-sources/authentication)

@@ -1,0 +1,119 @@
+---
+title: "Code Repositories (GitHub, GitLab, Bitbucket)"
+description: "Let the agent list, read, search and grep the code of one repository, read-only, from a cached local clone"
+icon: "code-branch"
+---
+
+<Note>
+  The code repository connectors are available in every edition, and are currently in **beta**.
+</Note>
+
+A **code connection** points BOW at one repository, so the agent can answer questions like *"where is the discount rate calculated?"* or *"which dbt models read the orders table?"* from the code itself. Three connectors share the same behavior:
+
+| Connector | Type | Repository |
+| :-- | :-- | :-- |
+| **GitHub (code)** | `github_repo` | One repository on github.com or GitHub Enterprise Server. |
+| **GitLab (code)** | `gitlab_repo` | One project on gitlab.com or self-managed GitLab. |
+| **Bitbucket (code)** | `bitbucket_repo` | One Bitbucket Cloud repository. |
+
+The agent sees the repository as **files** and uses the file tools to list, read, search and grep them, the same way it reads a network share.
+
+<Note>
+  Code connections read **code only**. For issues, pull or merge requests and pipelines, add the GitHub, GitLab or Bitbucket [MCP preset](/data-sources/mcp#presets-vs-custom-servers) instead — or both.
+</Note>
+
+## How it works
+
+- **Read-only, and nothing runs.** BOW clones the repository into a local cache on first use and reads files from there. Nothing in the repository is ever executed: git hooks, filters, LFS, submodules and symlinks are all disabled, and checked-out files are stored without execute permission.
+- **Shallow and kept fresh.** The clone is shallow (latest commit of one branch). When it is older than 10 minutes, the next use fetches the branch again. If a refresh fails, the agent keeps reading the previous checkout.
+- **Hidden by default.** The `.git` folder and dependency or vendor folders (`node_modules`, `vendor`, virtual environments, caches) are never listed or read. Secret-looking files — `.env`, `*.pem`, `*.key`, `id_rsa`, `.npmrc`, `credentials.json`, `*.tfstate`, `*.tfvars` and similar — are hidden unless **Allow secret-looking files** is on. Other dotfiles, such as `.github/` or `.eslintrc`, are visible.
+- **One shared catalog.** An admin connects the repository once with one credential; everyone with access to the agent reads the same code.
+
+## Before you start
+
+<Tabs>
+  <Tab title="GitHub">
+    In GitHub, open **Settings → Developer settings → Fine-grained tokens**, choose the repository, and grant **Contents: Read-only** (Metadata: Read-only is added automatically). Public repositories need no token.
+  </Tab>
+
+  <Tab title="GitLab">
+    Create a project access token (**Project → Settings → Access tokens**) or a personal access token with the `read_repository` scope. Public projects need no token. For self-managed GitLab, also fill in **Server (self-hosted)**.
+  </Tab>
+
+  <Tab title="Bitbucket">
+    In your Atlassian account, open **Security → API tokens → Create API token with scopes**, pick **Bitbucket**, and grant `read:repository:bitbucket`. Leave **Username** empty. For a repository access token instead, set **Username** to `x-token-auth`.
+  </Tab>
+</Tabs>
+
+Then click **Test connection**. The test lists the repository's branches without cloning — on success it reports how many branches are visible — and fails if the repository is empty, the token cannot read it, or the branch you named does not exist (it lists the available ones).
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `repo` | Yes | — | `owner/name` (GitHub), `group/project` (GitLab) or `workspace/repo` (Bitbucket). A full `https://` URL also works. SSH URLs (`git@…`) and URLs with a token in them are refused — put the token in the credentials. |
+| `branch` | No | _(default branch)_ | The branch to read. |
+| `host` | No | _(cloud service)_ | Only for GitHub Enterprise Server or self-managed GitLab, e.g. `git.company.com`. |
+| `include_globs` | No | _(whole repository)_ | Comma-separated globs that limit what the agent sees, e.g. `src/**, docs/**/*.md`. |
+| `allow_secret_files` | No | `false` | Show secret-looking files such as `.env`, `*.pem`, `*.key` and `id_rsa`. |
+| `max_file_mb` | No | `5` | Files larger than this are skipped when reading or searching. |
+
+## Authentication
+
+Both modes are system scope only: one credential for the whole connection.
+
+**Access token — `token`** (the default)
+
+| Connector | Fields | Notes |
+| :-- | :-- | :-- |
+| GitHub | `token` | A token with read access to the repository's contents. |
+| GitLab | `token` | A project or personal access token with `read_repository`. |
+| Bitbucket | `token`, optional `username` | An Atlassian API token with `read:repository:bitbucket` (leave `username` empty), or a repository access token (`username` = `x-token-auth`). |
+
+**Public repository — `none`** (no fields). For public repositories and projects.
+
+### How the token is handled
+
+- The token is sent on each git request as an HTTP header set for that one command. It is **never written into the clone's git config** or into the remote URL, so it does not sit on disk next to the code.
+- Code connections use **HTTPS only**; redirects are not followed, and the repository host goes through BOW's outbound-address checks.
+- Git errors are shown with the token redacted.
+- Clones are cached per repository, branch **and** credential, so two connections with different tokens never share a checkout.
+
+## Limits
+
+| Limit | Value | Notes |
+| :-- | :-- | :-- |
+| Repository size | 1,024 MB | A larger clone is refused, with the repository's size in the message. `include_globs` does not help here: it limits what the agent sees, not what is cloned. |
+| Refresh interval | 10 minutes | A clone older than this is refreshed on next use. A failed refresh is retried after 2 minutes. |
+| Idle clones | 7 days | Clones unused this long are deleted; the least-recently-used ones are also deleted when the cache passes 5 GB. |
+
+Self-hosted deployments can change these with `BOW_REPO_CACHE_MAX_REPO_MB`, `BOW_REPO_CACHE_TTL_SECONDS`, `BOW_REPO_CACHE_RETRY_SECONDS`, `BOW_REPO_CACHE_IDLE_SECONDS` and `BOW_REPO_CACHE_MAX_MB`. The cache lives in `uploads/repo_cache` unless `BOW_REPO_CACHE_DIR` says otherwise.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="“The repository is empty or the token cannot read it”">
+    The token lacks read access to this repository's contents, or the repository has no branches. Check the token's repository and scope.
+  </Accordion>
+
+  <Accordion title="“Branch … not found”">
+    The branch name is wrong. The message lists up to ten available branches.
+  </Accordion>
+
+  <Accordion title="“Put the token in the credentials, not in the repository URL”">
+    The `repo` URL contains a username or token. Remove it and enter the token under **Access token**.
+  </Accordion>
+
+  <Accordion title="A file exists in the repository but the agent cannot see it">
+    It is inside a hidden folder (`.git`, `node_modules`, `vendor`, …), it looks like a secret file and **Allow secret-looking files** is off, it is outside `include_globs`, or it is larger than `max_file_mb`.
+  </Accordion>
+
+  <Accordion title="Self-managed GitLab or GitHub Enterprise does not connect">
+    Fill in **Server (self-hosted)** with the host name only, or put the full `https://` URL in `repo`. A host on a private network may be blocked by your deployment's outbound-address policy.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [MCP connections](/data-sources/mcp) — the GitHub, GitLab and Bitbucket presets for issues, pull requests and pipelines.
+- [Files and Directories](/data-sources/connectors/files-and-directories) — the same file tools over a share mounted on the BOW host.

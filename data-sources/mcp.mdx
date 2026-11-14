@@ -16,7 +16,18 @@ An **MCP connection** points BOW at a Model Context Protocol server. The server'
 
 ## Presets vs custom servers
 
-BOW ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, HubSpot, Google Drive, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+BOW ships one-click **presets** for common servers — Monday, Notion, Linear, Jira / Atlassian, GitHub, GitLab, Bitbucket, Sentry, HubSpot, Google Drive, and X. A preset fills in the server URL, transport, and authentication settings; you just sign in or paste a token. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+
+Some presets need a step before the first sign-in:
+
+| Preset | How users authenticate | Before you connect |
+| --- | --- | --- |
+| **Jira / Atlassian** | Each user signs in (auto-register / DCR) | Nothing. The preset uses Atlassian's Streamable HTTP endpoint, `https://mcp.atlassian.com/v1/mcp/authv2`. Connections made on Atlassian's retired `/v1/sse` endpoint are moved to it automatically on upgrade, keeping their registration. |
+| **GitLab** | Each user signs in (auto-register / DCR), or a shared **Bearer Token** | A gitlab.com group owner, or the instance admin on self-managed GitLab, must allow MCP access first; otherwise the server answers `404` after sign-in. For self-managed GitLab, change the server URL to `https://<your-host>/api/v4/mcp`. |
+| **Bitbucket** | **Email + API token** (the default), or a **Bearer Token** | Bitbucket Cloud is served by Atlassian's MCP server, which accepts only API tokens for Bitbucket, on its API-token endpoint `https://mcp.atlassian.com/v2/mcp`. An Atlassian org admin must enable API-token authentication for the Rovo MCP server. Enter your Atlassian account email and an Atlassian API token; they are sent as HTTP Basic auth. A service-account API key goes in as a Bearer Token. |
+| **GitHub** | Each user signs in through an admin-registered GitHub OAuth app | Register a GitHub OAuth app; the preset fills in its authorize and token URLs. |
+
+The GitHub, GitLab and Bitbucket presets cover issues, pull or merge requests and pipelines. To let the agent read and search a repository's code, add a [code connection](/data-sources/connectors/code-repositories) as well.
 
 For anything else, add a **custom MCP server** and supply the details yourself.
 
@@ -39,6 +50,7 @@ An MCP connection authenticates in one of two ways: with **one shared credential
 | **No Auth** | Nobody (shared) | — |
 | **Bearer Token** | Shared — one token for everyone | `token` |
 | **API Key (Header)** | Shared — one key for everyone | `api_key`, header name (default `X-API-Key`) |
+| **Email + API token** | Shared — one login for everyone | Email or username and an API token, sent as HTTP Basic auth (used by the Bitbucket preset) |
 | **Sign in (auto-register / DCR)** | Each user, with their own account | Nothing — optional scope override |
 | **OAuth (admin-registered app)** | Each user, with their own account | `client_id`, `client_secret`, and the server's authorize/token URLs, scopes, audience |
 
@@ -118,6 +130,16 @@ Admins set connection defaults and agent overrides; any user with access can set
 ## Per-user identity
 
 Many internal MCP servers need to know _who_ is asking — to apply their own permissions or to write audit records. BOW can inject the caller's identity into every call, as headers or as tool arguments, without the model being able to influence it. See [User context forwarding](/data-sources/user-context).
+
+## MCP Apps
+
+An MCP server can attach an interactive UI to a tool — an MCP App. When the agent calls that tool in a report's chat, BOW shows the app next to the tool call, in a sandboxed frame, alongside the result.
+
+- **Policies still apply.** An app can call only the tools its server marks as callable from the app. A tool set to `deny` never runs; a tool set to `ask` or `auto`, or one that can write, needs the person to confirm in BOW first.
+- **App-only tools stay out of the model's reach.** Tools a server marks as app-only are never given to the agent.
+- **Turn it off** with **MCP Apps** under **Settings → AI** (default: on, marked as a beta feature). When it is off, tool results show as text only.
+
+BOW speaks MCP protocol version 2026-07-28 and falls back to the older handshake for servers that don't support it, so existing servers keep working.
 
 ## Adding a connection
 

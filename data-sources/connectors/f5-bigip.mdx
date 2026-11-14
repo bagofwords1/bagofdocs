@@ -1,0 +1,120 @@
+---
+title: "F5 BIG-IP"
+description: "Investigate load-balancer incidents with read-only virtual servers, pools, pool members and their live status, nodes, iRules, certificates, and device and failover state"
+icon: "network"
+---
+
+<Note>
+  The F5 BIG-IP connector is available in every edition, and ships as **beta**. It has been verified against a simulator, not yet against a customer appliance — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+BOW reads a BIG-IP appliance over **iControl REST** so a network or application team can ask questions like *"which pool members are offline right now?"* or *"which listeners use a certificate that expires this month?"* and get answers from the live device.
+
+The connector is **read-only by construction**: it can only send GETs to catalogued collections, objects and stats, plus its own token login and logout. No tmsh, bash, transactions or configuration changes are reachable.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog of **26 tables** built for TMOS 15.x–17.x. Queries are JSON specs — no SQL.
+
+| Table | What it holds |
+| :-- | :-- |
+| `virtual_servers` | Virtual servers (listeners): destination, default pool, enabled state, profiles, iRules |
+| `virtual_server_stats` | Live status and counters per virtual server — availability, reason, connections, bits, requests |
+| `pools` | Load-balancing pools: LB mode, monitor expression, member thresholds |
+| `pool_stats` | Live pool status: availability and reason, active vs configured members, connections, queueing |
+| `pool_members` | Pool members (node:port) with configured state, session and monitor |
+| `pool_member_stats` | Live pool-member status: monitor status, session status, availability reason, connections |
+| `nodes` | Nodes (backend addresses) with configured state, session and monitor |
+| `node_stats` | Live node status: monitor status, availability, reason, server-side connections |
+| `irules` | iRules with their TCL source |
+| `ltm_monitors_http` | HTTP health monitors: send/receive strings, interval and timeout. Passwords are stripped |
+| `profiles_http` | HTTP profiles: XFF insertion, proxy type, chunking, enforcement |
+| `profiles_client_ssl` | Client-SSL profiles with certificate, key, chain, ciphers and SNI |
+| `ssl_certs` | Installed certificates with subject, issuer, SANs and expiry |
+| `partitions` | Administrative partitions |
+| `cm_devices` | Device trust members (HA pair or cluster): hostname, management IP, failover state, version |
+| `cm_failover_status` | Failover status of the device answering the API, per traffic group |
+| `cm_sync_status` | Config-sync status of the device group |
+| `net_interfaces` | Physical interfaces: enabled, negotiated media, MAC, MTU |
+| `net_vlans` | VLANs: tag, MTU, failsafe, learning |
+| `net_self` | Self IPs: address, VLAN, floating, traffic group, port lockdown |
+| `sys_version` | TMOS version, build, edition and build date |
+| `sys_clock` | Device clock |
+| `sys_hardware` | Platform, chassis serial and CPU hardware info |
+| `sys_cpu` | Per-CPU utilisation |
+| `sys_memory` | Host memory: total and used, TMM vs other, swap |
+| `sys_memory_tmm` | Per-TMM memory total and used |
+
+Every row also carries `_bow_*` provenance columns — the device, the endpoint that served it and when it was read. Stats counters are **cumulative since the last reset**, not rates.
+
+## Before you start
+
+<Steps>
+  <Step title="Create a read-only account">
+    On the BIG-IP, create an account with the **Guest** or **Auditor** role. Remote-auth users (LDAP, RADIUS, TACACS) also work through token login.
+  </Step>
+
+  <Step title="Check the TMOS version">
+    The connector needs TMOS 13.1 or later with iControl REST token auth. It is verified against 15.x–17.x.
+  </Step>
+
+  <Step title="Connect">
+    Enter the management URL and credentials, then click **Test connection**. The result reports the TMOS version and, when visible, the device's hostname and failover state.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | BIG-IP management origin, e.g. `https://bigip.example:443`. |
+| `login_provider` | No | `tmos` | The login provider used for token login. Keep `tmos` unless your remote-auth provider differs. |
+| `ca_certificate` | No | _(blank)_ | PEM CA certificate for the appliance. Certificate verification is always enabled. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | For a local simulator only — HTTP is accepted only for loopback addresses. Real appliances use HTTPS. |
+
+## Authentication
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A BIG-IP account with a read-only role (Guest or Auditor). |
+| `password` | Yes | That account's password. A token is obtained at the start of each query session and deleted at the end. |
+
+Because the mode is also available at user scope, each engineer can bring their own BIG-IP login instead of sharing one. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## What "beta" means here
+
+The catalog's response shapes were verified against the TMOS 17.1 documentation and public fixtures, and the connector was tested against a simulator. It has not yet been through an acceptance pass on a customer appliance. Validate on a non-production device first, and treat field names — especially on `sys_cpu` and `sys_memory`, whose keys are flattened from the device as-is — as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Login fails for a remote-auth user">
+    Set `login_provider` to the name of your remote-auth provider on the BIG-IP. `tmos` covers local accounts.
+  </Accordion>
+
+  <Accordion title="TLS verification fails">
+    Paste the appliance's CA certificate into `ca_certificate`. Verification is always on — `allow_http` only works for a loopback simulator and is not a way around a certificate problem.
+  </Accordion>
+
+  <Accordion title="Test connection says the version is unsupported">
+    The device runs TMOS older than 13.1, which lacks iControl REST token auth. Versions outside 15.x–17.x connect but are flagged as outside the verified range.
+  </Accordion>
+
+  <Accordion title="A query fails instead of returning rows">
+    It would have exceeded `max_rows`. The connector refuses to return a partial result set; narrow the query — for example by partition or by a single pool — or raise the ceiling.
+  </Accordion>
+
+  <Accordion title="A disabled member shows as available">
+    That is how BIG-IP reports it: availability stays `available` while the enabled state is `disabled`. Pools without monitors report `unknown`, not `offline`.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Check Point Management](/data-sources/connectors/check-point) — firewall policy in front of the same applications.
+- [Cisco ACI (APIC)](/data-sources/connectors/cisco-aci) — the data center fabric behind the load balancer.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

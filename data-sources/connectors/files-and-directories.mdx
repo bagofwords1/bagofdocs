@@ -13,7 +13,7 @@ BOW treats the directory as a **file catalog**, not a database. The agent gets f
 | Tool | Filesystem equivalent |
 | :-- | :-- |
 | `list_files` | `ls` / `find` |
-| `search_files` | `grep -ril` — matches filenames and, for readable formats, content |
+| `search_files` | `grep -ril` — matches filenames and, for readable formats, content (answered from the full-text index when the connection uses it) |
 | `grep_files` | `grep -n` — matching lines with context |
 | `read_file` | `cat`, with tabular files parsed into DataFrames |
 | `write_file` | `cp` / `put` — only when the connection is **writable** |
@@ -44,7 +44,7 @@ Go to **Data Sources → Add data source → Files and Directories** and fill in
 | `recursive` | No | `true` | Walk subfolders when listing and searching. |
 | `writable` | No | `false` | Allow the agent to create or overwrite files (the `write_file` tool). Leave off for a read-only connection. |
 | `max_file_mb` | No | `100` | Skip files larger than this when reading, so a huge file cannot be loaded into memory. |
-| `index_mode` | No | `content` | How much is cached from the directory — see below. |
+| `index_mode` | No | `fulltext` | How much is stored about the directory — see below. |
 | `max_catalog_objects` | No | `10000` | Hard cap on how many files are ever enumerated. A larger tree is truncated; narrow `include_globs` instead of raising this. |
 
 <Note>
@@ -53,13 +53,18 @@ Go to **Data Sources → Add data source → Files and Directories** and fill in
 
 ### Indexing modes
 
-`index_mode` controls how much BOW caches. Reads are always live regardless of the mode.
+`index_mode` controls how much BOW stores about the files, and so how well the agent can search them. Reads are always live regardless of the mode. Change it in the connection settings under **Indexing**.
 
-| Mode | What is cached | Use when |
-| :-- | :-- | :-- |
-| `none` | Nothing. The agent lists and reads live every time. | The directory is huge or changes constantly and you want maximum freshness. |
-| `metadata` | The file list (name, size, modified time). No content. | You want fast listing but do not need topic search across file contents. |
-| `content` | The file list **plus** keywords extracted from PDF, Word, PowerPoint, Excel and CSV. | The default. Lets the agent find files by topic, not just by name. |
+| Mode | Label in BOW | What is stored | Use when |
+| :-- | :-- | :-- | :-- |
+| `none` | Live (nothing stored) | Nothing. Search is by file name plus a slow scan of the directory. | The directory is huge or changes constantly and you want maximum freshness. |
+| `metadata` | File list | The file list (name, size, modified time). No content. | You want fast listing but do not need search across file contents. |
+| `content` | Keywords | The file list **plus** up to 50 keywords per file, from the start of its text. | You only need to find files by topic. |
+| `fulltext` | Full text (recommended) | The file list **plus** a search index of every word in every file (PDF, Office, CSV, text, email). The agent finds exact words, IDs and phrases anywhere in a file, with the page or sheet where they appear. | The default for new connections. |
+
+The full-text index holds the words, not the files, and is removed with the connection. Only changed files are re-read on a refresh. A file larger than the indexing limits is indexed up to the limit, and a file with no extractable text (a scanned PDF, a binary) is findable by name only.
+
+Existing connections keep the mode they were created with; switch to **Indexing → Full text** in the connection settings to use it.
 
 ## Authentication
 

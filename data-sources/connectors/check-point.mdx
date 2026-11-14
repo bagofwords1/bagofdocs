@@ -1,0 +1,127 @@
+---
+title: "Check Point Management"
+description: "Investigate firewall policy and gateway incidents with read-only objects, access and NAT rulebases, gateways, sessions, changes and logs via the Management API"
+icon: "shield"
+---
+
+<Note>
+  The Check Point Management connector is available in every edition, and ships as **beta**. It has been verified against a simulator, not yet against a customer management server — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+BOW queries a Check Point **Security Management Server**, **Multi-Domain Server** or **Smart-1 Cloud** tenant through the Management Web API, so a security team can ask questions like *"which access rules match 10.1.20.5?"* or *"which gateways run a policy older than the last publish?"* and get answers from the live policy.
+
+The connector is **read-only by construction**. Every query opens a session that requests read-only mode, runs allow-listed `show-*` commands, and logs out. Publish, set, add, delete, install-policy, run-script and discard are unreachable.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog of **26 tables** on the Management API 1.9.1 contract (R81.10, R81.20 and R82 compatible). Queries are JSON specs — no SQL. Rulebases come back flattened in rulebase order, with sources, destinations and services resolved to names.
+
+| Table | What it holds |
+| :-- | :-- |
+| `hosts` | Host objects (single IP addresses) |
+| `networks` | Network objects (subnets) |
+| `address_ranges` | Address range objects |
+| `groups` | Network object groups with their direct members |
+| `group_members` | One row per group and direct member, for joins with hosts, networks and rules |
+| `services_tcp` | TCP service objects |
+| `services_udp` | UDP service objects |
+| `service_groups` | Service groups with their direct members |
+| `packages` | Policy packages: which layers they contain and where they are installed |
+| `access_layers` | Access control layers |
+| `access_rules` | The flattened access rulebase of one layer — needs a layer |
+| `nat_rules` | The flattened NAT rulebase of one package, manual and automatic rules — needs a package |
+| `threat_rules` | The flattened threat prevention rulebase of one layer — needs a layer |
+| `gateways_and_servers` | Every gateway, cluster, cluster member and management or log server, with version, blades and installed policy |
+| `simple_gateways` | Single gateway objects with blade flags and logging settings |
+| `vpn_communities` | Meshed and star VPN communities with encryption settings and members |
+| `unused_objects` | Objects not referenced by any rule or other object |
+| `sessions` | Management sessions (open, published, expired) with locks and pending changes |
+| `session` | The connector's own read-only session as the server sees it |
+| `last_published_session` | The most recently published session |
+| `changes` | Published changes between sessions or dates, one row per added, modified or deleted object |
+| `tasks` | Management tasks — policy installation, publish — with progress and status |
+| `audit_logs` | The management audit trail: logins, publishes, object changes, policy installs |
+| `logs` | Traffic and threat logs from the log server, searched with the SmartView query language |
+| `domains` | Domains — one on a Security Management Server, many on a Multi-Domain Server |
+| `api_versions` | API versions the management server supports |
+
+`logs` defaults to the last **24 hours** when a question gives no time range. Current objects do not prove past configuration — use `changes` and `audit_logs` for history. Every row also carries `_bow_*` provenance columns: the management server, domain, API version, command and retrieval time.
+
+## Before you start
+
+<Steps>
+  <Step title="Create a read-only administrator">
+    In SmartConsole, create an administrator with a **Read Only** permission profile. For Smart-1 Cloud, generate an API key for it — Smart-1 Cloud requires API-key login.
+  </Step>
+
+  <Step title="Note the management URL and domain">
+    Use the Security Management Server origin, or the Smart-1 Cloud Web API URL. On a Multi-Domain Server, note the name of the domain to read.
+  </Step>
+
+  <Step title="Connect">
+    Enter the URL and credentials, then click **Test connection**. It checks the API version and confirms the server granted a read-only session.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | Security Management Server origin (`https://mgmt.example:443`, optionally ending in `/web_api`) or the Smart-1 Cloud Web API URL (`https://<tenant>.maas.checkpoint.com/<context>/web_api`). |
+| `domain` | No | _(blank)_ | Multi-Domain Server domain to log in to. Leave empty for a single-domain server. |
+| `api_version` | No | _(blank)_ | Management API version to pin, e.g. `1.9.1`. Empty uses the server default. |
+| `ca_certificate` | No | _(blank)_ | PEM CA certificate for the management server. Certificate verification is always enabled. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | For a local simulator only — HTTP is accepted only for loopback addresses. Real servers use HTTPS. |
+
+## Authentication
+
+**API key — `api_key`** (default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_key` | Yes | API key of a read-only administrator. Required for Smart-1 Cloud. |
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A management administrator with a Read Only permission profile. Sessions are opened read-only and never publish. |
+| `password` | Yes | That administrator's password. |
+
+Because both modes are also available at user scope, each analyst can bring their own administrator, so Check Point's permission profiles decide what they see. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## What "beta" means here
+
+The connector was built on the Management API 1.9.1 contract, with wire shapes checked against v2 (R82), and tested against a simulator. It has not yet been through an acceptance pass on a customer management server. Validate on a non-production server first, and treat field names as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Test connection fails with ReadOnlyRequired">
+    The management server did not grant a read-only session. Check the administrator's permission profile and try again.
+  </Accordion>
+
+  <Accordion title="Credentials rejected">
+    The management server did not accept the API key or password. On a Multi-Domain Server, also check that `domain` names a domain the administrator can log in to.
+  </Accordion>
+
+  <Accordion title="Test connection says the API version is not supported">
+    The version in `api_version` is not in the server's supported list. Clear it to use the server default, or query `api_versions` to see what is available.
+  </Accordion>
+
+  <Accordion title="A command is refused with PermissionDenied">
+    The administrator's permission profile does not allow that read-only command. Widen the profile's read access.
+  </Accordion>
+
+  <Accordion title="A query fails instead of returning rows">
+    It would have exceeded `max_rows`. Narrow it with a search, a layer or package, or a filter, or raise the ceiling. Nothing is ever silently truncated.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [F5 BIG-IP](/data-sources/connectors/f5-bigip) — the load balancers behind the firewall.
+- [CrowdStrike Falcon](/data-sources/connectors/crowdstrike) — endpoint detections alongside firewall logs.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

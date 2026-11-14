@@ -16,16 +16,19 @@ Connectors with real external setup have their own pages: [Snowflake](/data-sour
 
 | Connector | Config fields | Auth modes | Notes |
 | :-- | :-- | :-- | :-- |
-| **PostgreSQL** `postgresql` | `host`, `port` (5432), `database`, `schema` | Username / Password | `schema` is optional and takes a comma-separated list. |
-| **MySQL** `mysql` | `host`, `port`, `database` | Username / Password | `user` and `password` may both be blank for anonymous access. |
-| **MariaDB** `mariadb` | `host`, `port`, `database` | Username / Password | Same shape as MySQL. |
+| **PostgreSQL** `postgresql` | `host`, `port` (5432), `database`, `schema`, `sslmode` (`prefer`), `index_routines` (false), `include_system_schemas` (false) | Username / Password | `schema` is optional and takes a comma-separated list. See below. |
+| **MySQL** `mysql` | `host`, `port` (3306), `database`, `index_routines` (false) | Username / Password | `user` and `password` may both be blank for anonymous access. |
+| **MariaDB** `mariadb` | `host`, `port` (3306), `database`, `index_routines` (false) | Username / Password | Same shape as MySQL. |
 | **Oracle Database** `oracledb` | `host`, `port` (1521), `service_name`, `schema`, `use_tcps` (false), `verify_ssl` (true) | Username / Password | Connect by **service name**, not SID. |
+| **IBM Db2** `db2` | `host`, `port` (50000), `database`, `schema`, `platform` (`auto`), `ssl` (false), `ssl_ca` | Username / Password | Db2 LUW (incl. Db2 on Cloud and Db2 Warehouse) and Db2 for z/OS. Read-only. See below. |
+| **IBM i (Db2 for i)** `ibmi` | `host`, `port` (8076), `schema`, `verify_ssl` (true), `ssl_ca` | User profile / Password | AS/400, iSeries, through IBM's Mapepire server. Read-only. See below. |
 | **SQLite** `sqlite` | `database` | No auth *(shared only)* | `database` is an absolute path on the BOW host. |
 | **DuckDB** `duckdb` | `uris` | No auth *(shared)*, AWS Keys *(shared)*, GCP Service Account, Azure Connection String *(shared)* | Queries files in object storage as views. See below. |
 | **ClickHouse** `clickhouse` | `host`, `port` (8123), `database`, `secure` (true) | Username / Password | `database` is optional and takes a comma-separated list; blank means all databases. |
-| **Trino** `trino` | `host`, `port` (8080), `catalog`, `schema`, `protocol` (`http`) | Username / Password | `catalog` and `schema` are both required. See below. |
+| **Trino** `trino` | `host`, `port` (8080), `protocol` (`http`), `catalog`, `schema`, `additional_catalogs`, `role`, `verify_ssl` (true), `ca_certificate`, `timezone` | Username / Password, Access token (JWT) | Only `catalog` is required; `schema` takes a comma-separated list. See below. |
+| **Starburst** `starburst` | Same as Trino, with `port` (443) and `protocol` (`https`) | Username / Password, Access token (JWT) | Starburst Galaxy and Starburst Enterprise. See below. |
 | **Vertica** `vertica` | `host`, `port` (5433), `database`, `schema` (`public`) | Username / Password | |
-| **Teradata Vantage** `teradata` | `host`, `port` (1025), `database`, `logmech` (`TD2`) | Username / Password | `database` is the namespace (≈ schema) and takes a comma-separated list. See below. |
+| **Teradata Vantage** `teradata` | `host`, `port` (1025), `database`, `logmech` (`TD2`), `sslmode` (`PREFER`), `ssl_ca`, `encryptdata` (true), `additional_params` | Username / Password | `database` is the namespace (≈ schema) and takes a comma-separated list. See below. |
 | **Apache Druid** `druid` <sup>beta</sup> | `host`, `port` (8082), `secure` (false), `path` (`/druid/v2/sql/`), `schema` | Username / Password, API Token (Bearer), API Token (Basic) | Queried through the Broker or Router SQL API. See below. |
 | **Apache Pinot** `pinot` <sup>beta</sup> | `host`, `port` (8099), `secure` (true), `path` (`/query/sql`), `controller`, `query_options` | Username / Password | Queried through the Broker SQL API. See below. |
 | **MongoDB** `mongodb` | `host`, `port` (27017), `database`, `auth_source` (`admin`), `tls` (false), `use_srv` (false) | Username / Password | Document-shaped, not tabular. See below. |
@@ -34,12 +37,53 @@ Connectors with real external setup have their own pages: [Snowflake](/data-sour
 | **Databricks SQL** `databricks_sql` | `server_hostname`, `http_path`, `catalog`, `schema` | Personal Access Token | `schema` takes a comma-separated list; blank discovers all schemas in the catalog. |
 | **Azure Data Explorer** `azure_data_explorer` | `cluster_url`, `database` | Service Principal (AAD App) | Kusto. Auth fields are `client_id`, `client_secret`, `tenant_id`. |
 | **AWS Redshift** `aws_redshift` | `host`, `port` (5439), `database`, `schema` (`public`), `region`, `cluster_identifier`, `ssl_mode` (`require`), `timeout` (30) | Username / Password, AWS Keys (IAM), Assume Role (ARN) | See below. |
-| **AWS Athena** `aws_athena` <sup>beta</sup> | `region`, `database`, `workgroup` (`primary`), `s3_output_location`, `data_source` (`AwsDataCatalog`) | AWS Default (IAM Role / Instance Profile), AWS Access Keys | See below. |
+| **AWS Athena** `aws_athena` <sup>beta</sup> | `region`, `database`, `workgroup` (`primary`), `s3_output_location`, `data_source` (`AwsDataCatalog`), `table_exclude_pattern` | AWS Default (IAM Role / Instance Profile), AWS Access Keys | `database` takes one Glue database or several. See below. |
 
 <sup>beta</sup> Beta connector — the shape of the integration may still change.
 <sup>EE</sup> Part of the **Enterprise Edition**.
 
 ## Notes on specific connectors
+
+### PostgreSQL
+
+`sslmode` takes the libpq values `disable`, `allow`, `prefer`, `require`, `verify-ca`, and `verify-full`. Use `require` for IAM-authenticated connections such as AWS RDS, which reject unencrypted logins.
+
+System schemas are left out of indexing. Turn on `include_system_schemas` (**Index system catalog**, off by default) to also index `pg_catalog` and `information_schema` — `pg_stat_activity`, `pg_locks`, and so on — so the agent can answer questions about the database itself.
+
+### Stored procedures and functions
+
+PostgreSQL, MySQL, MariaDB, and [SQL Server](/data-sources/connectors/sql-server) connections have an **Index stored procedures & functions** option (`index_routines`), off by default. With it on, BOW also indexes procedures and functions together with their source, so the agent can read their logic and may call functions inside its queries. Use a read-only database account when you turn it on.
+
+### IBM Db2
+
+Covers **Db2 for Linux, Unix and Windows** (including Db2 on Cloud and Db2 Warehouse) and **Db2 for z/OS**, over IBM's `ibm_db` driver. BOW detects the product on connect and reads the matching system catalog; set `platform` to `luw`, `zos`, or `ibmi` to force it instead of `auto`. The connection is read-only.
+
+- `port` is usually `50000` on LUW and `446` on z/OS.
+- `database` is the database name on LUW and the **location name** on z/OS.
+- `schema` takes one schema or a comma-separated list. Leave it blank to index every non-system schema.
+- Turn on `ssl` to connect over TLS, and point `port` at the server's TLS port. If the server certificate is signed by an internal CA, paste that CA as PEM text into `ssl_ca`.
+- On z/OS, `user` is the RACF user ID.
+
+<Warning>
+  Db2 for z/OS needs **Db2 Connect** activated on the server; without it the server answers `SQL1598N`. Db2 LUW needs nothing extra.
+</Warning>
+
+IBM publishes no `ibm_db` build for Linux ARM64, so the connector does not appear in the catalog on BOW hosts where the driver is missing. For Db2 for IBM i, use the IBM i connector below — it needs no Db2 Connect license.
+
+### IBM i
+
+Connects to **Db2 for IBM i** (AS/400, iSeries) through IBM's open-source **Mapepire** server, so it needs no Db2 Connect license and no ODBC driver. Install and start Mapepire on the IBM i once:
+
+```bash
+yum install mapepire-server
+sc start mapepire
+```
+
+`port` is the Mapepire port, `8076` by default. `schema` (shown as **Libraries**) takes one library or a comma-separated list; leave it blank to index every non-system library. Tables are named `LIBRARY.TABLE`.
+
+Mapepire generates a self-signed certificate unless one is installed. With `verify_ssl` on (the default), paste that certificate, or the CA that signed it, as PEM text into `ssl_ca`; turn `verify_ssl` off only on a trusted network.
+
+Log in with an IBM i user profile that has read-only authority to the libraries you index. Every connection also opens its IBM i job with read-only access, so the system itself refuses writes.
 
 ### DuckDB
 
@@ -72,11 +116,53 @@ ClickHouse supports [custom tables](/bow-fast/custom-queries): scheduled, locall
 
 ### Trino
 
-`catalog` and `schema` are both required — a Trino connection is scoped to a single catalog/schema pair, so create one data source per pair you want the agent to reach. Set `protocol` to `https` for a TLS-terminated coordinator; the `password` field is only needed in that case.
+`host` is the coordinator hostname, without `http://`. `catalog` is the only required scope: it is where queries run by default, and its tables are named `schema.table`. `schema` optionally narrows indexing to one schema or a comma-separated list; blank indexes every schema in the catalog. To let the agent join across catalogs, list the others in `additional_catalogs` — their tables are named `catalog.schema.table`.
+
+Set `protocol` to `https` for any authenticated or TLS-enabled coordinator; the password is required over HTTPS and may be blank only for an unauthenticated coordinator over HTTP. Keep `verify_ssl` on and paste an internal CA's PEM chain into `ca_certificate` rather than turning verification off. `role` sets the role to assume for the session (blank uses the login's default role), and `timezone` sets an IANA session timezone such as `Europe/Berlin` that relative dates like `current_date` are computed in.
+
+The **Access token (JWT)** mode takes an `access_token` and an optional session `user`; leave `user` blank to act as the token's identity.
+
+### Starburst
+
+**Starburst Galaxy** and **Starburst Enterprise** use the same connection as Trino, with defaults for Starburst: `port` `443` and `protocol` `https`. Starburst requires TLS for every authentication method, so keep `https`. Logins are a username and password or an **Access token (JWT)**, and `additional_catalogs` lets one connection join across several catalogs.
+
+For **Starburst Galaxy**:
+
+<Steps>
+  <Step title="Create a role for BOW">
+    In Galaxy, go to **Access control → Roles and privileges** and add a role (for example `bagofwords`). Under **Add privileges**, grant it **Use cluster** on the cluster and **Select from table** on every catalog or schema the agent should see.
+  </Step>
+  <Step title="Create a service account">
+    Go to **Access control → Service accounts**, create one with the new role as its default role, and generate a password. The username is the service account's full name, for example `bagofwords@<account>.galaxy.starburst.io`. Enter it as `user`, with the generated password.
+  </Step>
+  <Step title="Copy the connection details">
+    Open the cluster's **Connection info** (**Partner connect → Other clients**). `host` is `<account>-<cluster>.trino.galaxy.starburst.io` and the port is `443` over HTTPS. If the cluster restricts client IPs, allow the BOW instance's address.
+  </Step>
+</Steps>
+
+For **Starburst Enterprise**, use the coordinator hostname with its TLS port (`8443` by default, or `443` behind a load balancer) and keep `protocol` on `https`. Log in with an LDAP or password-file user, or switch to **Access token (JWT)** for a JWT the coordinator's OAuth2 / JWT authenticator accepts. If the certificate comes from an internal CA, paste the CA's PEM certificate into `ca_certificate`.
+
+Then set `catalog` and, optionally, `schema`. If the login has several roles, set `role` to the one that holds the grants — a login whose default role is restricted sees no tables otherwise.
 
 ### Teradata
 
-`logmech` selects the logon mechanism: `TD2` for native Teradata users, or `LDAP`, `KRB5`, or `TDNEGO` for directory-based logon, which is common on-prem. `host` is the TPA or COP name of the system.
+`logmech` selects the logon mechanism: `TD2` for database users, or `LDAP` for directory users. `host` is the TPA or COP name of the system.
+
+`sslmode` controls TLS:
+
+| `sslmode` | Behavior |
+| :-- | :-- |
+| `DISABLE`, `ALLOW` | Teradata driver modes for connections without TLS by default. |
+| `PREFER` *(default)* | Uses TLS when the server offers it, without checking the certificate. |
+| `REQUIRE` | Always uses TLS. |
+| `VERIFY-CA` | Also checks that the certificate is trusted. |
+| `VERIFY-FULL` | Also checks that the certificate matches the host name. |
+
+For `VERIFY-CA` and `VERIFY-FULL`, paste the certificate authority to trust as PEM text into `ssl_ca`, or leave it empty to use the system trust store. TLS connections use port `443` unless `https_port` is set in `additional_params`. `encryptdata` (on by default) encrypts data on non-TLS connections; TLS connections are always encrypted.
+
+`additional_params` passes extra `teradatasql` driver parameters, such as `cop=false` or `coplast=true` when DNS is slow, `account`, `charset`, or `tmode`. Credentials, TLS, and encryption settings cannot be set there.
+
+The connection is read-only: write statements, including Teradata shorthands such as `CT`, `MODIFY USER`, and `GIVE`, are refused. A query that hits the connection's timeout is cancelled on the server rather than left running on the warehouse.
 
 ### Apache Druid
 
@@ -120,6 +206,16 @@ Three auth modes, all of which still require a `user`:
 ### AWS Athena
 
 Athena is serverless: there is no host or port, only a `region` and a Glue `database`. `data_source` is the Athena catalog name and stays `AwsDataCatalog` for the standard Glue Data Catalog.
+
+One connection can cover several Glue databases. In `database`, give a comma-separated list of names, globs, and `!`-exclusions:
+
+```text
+*_db, !billing_db, analytics_history
+```
+
+With a list, a glob, or an exclusion, tables are named `database.table` (for example `globex_db.assets`); with a single plain name they keep their bare table names. Several databases require `data_source` to be `AwsDataCatalog`.
+
+`table_exclude_pattern` is an optional regular expression: tables whose name matches are not indexed, for example `^day_\d{2}`. Changing it removes newly excluded tables, and the agent's selection of them, on the next index.
 
 `s3_output_location` is where Athena writes query results. Leave it blank **only if** your `workgroup` has a default output location configured; otherwise set it to an S3 URI the identity can write to, since Athena cannot return results without one.
 

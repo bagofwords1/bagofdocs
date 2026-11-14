@@ -1,0 +1,120 @@
+---
+title: "Dell OpenManage Enterprise"
+description: "Investigate server fleet incidents with read-only devices, inventory, alerts, warranties, firmware baselines and compliance, jobs, groups and audit logs"
+icon: "server"
+---
+
+<Note>
+  The Dell OpenManage Enterprise connector is available in every edition, and ships as **beta**. It has been verified against a simulated appliance, not yet against a customer appliance — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+BOW queries an **OpenManage Enterprise** (OME 3.x/4.x) or **OME-Modular** appliance over its REST API, so an infrastructure team can ask questions like *"which servers are critical right now?"* or *"which devices are out of compliance with the firmware baseline?"* and get answers from the fleet the appliance manages.
+
+The connector is **read-only by construction**: it can only send GETs to catalogued endpoints, plus the documented session login and logout. OME aggregates servers, chassis and switches; it is not the per-server iDRAC Redfish service.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog of **27 tables**. Queries are JSON specs — no SQL. Tables marked _needs a parent_ read one device, baseline, job or group at a time.
+
+| Table | What it holds |
+| :-- | :-- |
+| `appliance_info` | Appliance identity and version |
+| `appliance_network` | The appliance's management network configuration |
+| `devices` | Every device the appliance manages or monitors — servers, chassis, network and storage IOMs |
+| `device_summary` | Health roll-up counts per device type |
+| `device_types` | Device type ID to name mapping |
+| `device_inventory` | Detailed inventory of one device, one row per item (processor, memory module, NIC, firmware component) — _needs a parent_ |
+| `device_hardware_logs` | Hardware (Lifecycle/SEL) log entries of one device — _needs a parent_ |
+| `device_power` | Current power telemetry of one device — _needs a parent_ |
+| `device_temperature` | Inlet temperature telemetry of one device — _needs a parent_ |
+| `device_system_uptime` | System uptime of one device — _needs a parent_ |
+| `alerts` | The alert log, filterable by severity, status, category, device and time |
+| `alert_categories` | Alert catalogs and their categories |
+| `warranties` | Warranty entitlements per device |
+| `firmware_baselines` | Firmware baselines with their compliance summary |
+| `firmware_compliance_reports` | Firmware compliance of every device in a baseline, one row per component — _needs a parent_ |
+| `firmware_catalogs` | Firmware catalogs used by baselines |
+| `jobs` | Appliance jobs: inventory, discovery, firmware update, compliance |
+| `job_execution_histories` | Runs of one job — _needs a parent_ |
+| `job_execution_details` | Per-target detail of one job run, including the output text that explains failures — _needs a parent_ |
+| `groups` | Static and query device groups |
+| `group_devices` | Direct member devices of one group — _needs a parent_ |
+| `group_all_leaf_devices` | All devices under one group, including sub-groups — _needs a parent_ |
+| `audit_logs` | The appliance audit log: logins, configuration changes, job submissions |
+| `templates` | Deployment and compliance templates |
+| `configuration_baselines` | Configuration compliance baselines |
+| `configuration_compliance_reports` | Per-device configuration compliance for one baseline — _needs a parent_ |
+| `management_domains` | Multi-chassis management domains. Standalone appliances typically return none |
+
+Every row also carries `_bow_*` provenance columns — the appliance, the endpoint that served it and when it was read. Absence of alerts or inventory is a coverage gap, never proof of health.
+
+## Before you start
+
+<Steps>
+  <Step title="Create a Viewer account">
+    On the appliance, create an OpenManage Enterprise account with the **Viewer** role. That is all the connector needs.
+  </Step>
+
+  <Step title="Check reachability">
+    The appliance's HTTPS address must be reachable from the BOW backend. If it uses a private CA, have the PEM certificate ready for `ca_certificate`.
+  </Step>
+
+  <Step title="Connect">
+    Enter the appliance URL and credentials, then click **Test connection**. The result reports the appliance name and OME version.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | OpenManage Enterprise or OME-Modular origin, e.g. `https://ome.example:443`. |
+| `ca_certificate` | No | _(blank)_ | PEM CA certificate for the appliance. Certificate verification is always enabled. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | For a local simulator only — HTTP is accepted only for loopback addresses. Real appliances use HTTPS. |
+
+## Authentication
+
+**Username / Password — `userpass`** (system scope, the only mode)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | An OpenManage Enterprise account with the Viewer role. |
+| `password` | Yes | That account's password. Each query opens an API session and closes it afterwards. |
+
+There is no per-user scope: one shared read-only identity serves the connection.
+
+## What "beta" means here
+
+The catalog targets the OME 4.1 REST API, checked against public OME 3.x/4.x evidence, and the connector was tested against a simulated appliance. It has not yet been through an acceptance pass on a customer appliance. Validate on a non-production appliance first, and treat field names as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Credentials rejected">
+    The appliance rejected the username or password. Check both, and that the account has the Viewer role.
+  </Accordion>
+
+  <Accordion title="Test connection says the version is unsupported">
+    The connector requires OpenManage Enterprise 3.x or 4.x.
+  </Accordion>
+
+  <Accordion title="TLS verification fails">
+    Paste the appliance's CA certificate into `ca_certificate`. Verification is always on — `allow_http` only works for a loopback simulator and is not a way around a certificate problem.
+  </Accordion>
+
+  <Accordion title="A query fails instead of returning rows">
+    It would have exceeded `max_rows`. Narrow it with a filter, a parent or a shorter lookback, or raise the ceiling. Nothing is ever silently truncated.
+  </Accordion>
+
+  <Accordion title="A filter or sort on warranties or jobs is rejected">
+    OME supports only a small server-side filter subset, and the connector refuses anything outside it. Warranties do not support date comparison, and jobs cannot be sorted on the appliance — filter expiry dates or sort jobs on the returned rows instead.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [HPE OneView](/data-sources/connectors/hpe-oneview) — the same questions for an HPE compute estate.
+- [VMware vCenter](/data-sources/connectors/vcenter) — the virtual machines running on these servers.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

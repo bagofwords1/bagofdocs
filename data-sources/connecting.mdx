@@ -103,6 +103,16 @@ On the data source's settings tab:
 
 Schemas drift. Reload the table list after a migration, and re-run indexing when you add objects. On Enterprise, connections can re-index on a schedule instead — either every N hours or at a fixed time of day — so the agent's picture of your data stays current without anyone remembering to refresh it.
 
+## Connection health alerts
+
+BOW re-tests every shared-credential connection in the background, every few minutes. When one fails its health checks several times in a row (three by default), BOW marks it offline and alerts the people who can fix it; on the first successful test afterwards, it marks it active again and says so.
+
+- **Who is alerted** — people with the `manage_connections` permission (org admins included), anyone granted management of that connection, and the managers of every agent that uses it. End users are not alerted.
+- **In-app** — a notification such as *Connection "Production DB" is down* or *Connection "Production DB" is back online*. In-app alerts are always on.
+- **Email** — off by default. An admin turns it on with **Connection down alert emails** under **Settings → SMTP → Alert emails**. Each connection can then mute its own alert emails with **Email admins when this connection goes down**, under **Down-alert emails** in the connection's settings. BOW sends at most one down email per connection per hour, and sends a "back online" email only when the outage's down email went out.
+
+Per-user connections are not checked in the background, since each person's status depends on their own credentials.
+
 ## Best practices
 
 * **Write a rich description.** More context about your domain means better queries.

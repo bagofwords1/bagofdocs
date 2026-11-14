@@ -128,8 +128,15 @@ An unauthenticated request to the endpoint returns `401` with a `WWW-Authenticat
 | `list_instructions` | Lists instructions from the current live build. |
 | `create_instruction` | Creates an instruction. Admins publish immediately; other users submit for approval. Requires `manage_instructions`. |
 | `delete_instruction` | Removes an instruction. Requires `manage_instructions`. |
+| `search_evals` | Lists or searches eval test cases, so the client can check for an existing case before creating one. Requires `manage_evals`. |
+| `create_eval` | Creates an eval test case, with tool-call or judge rules for what a good answer looks like. Requires `manage_evals`. |
+| `edit_eval` | Edits an eval case — promote a draft to active, archive, rename, move it to another suite, or replace its prompt or expectations. Requires `manage_evals`. |
+| `run_eval` | Runs selected eval cases, or the active cases in a suite. Returns a `run_id` right away and runs in the background, unless the client asks to wait. Requires `manage_evals`. |
+| `stop_eval_run` | Stops an eval run in progress. Requires `manage_evals`. |
+| `get_eval_runs` | Lists recent eval runs with their status and pass/fail counts. Requires `manage_evals`. |
+| `get_eval_run` | Reads one eval run's results per case, including why a case failed. Requires `manage_evals`. |
 
-Tools the user lacks permission for are left out of `tools/list`. Clients that support **MCP Apps** also render charts and dashboards inline from `create_data`, `create_artifact`, and `edit_artifact`.
+Tools the user lacks permission for are left out of `tools/list`. The eval tools are listed for people who hold `manage_evals` for the organization or for at least one agent — org admins and agent managers; a case scoped to agents needs that permission on every agent it targets, and an unscoped case needs `manage_evals` at the organization level. See [Evals](/agents/evals). Clients that support **MCP Apps** also render charts and dashboards inline from `create_data`, `create_artifact`, and `edit_artifact`.
 
 For apps with saved data, enable **Artifact resources** in organization AI settings first; it is off by default. Use resource management for schemas and policies, and artifact editing for the interface. Authoring remains subject to report ownership and organization permissions. See [Build apps with artifacts](/using-bow/artifact-apps).
 

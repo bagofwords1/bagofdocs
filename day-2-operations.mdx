@@ -443,7 +443,7 @@ otel:
 
 ### Audit logs
 
-[Audit logs](/observe-and-govern/audit-logs) record administrative activity. On the enterprise plan you can stream them to your SIEM (Datadog, Splunk, Microsoft Sentinel, S3, GCS, a webhook or syslog) so they are retained outside the application database.
+[Audit logs](/observe-and-govern/audit-logs) record administrative activity, sign-ins and data access. On the enterprise plan you can stream them to your SIEM (Datadog, Splunk, Microsoft Sentinel, S3, GCS, CloudWatch Logs, a webhook or syslog) so they are retained outside the application database. To monitor audit delivery, alert when the `audit.heartbeat` events written every 5 minutes stop arriving at your SIEM, and watch for `audit_stream.degraded` events. `GET /api/enterprise/audit/health` reports queue depth, pending events and failures per stream. Set `BOW_AUDIT_RETENTION_DAYS` to limit how long events stay in the database, and `BOW_TRUSTED_PROXIES` if your reverse proxy is not on a private network.
 
 ## Security hardening
 

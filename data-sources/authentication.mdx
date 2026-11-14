@@ -40,7 +40,7 @@ Per-user authentication on **database-style connections** — anything the agent
 Per-user authentication for this connector requires an enterprise license.
 ```
 
-Separately, a number of connectors are Enterprise-only in their entirety, regardless of auth policy — Power BI, Power BI Report Server, Tableau, Qlik Sense, Qlik Sense on-prem, Sisense, Oracle BI, Analysis Services, Infor OLAP, Splunk, Zabbix, Timbr, Sybase, QVD, SharePoint, SharePoint Lists, SharePoint Server (on-prem), OneDrive, OneNote, Google Drive, Gmail, Outlook Mail, OpenText Documentum, Kubernetes, Brocade Fabric OS, and VMware Aria Operations. They appear in the catalog with a lock until a license key is set. See [License Key](/enterprise/license).
+Separately, a number of connectors are Enterprise-only in their entirety, regardless of auth policy — Power BI, Power BI Report Server, Tableau, Qlik Sense, Qlik Sense on-prem, Sisense, Oracle BI, Analysis Services, Infor OLAP, Splunk, Zabbix, Timbr, Sybase, QVD, SharePoint, SharePoint Lists, SharePoint Server (on-prem), OneDrive, OneNote, Google Drive, Gmail, Outlook Mail, OpenText Documentum, Kubernetes, Brocade Fabric OS, VMware Aria Operations, VMware vCenter, and KMS Lighthouse. They appear in the catalog with a lock until a license key is set. See [License Key](/enterprise/license).
 
 ## Sign-in methods
 
@@ -72,6 +72,12 @@ Connect required: this connection runs queries with your own credentials.
 ```
 
 Users can re-test, replace, or remove their credentials at any time, and refresh their own schema view — a per-user connection shows each person only the tables or files their own account can reach.
+
+### Who can use the shared credentials
+
+On a per-user connection that signs in with stored credentials, such as a username and password, only org admins and people with the `manage_connections` permission fall back to the connection's shared credentials when they haven't connected their own login. Everyone else connects their own login, including the owner of the data source — owning a data source doesn't give access to the shared credentials.
+
+For per-user OAuth connections, admins and data source owners choose their identity instead; see [Query identity](#query-identity).
 
 ## Query identity
 

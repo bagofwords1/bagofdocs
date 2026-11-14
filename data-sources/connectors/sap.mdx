@@ -146,10 +146,10 @@ The Datasphere **semantic layer** — analytic models with measures, dimensions,
 
 1. Authenticates with OAuth against the tenant's auth server (client credentials for a technical user, or a per-user token from the authorization-code flow).
 2. Crawls the catalog `assets` collection — one call spans every authorized space — following `@odata.nextLink` paging, optionally filtered to the spaces you name.
-3. Reads each asset's OData `$metadata` and classifies every property as a **measure** (SAP analytics annotation, or a numeric EDM type as fallback) or a **dimension**.
+3. Reads each asset's OData `$metadata` and classifies every property as a **measure** or a **dimension**. Explicit SAP analytics annotations win, so an annotated dimension such as Year stays a dimension even though it is numeric. A numeric EDM type counts as a measure only for unannotated properties in a model that annotates no measures at all.
 4. Queries the analytical OData endpoint at request time. Measures aggregate **server-side** over the dimensions in `$select`; `$filter`, `$orderby`, and `$top` work as usual, and analytic-model variables are passed as `(P='v')/Set` parameters.
 
-Each model is a schema table named `Space/Model`. The agent writes OData query options — no SQL, DAX, or MDX.
+Each model is a schema table named `Space/Model`. The agent writes OData query options — no SQL, DAX, or MDX. Every query is bounded: a query without its own `$top` returns at most 10,000 rows.
 
 ### Before you start
 

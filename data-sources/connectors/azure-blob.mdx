@@ -1,0 +1,131 @@
+---
+title: "Azure Blob Storage"
+description: "Expose an Azure Blob Storage container (or a prefix within it) to the agent as a read-only, searchable file catalog"
+icon: "microsoft"
+---
+
+The **Azure Blob Storage** connector points BOW at a blob container, optionally scoped to a prefix. The agent lists blobs, greps them, and reads them — including inside PDF, Word, PowerPoint, Excel, CSV and email files — and can attach a blob to a report. Blobs too large to load whole can be read in byte-range windows. Data Lake Storage Gen2 file systems work too, since they serve the same Blob API.
+
+<Note>
+  This connector is in **beta**. Fields and behavior may change between releases.
+</Note>
+
+It is a **file** connection, listed under **Files & object store** in the add-connection picker: the agent sees files and reads them, it does not write SQL against them. The connection is read-only.
+
+## How it works
+
+BOW builds a file catalog from the container. It uses the same parsing and search pipeline as [Amazon S3](/data-sources/connectors/s3) and [Files and Directories](/data-sources/connectors/files-and-directories):
+
+- **`list_files`** — a bounded blob listing under the prefix.
+- **`read_file`** — a full blob download, with `.csv`/`.tsv`/`.xlsx`/`.xls` parsed into tables and `.pdf`/`.docx`/`.pptx` text-extracted.
+- **Windowed reads** — a ranged download for blobs too large to load whole (logs, ndjson, big CSVs).
+- **`grep_files`** — line-level grep with an explicit file, byte and time budget, and a resumable cursor.
+
+There is no live full-content search: a content scan over an object store is one download per blob, so keyword search runs against the indexed catalog instead. Writes are not supported.
+
+Everything is confined to `container` + `prefix`. A file id is the blob name **relative to the prefix**, and any id that escapes it is rejected.
+
+## Before you start
+
+- The container exists, and you know its name and the **storage account** name.
+- The credential you will use can list and read blobs in the container. For a SAS token, that means **Read** and **List** permissions; for a service principal, the **Storage Blob Data Reader** role.
+- For **Managed Identity**, the backend host must already carry an Azure identity — a managed identity, workload identity, or the environment variables that `DefaultAzureCredential` reads.
+- For a sovereign cloud or a private endpoint, you have the blob endpoint URL.
+
+## Connect in BOW
+
+Go to **Data Sources → Add data source → Azure Blob Storage** and fill in the form.
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `account_name` | No | — | Storage account name, e.g. `acmedata`. Not needed with a connection string. Required with an account key, and with SAS, service principal or managed identity unless you set `account_url`. |
+| `container` | Yes | — | Blob container name, e.g. `reports`. A Data Lake Storage Gen2 file system name works too. |
+| `prefix` | No | — | Folder-like prefix that scopes the connection, e.g. `reports/2025/`. All listing and reads are confined to it. Blank means the whole container. |
+| `account_url` | No | — | Override the blob endpoint, e.g. for a sovereign cloud or a private endpoint. Blank means `https://<account>.blob.core.windows.net`. |
+| `include_globs` | No | — | Comma-separated glob patterns relative to the prefix, e.g. `docs/**/*.pdf`, `**/*.csv`, `reports/**`. When set, only matching blobs are visible **and** readable. `**` crosses sub-folders, `*` matches one segment. |
+| `recursive` | No | `true` | Enumerate blobs below the prefix when listing and indexing. |
+| `max_file_mb` | No | `100` | Reject whole-blob reads above this size. Windowed byte-range reads are exempt. |
+| `index_mode` | No | `content` | How much is cached from the container — see below. |
+| `max_catalog_objects` | No | `5000` | Cap on blobs indexed into the catalog, so a huge container cannot produce an unbounded catalog. |
+
+### Indexing modes
+
+Reads are always live; `index_mode` (**Indexing** in the form) only decides what is cached ahead of time.
+
+| Mode | Label in BOW | What is cached | Use when |
+| :-- | :-- | :-- | :-- |
+| `none` | None (live only) | Nothing — listing and reads go live. | The container is huge or highly volatile. |
+| `metadata` | Object list | The blob list only. | You want a fast catalog without content search. |
+| `content` | Contents (searchable) | The blob list plus extracted keywords, so the agent can find blobs by topic. | The default. |
+
+A blob whose size and modified time are unchanged since the last run is not downloaded again for keywords.
+
+<Note>
+  The **Full text** mode offered on [Amazon S3](/data-sources/connectors/s3#indexing-modes) and [Files and Directories](/data-sources/connectors/files-and-directories#indexing-modes) is not offered in the Azure Blob Storage form.
+</Note>
+
+## Authentication modes
+
+All five modes are **system-scope only** — one shared credential serves every user of the connection. There is no per-user sign-in for Blob Storage; restrict who can use the connection with access rules instead. See [Authentication and access](/data-sources/authentication).
+
+### Connection String (`connection_string`)
+
+The default.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `connection_string` | Yes | Storage account connection string (**Access keys → Connection string**), or a SAS connection string. The account name is read from it, so `account_name` can stay blank. |
+
+### Account Key (`account_key`)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `account_key` | Yes | Storage account access key (**Access keys → key1 / key2**). Requires `account_name`. |
+
+### SAS Token (`sas_token`)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `sas_token` | Yes | Shared access signature with **Read** and **List** permissions on the container — the part after `?`. A leading `?` is stripped. |
+
+### Service Principal (`service_principal`)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Microsoft Entra tenant (directory) ID. |
+| `client_id` | Yes | App registration (client) ID with the **Storage Blob Data Reader** role. |
+| `client_secret` | Yes | App registration client secret. |
+
+### Managed Identity (`managed_identity`)
+
+No fields. BOW resolves the deployment's managed identity, workload identity or environment credentials with `DefaultAzureCredential` (interactive browser sign-in excluded). Use this when the deployment already has an Azure identity and you do not want to store a secret in the product.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Storage account name (or an Account URL) is required">
+    Every mode except **Connection String** builds the endpoint from `account_name`. Fill it in, or set `account_url`. **Account Key** always needs `account_name`.
+  </Accordion>
+
+  <Accordion title="No blobs appear even though the container is not empty">
+    Check `include_globs` — patterns are matched relative to `prefix`, so a pattern that repeats the prefix will never match. Also confirm `recursive` is on if the blobs sit below sub-folders.
+  </Accordion>
+
+  <Accordion title="Access denied on read but listing works">
+    The credential can list the container but not read those blobs (for example, a SAS token without **Read**), or the blob is outside `include_globs` — an off-glob blob is denied, not just hidden.
+  </Accordion>
+
+  <Accordion title="A large blob cannot be read">
+    Whole-blob reads above `max_file_mb` are rejected. Ask the agent for a windowed read, or raise the limit.
+  </Accordion>
+
+  <Accordion title="Only part of a large container is catalogued">
+    The container exceeded `max_catalog_objects`. Narrow the connection with `prefix` or `include_globs` rather than raising the cap.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Amazon S3](/data-sources/connectors/s3) — the same file catalog, over an S3 bucket.
+- [Google Cloud Storage](/data-sources/connectors/gcs) — the same file catalog, over a Cloud Storage bucket.
+- [Files and Directories](/data-sources/connectors/files-and-directories) — a local folder or mounted network share.

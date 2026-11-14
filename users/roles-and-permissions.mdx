@@ -7,10 +7,23 @@ icon: "shield-halved"
 BOW controls access in three layers:
 
 1. **Roles** set what a person can do across the whole organization.
-2. **Resource grants** give extra rights on one connection or agent.
+2. **Resource grants** give extra rights on one agent, connection or model.
 3. **Groups** let you give roles and grants to many people at once.
 
 A person's access is everything they get from all three combined. Permissions only add up: nothing takes away a right someone already has.
+
+## Where to manage access
+
+Members, roles and groups live in the Admin console. Select **Admin** at the bottom of the sidebar: the sidebar swaps to the admin menu, and every admin page opens in the same layout. **Back to app** at the top of the menu returns you to where you were.
+
+Open **Access** in the admin menu to reach its pages:
+
+- **Members**: invite people, change their roles, and set the default role
+- **Roles**: create and edit roles (Enterprise)
+- **Groups**: manage groups (Enterprise)
+- **Service Accounts**: create API service accounts
+
+The **Admin** entry only appears for people with at least one admin permission (Manage members, Manage service accounts, Manage settings, Manage LLM, View audit logs or Manage identity providers). The menu shows only the pages they're allowed to open.
 
 ## Built-in roles
 
@@ -18,6 +31,16 @@ A person's access is everything they get from all three combined. Permissions on
 |---|---|
 | **Admin** | Everything in the organization |
 | **Member** | Use agents, create and share reports, attach files, see other members, and view and run generated code |
+
+### Default role for new members
+
+Admins choose which role is pre-filled when someone adds or invites a member. Go to **Admin → Access → Members** and pick a role in **Default role**. It starts as Member, and you can choose any built-in or custom role. The role list marks the current choice with a **Default** badge.
+
+### Customizing the Member role
+
+<Info>Editing the Member role requires an Enterprise license.</Info>
+
+Admins can change the built-in Member role's permissions and description for their organization. Open it from **Admin → Access → Roles**. Its name is fixed and it can't be deleted. Changes apply right away to everyone who has the role in this organization, and other organizations aren't affected.
 
 ## What every member can always do
 
@@ -27,30 +50,55 @@ Every member can view, create and share reports, attach files to chats, and see 
 
 <Info>Custom roles require an Enterprise license.</Info>
 
-Go to **Settings → Members → Roles** to build a role from these permissions:
+Go to **Admin → Access → Roles** and select **New Role**. You can also **Duplicate** an existing role from its **⋯** menu.
 
-| Area | Permission | Allows |
+The role editor is one dialog with a **Name**, a **Description**, two tabs and a single **Save** (or **Create** for a new role). Changes on both tabs are saved together.
+
+### Permissions tab
+
+Check **Full Admin Access** to let the role do everything in the organization. Otherwise, pick individual permissions:
+
+| Group | Permission | Allows |
 |---|---|---|
-| Data & Knowledge | Create agents | Create new agents |
-| | Create connections | Add connections; you automatically own what you create |
-| | Manage connections | Edit, test, reindex or delete any connection |
-| | Manage instructions | Edit instructions on every agent |
-| | Manage entities | Manage entities |
-| | Manage evals | Manage quality checks |
-| | View code | See generated SQL and Python |
-| | Run custom code | Edit and run code (also allows viewing it) |
-| Members & Access | Manage members | Invite or remove members and change their roles |
-| | Manage service accounts | Create API service accounts |
-| Settings & Admin | Manage settings | Change organization settings |
-| | Manage LLM | Configure models and providers |
-| | View audit logs | Read the audit trail |
-| | Manage identity providers | Configure SSO, LDAP and SCIM |
+| Agents & data | Create agent | Create new agents on connections they can use |
+| | Create connections | Add new data connections; you automatically own what you create |
+| | Manage connections | Edit, test and delete any connection (includes Create connections) |
+| Agent knowledge | Manage instructions | Edit the instructions agents follow, on every agent |
+| | Manage entities | Define tables, metrics and terms, on every agent |
+| | Manage evals | Create and run quality checks, on every agent |
+| Code | View generated code | See the SQL and Python agents write |
+| | Edit and run custom code | Edit and run code in reports (includes View generated code) |
+| Administration | Manage members | Invite people and change their roles |
+| | Manage service accounts | Create API keys |
+| | Manage settings | Change organization settings |
+| | Manage LLM | Configure LLM providers and models |
+| | View audit logs | See who did what, and when |
+| | Manage identity providers | Configure single sign-on, LDAP and SCIM |
 
-<Tip>Members get **View code** and **Run custom code** by default. To hide code from some users, give them a custom role without those two permissions.</Tip>
+When one permission includes another, the included one is checked and locked, with the note **Included with** the broader permission.
+
+<Tip>Members get **View generated code** and **Edit and run custom code** by default. To hide code from some users, give them a custom role without those two permissions, or remove them from the Member role.</Tip>
+
+### Access tab
+
+The **Access** tab gives the role rights on specific agents, connections and models. Use **Add agent, connection or model** to pick a resource, then choose its access level:
+
+| Resource | Levels |
+|---|---|
+| Agent | **Can use**, **Can manage**, **Custom** |
+| Connection | **Can build agents**, **Can manage**, **Custom** |
+| Model | **Can use** |
+
+Choose **Custom** to pick individual permissions for that resource instead of a level:
+
+- **Agent**: Manage (includes everything), Edit instructions, Edit entities, Manage quality checks, Manage who can use it
+- **Connection**: Edit, test and reindex; Build agents on it; Manage all its agents
+
+Models appear only when model access is restricted and you can manage models. Public agents are available to everyone, so they don't need to be added. Roles with Full Admin Access already include every agent, connection and model.
 
 ## Resource grants
 
-Resource grants give someone rights on a single connection or agent without making them an admin.
+Resource grants give someone rights on a single connection or agent without making them an admin. You can give them to a role (on the role's **Access** tab), or to a person, group or role from the agent itself.
 
 **On a connection**
 
@@ -61,15 +109,28 @@ Resource grants give someone rights on a single connection or agent without maki
 **On an agent**
 
 - **Manage**: full owner rights over this agent (includes everything below)
-- **Manage instructions**, **Create entities**, **Manage evals**, **Manage members**
+- **Manage instructions**, **Manage entities**, **Manage evals**, **Manage members**
 
 <Note>An organization-wide permission, such as **Manage instructions**, applies to every agent. A **Manage** grant on one agent covers only that agent.</Note>
+
+### Agent members
+
+Agent managers control who can use an agent from the agent's **Settings**:
+
+- **Access**: turn on public access to let all organization members use the agent. A public agent lists **Everyone in the organization** with **Can query** at the top of its members.
+- **Members**: select **Add member** to add people, groups or roles. Choose **Can query** (ask this agent questions) or **Can manage** (configure the agent and manage its members). **Advanced permissions** lists the individual permissions for a narrower grant. A member with a narrower grant shows as **Custom access**.
+
+The owner can always manage the agent. **Remove** takes away a member's explicit membership and permissions on the agent; public, group or organization access may still apply.
+
+### Global instructions
+
+An instruction attached to no agent is global: it applies to every agent in the organization. Only people with the organization-wide **Manage instructions** permission, such as admins, can create or edit global instructions. A **Manage** grant on an agent covers instructions on that agent only. It doesn't allow making an instruction global or adding it to agents the person doesn't manage.
 
 ## Groups
 
 <Info>Groups require an Enterprise license.</Info>
 
-Give a role or grant to a group, and every member of the group gets it. With [SCIM](/enterprise/scim) turned on, groups sync from your identity provider (Entra ID, Okta and others).
+Give a role or grant to a group, and every member of the group gets it. With SCIM (see [Sign-in and SSO](/sign-in-and-sso)) turned on, groups sync from your identity provider (Entra ID, Okta and others).
 
 ## Service accounts
 
@@ -83,8 +144,8 @@ Shared projects (report folders) use their own **View** or **Manage** access, wh
 
 | Feature | Team | Enterprise |
 |---|---|---|
-| Admin and Member roles, resource grants | ✓ | ✓ |
-| Custom roles and groups | | ✓ |
+| Admin and Member roles, resource grants, default role | ✓ | ✓ |
+| Custom roles, editing the Member role, and groups | | ✓ |
 | SCIM group sync, LDAP | | ✓ |
 | Audit logs | ✓ | ✓ |
 
@@ -92,7 +153,10 @@ Shared projects (report folders) use their own **View** or **Manage** access, wh
 
 <AccordionGroup>
   <Accordion title="Analyst who can't see SQL">
-    Create a custom role without **View code** and assign it instead of Member.
+    Create a custom role without **View generated code** and **Edit and run custom code**, and assign it instead of Member.
+  </Accordion>
+  <Accordion title="Hide code from every member">
+    On Enterprise, edit the Member role and clear **View generated code** and **Edit and run custom code**.
   </Accordion>
   <Accordion title="Data owner for one connection">
     Keep them as a Member and add a **Manage agents** grant on that connection.

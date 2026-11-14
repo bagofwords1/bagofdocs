@@ -1,0 +1,123 @@
+---
+title: "Cisco ACI (APIC)"
+description: "Investigate data center fabric incidents with read-only fabric nodes, faults, events, audit log, interfaces, vPC, routing adjacencies, endpoints, tenants, EPGs, contracts, firmware and health"
+icon: "network"
+---
+
+<Note>
+  The Cisco ACI (APIC) connector is available in every edition, and ships as **beta**. It has been verified against a simulator, not yet against a customer fabric — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+BOW queries a Cisco ACI fabric through the **APIC REST API**, so a network team can ask questions like *"what faults were raised on leaf 303 in the last hour?"*, *"where is 10.10.30.21 learned?"* or *"who changed what just before the incident?"* and get answers from the live fabric.
+
+The connector is **read-only by construction**: every read is a GET on one APIC model class. The only other requests it can build are the password login and logout. Writes, subscriptions, file downloads and raw URLs are unreachable.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog of **59 tables**, one per APIC class, derived from Cisco's published APIC 6.x model metadata. Queries are JSON specs — no SQL — and filters run on the APIC. Every row includes `pod`, `node` and `parent_dn`, so faults, health scores and bindings can be traced to the object they belong to.
+
+| Area | Tables |
+| :-- | :-- |
+| **Fabric inventory** | `fabric_nodes` (start here to map node IDs to names), `systems`, `chassis`, `line_cards`, `fans`, `fan_trays`, `power_supplies`, `controller_cluster`, `controller_cluster_size` |
+| **Firmware** | `switch_firmware`, `controller_firmware` |
+| **Faults, events and audit** | `faults`, `fault_history`, `fault_delegates`, `fault_summary`, `events`, `audit_log` |
+| **Health** | `health_scores`, `health_history`, `fabric_health`, `fabric_health_history` |
+| **Interfaces and links** | `interfaces`, `interface_status`, `interface_traffic`, `interface_errors`, `interface_drops`, `port_channels`, `port_channel_status`, `fabric_links`, `lldp_neighbors`, `cdp_neighbors` |
+| **vPC** | `vpc_domains`, `vpc_interfaces` |
+| **Routing** | `bgp_peers`, `isis_adjacencies`, `ospf_adjacencies` |
+| **Endpoints** | `endpoints`, `endpoint_ips` |
+| **Tenant policy** | `tenants`, `application_profiles`, `epgs`, `bridge_domains`, `vrfs`, `subnets`, `l3outs`, `epg_bridge_domains`, `vrf_bindings`, `epg_static_paths` |
+| **Contracts** | `contracts`, `contract_subjects`, `subject_filters`, `filters`, `filter_entries`, `epg_provided_contracts`, `epg_consumed_contracts` |
+| **Control-plane resources** | `cpu_usage`, `memory_usage` |
+| **Virtualization (VMM)** | `vms`, `hypervisors` |
+
+`fault_history`, `events`, `audit_log`, `health_history` and `fabric_health_history` always apply a time window — the **last 24 hours** when a question gives none. The window used is recorded on each row in `_bow_window_start` and `_bow_window_end`, alongside the other `_bow_*` provenance columns.
+
+<Warning>
+  `faults`, `fault_history`, `fault_delegates`, `fault_summary`, `events`, `audit_log`, `fabric_health_history`, `interface_traffic`, `interface_errors` and `interface_drops` are readable only by accounts with **admin read access**. A read-all account gets zero rows there — which is not evidence of a healthy fabric.
+</Warning>
+
+## Before you start
+
+<Steps>
+  <Step title="Create an APIC user">
+    Give it the **read-all** role. Add admin read access too if you want faults, events, the audit log and statistics.
+  </Step>
+
+  <Step title="Choose how it signs in">
+    For certificate authentication, use a local user, attach an X.509 certificate to it under **Admin → AAA → Users → user → User Certificates**, and keep the matching unencrypted RSA private key (2048 bits or more). For password authentication, a local or remote (LDAP, RADIUS, TACACS+) user works.
+  </Step>
+
+  <Step title="Connect">
+    Enter the APIC URL and credentials, then click **Test connection**. The result reports the APIC version and how many controllers and switches the account can see — and warns when no faults are visible, which usually means admin read access is missing.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | Origin of one APIC controller, e.g. `https://apic1.example.com`. |
+| `fallback_urls` | No | _(blank)_ | Comma-separated origins of the other controllers in the cluster, tried in order when the first is unreachable. |
+| `login_domain` | No | _(blank)_ | AAA login domain for remote users with password authentication. Leave empty for local users. |
+| `ca_certificate` | No | _(blank)_ | PEM CA certificate for the APIC. Certificate verification is always enabled. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | For a local simulator only — HTTP is accepted only for loopback addresses. Real controllers use HTTPS. |
+
+## Authentication
+
+**Certificate (signed requests) — `certificate`** (default; system scope)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A local APIC user with the read-all role (plus admin read access for faults, events, audit log and statistics). |
+| `certificate_name` | Yes | Name of the X.509 certificate attached to that user on the APIC. |
+| `private_key` | Yes | Unencrypted PEM RSA private key (2048 bits or more) matching the certificate. Every request is signed with it; it never leaves the BOW server. Certificate authentication opens no session and writes no login records. |
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | An APIC user with the read-all role. For a remote user, set `login_domain` on the connection. |
+| `password` | Yes | That user's password. Each operation logs in and logs out. |
+
+Certificate authentication is one shared identity. Password authentication is also available at user scope, so each engineer can bring their own APIC login. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## What "beta" means here
+
+The catalog is derived from Cisco's published APIC 6.x model metadata and the connector was tested against a simulator. It has not yet been through an acceptance pass on a customer fabric. Validate on a non-production fabric first, and treat field names as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Faults, events or the audit log are empty">
+    The account lacks admin read access, so the APIC returns zero rows for those tables. **Test connection** warns about this when no faults are visible. Grant admin read access to the user.
+  </Accordion>
+
+  <Accordion title="Password login is rejected">
+    The APIC rejected the user name, password or login domain. For a remote user, set `login_domain` to the AAA login domain; leave it empty for a local user.
+  </Accordion>
+
+  <Accordion title="Requests are refused with PermissionDenied">
+    With certificate authentication, check that `certificate_name` matches the certificate attached to the user and that `private_key` is its key. Otherwise the user is missing a read privilege.
+  </Accordion>
+
+  <Accordion title="The private key is not accepted">
+    It must be an unencrypted PEM RSA key (`BEGIN PRIVATE KEY` or `BEGIN RSA PRIVATE KEY`). Remove any passphrase before pasting it.
+  </Accordion>
+
+  <Accordion title="The APIC is busy or a query fails on size">
+    Narrow the query — to a node, with a filter, or with a shorter lookback. A query that would exceed `max_rows` fails rather than returning a partial result.
+  </Accordion>
+
+  <Accordion title="The first controller is down">
+    Add the other controllers to `fallback_urls`. They are tried in order when the first is unreachable.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [F5 BIG-IP](/data-sources/connectors/f5-bigip) — the load balancers attached to the fabric.
+- [VMware vCenter](/data-sources/connectors/vcenter) — the VMs behind the endpoints the fabric learns.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

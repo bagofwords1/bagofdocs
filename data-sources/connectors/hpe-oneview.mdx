@@ -1,0 +1,102 @@
+---
+title: "HPE OneView"
+description: "Investigate compute infrastructure incidents with read-only server hardware, profiles, enclosures, interconnects, firmware, alerts, tasks and networks"
+icon: "server"
+---
+
+<Note>
+  The HPE OneView connector is available in every edition, and ships as **beta**. It has been verified against a simulator, not yet against a customer appliance — see [What "beta" means here](#what-beta-means-here).
+</Note>
+
+BOW queries an **HPE OneView** appliance or **Synergy Composer** over the OneView REST API, so an infrastructure team can ask questions like *"which servers have active critical alerts?"* or *"which server profiles are not compliant with their template?"* and get answers from the live estate.
+
+The connector is **read-only by construction**: every request is a GET, except the documented login and logout. Power actions, alert changes and any other mutating request are unreachable.
+
+## What the catalog looks like
+
+The connector ships a frozen catalog of **32 tables**, referenced to OneView 9.00 (API 6800). Queries are JSON specs — no SQL. The catalog is an execution allowlist, not a claim that every appliance serves every table.
+
+| Area | Tables |
+| :-- | :-- |
+| **Compute** | `server_hardware`, `server_hardware_types`, `server_hardware_firmware` (installed firmware per component), `server_hardware_utilization` (power, temperature and CPU history for one server), `server_profiles`, `server_profile_templates` |
+| **Enclosures and facilities** | `enclosures`, `enclosure_groups`, `logical_enclosures`, `racks`, `datacenters`, `power_devices` |
+| **Interconnects and networking** | `interconnects`, `interconnect_ports` (one row per port), `logical_interconnects`, `sas_interconnects`, `uplink_sets`, `ethernet_networks`, `fc_networks`, `fcoe_networks`, `network_sets` |
+| **Storage** | `storage_systems`, `storage_pools`, `storage_volumes` |
+| **Timeline** | `alerts`, `events`, `tasks` |
+| **Firmware** | `firmware_drivers` — the bundles (SPP, Synergy Service Pack, hotfix) in the appliance repository |
+| **Appliance** | `appliance_version`, `appliance_health`, `scopes`, `index_resources` (search across every resource category, for example by serial number) |
+
+Every row also carries `_bow_*` provenance columns — the appliance, the API version, the endpoint that served it and when it was read. Missing utilization samples are gaps, not zeros, and current inventory does not prove historical placement.
+
+## Before you start
+
+<Steps>
+  <Step title="Create a read-only account">
+    On the appliance, create an account with the **Read only** role. Directory accounts work too — note the directory name for `auth_login_domain`.
+  </Step>
+
+  <Step title="Check reachability">
+    The appliance's HTTPS address must be reachable from the BOW backend. If it uses a private CA, have the PEM certificate ready for `ca_certificate`.
+  </Step>
+
+  <Step title="Connect">
+    Enter the appliance URL and credentials, then click **Test connection**. The result reports the appliance model, software version and the negotiated API version.
+  </Step>
+</Steps>
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `url` | Yes | — | OneView or Synergy Composer origin, e.g. `https://oneview.example:443`. |
+| `auth_login_domain` | No | `local` | The directory sent at login: `local` for appliance accounts, or the configured directory name. |
+| `api_version` | No | _(blank)_ | API version to pin. Empty negotiates the appliance's current version, clamped to the connector's supported range 1200–7200. |
+| `ca_certificate` | No | _(blank)_ | PEM CA certificate for the appliance. Certificate verification is always enabled. |
+| `timeout` | No | `30` | Request timeout in seconds (1–120). |
+| `max_rows` | No | `10000` | Maximum complete result rows (1–100,000). Queries above this ceiling fail explicitly; they never return silently truncated evidence. |
+| `allow_http` | No | `false` | For a local simulator only — HTTP is accepted only for loopback addresses. Real appliances use HTTPS. |
+
+## Authentication
+
+**Username / Password — `userpass`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A OneView account with the Read only role. |
+| `password` | Yes | That account's password. |
+
+Because the mode is also available at user scope, each engineer can bring their own OneView login, so OneView's roles and scopes decide what they see. Per-user authentication on a database-style connection requires an Enterprise license — see [Authentication and access](/data-sources/authentication).
+
+## What "beta" means here
+
+The catalog is referenced to OneView 9.00 / Synergy Composer 9.00 and the connector was tested against a simulator. It has not yet been through an acceptance pass on a customer appliance, so release, permission and scope coverage still need confirming on yours. Validate on a non-production appliance first, and treat field names as less stable than on a generally-available connector.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Credentials rejected">
+    Check the username and password, and that `auth_login_domain` matches the account: `local` for appliance accounts, the directory name otherwise.
+  </Accordion>
+
+  <Accordion title="Test connection says the API version is unsupported">
+    Either the pinned `api_version` is outside the appliance's supported range, or the appliance's range does not overlap the connector's 1200–7200. Clear `api_version` to negotiate automatically.
+  </Accordion>
+
+  <Accordion title="TLS verification fails">
+    Paste the appliance's CA certificate into `ca_certificate`. Verification is always on — `allow_http` only works for a loopback simulator and is not a way around a certificate problem.
+  </Accordion>
+
+  <Accordion title="A query fails instead of returning rows">
+    It would have exceeded `max_rows`. Narrow it with a filter or a shorter lookback, or raise the ceiling. Nothing is ever silently truncated.
+  </Accordion>
+
+  <Accordion title="A table returns nothing or is refused">
+    The catalog is an allowlist, not a statement that your appliance serves every resource or has data for it. A permission error means the account's role or scopes do not cover the resource.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Dell OpenManage Enterprise](/data-sources/connectors/dell-openmanage) — the same questions for a Dell server fleet.
+- [VMware vCenter](/data-sources/connectors/vcenter) — the virtual machines running on these servers.
+- [Authentication and access](/data-sources/authentication) — how connection credentials are stored and scoped.

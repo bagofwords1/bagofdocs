@@ -1,0 +1,292 @@
+---
+title: "NoSQL and graph databases"
+description: "Connect Amazon DynamoDB, Azure Cosmos DB, Couchbase, Apache Cassandra and Neo4j so the agent can query key-value, document, wide-column and graph data read-only"
+icon: "database-zap"
+---
+
+These connectors reach databases that don't store data as plain relational tables. BOW maps each one onto a catalog the agent can reason about — a table per DynamoDB table, Cosmos DB container, Couchbase collection or Cassandra table, and an entry per node label and relationship type in Neo4j — and the agent writes queries in the database's own language: PartiQL, Cosmos SQL, SQL++, CQL or Cypher.
+
+All five are **read-only**. BOW checks every statement before it reaches the database and refuses anything that isn't a single read. Where the database can enforce read-only too, BOW asks it to. Each query also has a row cap, so an unfiltered read can't pull a whole table into BOW.
+
+Add them under **Data Sources → Add data source**, fill in the fields below, test the connection, and pick the tables the agent may use.
+
+| Connector | What the catalog looks like | Query language | Edition |
+| :-- | :-- | :-- | :-- |
+| [Amazon DynamoDB](#amazon-dynamodb) | One table per DynamoDB table, with key attributes and sampled attributes as columns | PartiQL | Beta |
+| [Azure Cosmos DB](#azure-cosmos-db) | One table per container, with columns inferred from sampled documents | Cosmos SQL (NoSQL API) | Beta |
+| [Couchbase](#couchbase) | One table per collection, named `scope.collection` | SQL++ (N1QL) | Beta |
+| [Apache Cassandra](#apache-cassandra) | One table per `keyspace.table`, with typed columns from `system_schema` | CQL | Beta |
+| [Neo4j](#neo4j) | One entry per node label `(:Label)` and relationship type `[:TYPE]` | Cypher | Every edition |
+
+<Note>
+  None of these connectors needs an Enterprise license. Per-user credentials on a database connection do need one. See [Authentication](/data-sources/authentication).
+</Note>
+
+---
+
+## Amazon DynamoDB
+
+<Note>
+  The Amazon DynamoDB connector is available in every edition, and is currently in **beta**.
+</Note>
+
+Each DynamoDB table becomes a catalog table. Its columns are the declared key attributes, marked as **partition key** and **sort key**, plus the attributes found in a sample of items. The table's description names the key schema, every global and local secondary index, and the approximate item count. Querying by key is what keeps DynamoDB fast and cheap, so the agent sees the keys up front.
+
+The agent writes **PartiQL** `SELECT` statements, which BOW runs through `ExecuteStatement`:
+
+- A `WHERE` that pins the partition key is a cheap Query. One that doesn't becomes a full-table Scan, which is billed per item read.
+- Secondary indexes are queried as `"Table"."IndexName"`.
+- PartiQL on DynamoDB has no `JOIN`, `GROUP BY`, aggregates or `DISTINCT`. The agent selects the items, then joins and aggregates them in Python.
+
+Results stop at `max_items`. When the cap cuts a result short, the agent is told the result was truncated. Anything other than a single `SELECT` is refused before it is sent.
+
+Building the catalog scans up to `sample_size` items from each table, which uses read capacity.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `region` | No | — | AWS region of the tables, e.g. `us-east-1`. |
+| `tables` | No | — | Comma-separated table names to expose. Leave blank for every table the credentials can list. |
+| `endpoint_url` | No | — | Custom endpoint, e.g. a VPC endpoint or DynamoDB Local. Leave blank for AWS. |
+| `sample_size` | No | `100` | Items sampled per table to infer its attributes for the catalog (1–1000). |
+| `max_items` | No | `5000` | Most items a single query returns. |
+
+### Authentication modes
+
+All three modes are **system** scope only (one shared credential).
+
+**AWS Access Key — `aws_keys`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `access_key` | Yes | AWS access key ID. |
+| `secret_key` | Yes | AWS secret access key. |
+| `session_token` | No | Session token for temporary credentials. |
+
+**AWS Assume Role (STS) — `aws_role`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `role_arn` | Yes | ARN of the IAM role to assume. |
+| `access_key` | No | Access key ID used to assume the role. Leave blank to use the instance profile or IRSA. |
+| `secret_key` | No | Secret access key used to assume the role. Leave blank to use the instance profile or IRSA. |
+
+**AWS Default Chain — `aws_default`** (no fields). Uses the AWS default credential chain on the BOW host: environment variables, shared config, instance profile or IRSA.
+
+BOW lists tables, describes each one, scans a sample of items to build the catalog, and runs PartiQL `SELECT` statements, so the identity needs read permissions for those calls on the tables you expose.
+
+---
+
+## Azure Cosmos DB
+
+<Note>
+  The Azure Cosmos DB connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW connects to one database of a Cosmos DB account through the **NoSQL API**. Each container becomes a catalog table. Its columns are inferred from a `SELECT TOP n` sample, with Cosmos system properties (`_rid`, `_etag` and so on) left out. The table's description names the **partition key**, which decides whether a query is a cheap single-partition read or a fan-out across every partition, billed in request units.
+
+The agent writes one **Cosmos SQL** `SELECT` per container, for example `SELECT o.id, o.total FROM orders o WHERE o.status = 'OPEN'`. It can pass a partition key to scope a query to one partition. Aggregates and `GROUP BY` work. Joins across containers don't.
+
+The data-plane query API can't write. BOW also refuses anything but a single `SELECT`. With a read-only key or a reader role, the account can't be written to at all. Results stop at `max_items`.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `endpoint` | Yes | — | Account URI, e.g. `https://acme.documents.azure.com:443/`. |
+| `database` | Yes | — | Database name. |
+| `containers` | No | — | Comma-separated containers to expose. Leave blank for every container in the database. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate. Turn off only for the local emulator's self-signed certificate. |
+| `sample_size` | No | `100` | Documents sampled per container to infer its fields for the catalog (1–1000). |
+| `max_items` | No | `5000` | Most documents a single query returns. |
+
+### Authentication modes
+
+All three modes are **system** scope only.
+
+**Account Key — `account_key`** (the default)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `account_key` | Yes | A read-only key is recommended: **Keys → Read-only Keys → Primary read-only key**. |
+
+**Service Principal — `service_principal`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `tenant_id` | Yes | Microsoft Entra tenant (directory) ID. |
+| `client_id` | Yes | App registration with the **Cosmos DB Built-in Data Reader** role. |
+| `client_secret` | Yes | App registration client secret. |
+
+**Managed Identity — `managed_identity`** (no fields). Uses the deployment's managed identity or workload identity, which needs a Cosmos DB data-plane reader role.
+
+---
+
+## Couchbase
+
+<Note>
+  The Couchbase connector is available in every edition, and is currently in **beta**.
+</Note>
+
+BOW connects to one bucket on a self-managed cluster or on **Capella**. Each collection becomes a catalog table named `scope.collection`, and its description gives the full keyspace to query, e.g. `` `travel`.`inventory`.`orders` ``. Every table has a `meta().id` column for the document key, plus columns inferred from sampled documents. The empty `_default._default` collection is left out, and so is the `_system` scope.
+
+Sampling uses a key-value sampling scan, which needs no query index, so the catalog builds even on collections nobody has indexed. On Couchbase Server older than 7.6, which has no range scan, BOW falls back to a query, and that needs an index.
+
+The agent writes **SQL++** (N1QL) queries. Joins, `GROUP BY`, aggregates, subqueries and window functions all work. BOW accepts a single `SELECT`, `WITH`, `EXPLAIN` or `INFER` statement, and sends it with Couchbase's server-side **read-only** flag, so the query service also refuses anything that would write. Results stop at `max_rows`.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `connection_string` | Yes | — | `couchbase://host1,host2` for a self-managed cluster, or the `couchbases://cb.<id>.cloud.couchbase.com` string of a Capella cluster. |
+| `bucket` | Yes | — | Bucket to expose. |
+| `scope` | No | — | Limit to one scope, e.g. `inventory`. Leave blank for every scope in the bucket. |
+| `verify_ssl` | No | `true` | For `couchbases://` connections. Turn off only for self-signed test clusters. |
+| `sample_size` | No | `100` | Documents sampled per collection to infer its fields (1–1000). |
+| `max_rows` | No | `5000` | Most rows a single query returns. |
+
+### Authentication modes
+
+**Username / Password — `userpass`** (the only mode; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A database user (cluster RBAC) with **Query Select** and **Data Reader** on the bucket. |
+| `password` | Yes | That user's password. |
+
+---
+
+## Apache Cassandra
+
+<Note>
+  The Apache Cassandra connector is available in every edition, and is currently in **beta**.
+</Note>
+
+The same connector works with **Apache Cassandra**, **ScyllaDB** and **Amazon Keyspaces**. Cassandra has a real schema, so BOW reads the catalog from `system_schema`: one table per `keyspace.table`, with typed columns. System keyspaces are skipped. Each table's description lists its **partition key** and **clustering columns**, because CQL can only filter efficiently on them.
+
+The agent writes **CQL**, which is not SQL:
+
+- `WHERE` must restrict the full partition key. Clustering columns can then be filtered in order.
+- Filtering on any other column needs `ALLOW FILTERING`, a full-table scan, so the agent keeps it to small tables and adds `LIMIT`.
+- There are no joins, subqueries or `OR`, and `GROUP BY` works only on key columns. The agent selects the rows, then joins and aggregates them in Python.
+
+Writes, DDL and batches are refused before anything is sent. Results are paged by the driver and stop at `max_rows`.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `contact_points` | Yes | — | Comma-separated node addresses, e.g. `10.0.0.5,10.0.0.6`. |
+| `port` | No | `9042` | Native protocol port. Use `9142` for Amazon Keyspaces. |
+| `keyspaces` | No | — | Comma-separated keyspaces to expose. Leave blank for every non-system keyspace. |
+| `local_datacenter` | No | — | Datacenter to route queries to, e.g. `datacenter1`. Leave blank to use the contact point's. |
+| `ssl` | No | `false` | Use TLS. Required for Amazon Keyspaces and most managed clusters. |
+| `verify_ssl` | No | `true` | Verify the TLS certificate. |
+| `max_rows` | No | `5000` | Most rows a single query returns. |
+
+### Authentication modes
+
+**Username / Password — `userpass`** (the only mode; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | No | Leave blank when authentication is disabled on the cluster. |
+| `password` | No | That user's password. |
+
+---
+
+## Neo4j
+
+<Note>
+  The Neo4j connector is available in every edition.
+</Note>
+
+BOW connects to one Neo4j database (self-managed or **Aura**). The catalog has one entry per **node label**, shown as `(:Person)`, and one per **relationship type**, shown as `[:ACTED_IN]`, each with its properties. A relationship's description names the patterns it connects, e.g. `(:Person)-[:ACTED_IN]->(:Movie)`. Connection lists call these "node and relationship types" rather than tables.
+
+BOW reads the schema with Neo4j's schema procedures. If those are restricted for the connecting user, it lists labels and relationship types instead and samples up to `schema_sample_size` of each to find their properties.
+
+The agent writes **Cypher**. Read-only is enforced twice:
+
+- Every query runs in a Neo4j **READ** session, so the server refuses writes.
+- Before that, BOW checks the query and refuses `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `LOAD CSV`, `USE`, `SHOW` and admin commands. It also refuses every procedure and namespaced function except the schema procedures and Cypher's own date, duration and point functions, so APOC isn't available.
+
+Each query returns at most `max_rows` rows. When a result is cut off, the agent is told to aggregate in Cypher or add a `LIMIT`.
+
+With `allow_gds` on, the agent can also run **Graph Data Science** algorithms (PageRank, community detection, similarity, paths) in stream and stats mode. Write and mutate modes stay blocked.
+
+BOW always opens a direct connection to the host in the URI. A `neo4j://` URI is read as `bolt://`, and `neo4j+s://` as `bolt+s://`, so BOW never follows the server's routing table to other hosts.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `uri` | Yes | — | `neo4j+s://xxxx.databases.neo4j.io` for Aura, or `bolt://host:7687`. Allowed schemes: `bolt`, `bolt+s`, `bolt+ssc`, `neo4j`, `neo4j+s`, `neo4j+ssc`. Don't put a username or password in the URI. |
+| `database` | No | `neo4j` | Database name. |
+| `max_rows` | No | `10000` | Most rows one query returns (1–100,000). |
+| `schema_sample_size` | No | `100` | Nodes or relationships sampled per label to find properties. Used only when the schema procedures are restricted (1–10,000). |
+| `allow_gds` | No | `false` | Let the agent run GDS algorithms in stream and stats mode. Needs the GDS plugin. |
+| `kerberos_service` | No | `neo4j` | Kerberos modes only: the service part of Neo4j's Kerberos principal (`neo4j` for `neo4j/host@REALM`). |
+
+### Authentication modes
+
+**Username / Password — `userpass`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A Neo4j user. A reader role is enough. LDAP users sign in here too; Neo4j checks LDAP itself. |
+| `password` | Yes | That user's password. |
+
+**SSO access token (OIDC) — `bearer`** (scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `token` | Yes | An OIDC access or ID token that Neo4j's SSO accepts — the JWT itself. A leading `Bearer ` is stripped. Tokens expire, so replace it when the connection test fails. |
+
+**Impersonation — `impersonation`** (scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | A service user granted `IMPERSONATE` on the users BOW should act as. Needs Neo4j Enterprise or Aura Enterprise. |
+| `password` | Yes | The service user's password. |
+| `impersonated_user` | No | The Neo4j user queries run as. With **Require user authentication** on, map it to a member attribute so each member runs as their own Neo4j user. Neo4j checks the impersonated user's own roles on every query. |
+
+**Kerberos — `kerberos`** (scope: system). Signs in with the BOW server's own Kerberos identity. Needs Neo4j Enterprise with the Kerberos add-on, and krb5 (keytab and `krb5.conf`) on the BOW server.
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `use_kerberos` | — | Always on for this mode. |
+| `kerberos_principal` | No | Client principal to sign in as, e.g. `svc-bow@CORP.EXAMPLE.COM`. Needs a matching keytab entry. Leave blank for the default credential cache. |
+
+**Kerberos SSO (per-user delegation) — `kerberos_delegated`** (scope: user). Each query runs under the signed-in member's own Active Directory identity through Kerberos constrained delegation, the same flow as [SQL Server's Kerberos SSO](/data-sources/connectors/sql-server). The only field, `use_kerberos`, stays on.
+
+**No Authentication — `none`** (scope: system, no fields). For a server with authentication turned off (`dbms.security.auth_enabled=false`).
+
+---
+
+## Troubleshooting
+
+**DynamoDB: a query is slow, costly or comes back truncated.** The `WHERE` doesn't pin the partition key, so DynamoDB ran a full-table Scan, which stops at `max_items`. The partition key, sort key and secondary indexes are in each table's description. Filter on them, or query an index as `"Table"."IndexName"`.
+
+**DynamoDB: a table is missing from the catalog.** BOW lists tables with `ListTables` and then filters by `tables`. Check the name matches exactly, that the identity can list and describe it, and that `region` is the table's region.
+
+**Cosmos DB: queries use a lot of request units.** A query without a partition-key filter fans out to every partition. The partition key is in each container's description.
+
+**Couchbase: "No index available".** SQL++ queries need a primary or secondary index on the collection. Without one, only key lookups (`USE KEYS`) work. Create an index, or ask about specific document keys. The catalog itself doesn't need an index on Couchbase Server 7.6 or later.
+
+**Cassandra: a query is refused by the cluster.** CQL needs the full partition key in `WHERE`, or `ALLOW FILTERING`. Check the partition key and clustering columns in the table's description.
+
+**Cassandra: can't connect to Amazon Keyspaces.** Set `port` to `9142` and turn on `ssl`.
+
+**Neo4j: "Put the username and password in the credentials, not in the URI."** Remove `user:password@` from `uri` and choose an authentication mode instead.
+
+**Neo4j: a query is refused as not allowed.** BOW blocks procedures and namespaced functions that aren't on its allow-list, including APOC. Graph algorithms need `allow_gds` turned on and the GDS plugin installed.
+
+**Neo4j: the SSO token stopped working.** OIDC tokens expire. Paste a fresh token in the connection's credentials.
+
+## Related
+
+- [Data sources overview](/data-sources/overview)
+- [SQL databases](/data-sources/connectors/databases) — including MongoDB
+- [Lakehouse and query engines](/data-sources/connectors/lakehouse)
+- [Authentication](/data-sources/authentication)

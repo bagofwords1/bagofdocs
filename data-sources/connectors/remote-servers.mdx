@@ -1,0 +1,252 @@
+---
+title: "Remote Servers (SSH and SMB)"
+description: "Read and search server logs over SSH or a Windows share, and run maintenance commands over SSH under per-command approval"
+icon: "terminal"
+---
+
+<Note>
+  The remote-server connectors are available in every edition, and are currently in **beta**.
+</Note>
+
+BOW ships two remote-server connectors, so an operator can ask *"what did the app log around the 14:02 outage?"* or *"show the last 200 lines of today's IIS log"* and get answers from the server itself:
+
+| Connector | Type | What the agent can do |
+| :-- | :-- | :-- |
+| **Remote Server (SSH)** | `remote_ssh` | List folders, read and search files and logs, and check system status on a Linux or Windows server over SSH. Optionally, run maintenance shell commands (Bash or PowerShell), each one governed by approval rules. |
+| **Windows Logs (SMB)** | `remote_smb` | List, read and search files on one dedicated Windows share, such as IIS and application log folders. No remote shell. |
+
+Both are **tool connections**: the agent sees tools it can call, not tables or a file catalog. Nothing is indexed, and every call runs live, as the configured account.
+
+## What the agent can call
+
+| Tool | SSH | SMB | What it does |
+| :-- | :-- | :-- | :-- |
+| `list_directory` | Yes | Yes | Lists the entries of one folder inside the allowed paths. |
+| `read_file` | Yes | Yes | Reads a file. By default it reads the **end** of the file (the newest log lines). |
+| `search_file` | Yes | Yes | Finds lines containing literal text (not a regular expression, up to 512 characters) in one file. |
+| `system_status` | Yes | — | Basic host status: on Linux, platform, load average, CPU count, memory, uptime, and disk space for the allowed folders; on Windows, the OS caption, last boot time and memory. It never reads process environments or the Docker socket. |
+| `execute_shell` | Yes, if enabled | — | Runs one command in a working directory, with the SSH account's privileges. See [Maintenance shell](#maintenance-shell-ssh). |
+
+The inspection tools are read-only and allowed by default. Every result is capped by the connection's limits (lines, bytes, timeout). A search covers only the byte window that was read, so for an older period the agent should open the matching rotated log file.
+
+The agent treats log content as untrusted data, and BOW removes saved passwords, passphrases and keys from any error text before showing it.
+
+## How paths are scoped
+
+**Allowed log/file roots** (`allowed_paths`) bounds every inspection call:
+
+- Enter folders or wildcard patterns, such as `/var/log/myapp`, `/var/log/*.log`, `C:\Logs\*.log`, or, for SMB, `SERVERLOGS/*.log`.
+- `*` on its own allows every path the remote account can read (on SMB, within the share).
+- **Empty denies all file access.** Add at least one root, or the inspection tools fail.
+- Wildcards match full paths, separators included. A request still names one concrete file or folder; to list a parent folder, that folder needs its own allowed root.
+- Path traversal (`..`), special files, symlinks and Windows alternate data streams are refused. SSH paths must be absolute (a drive path such as `C:\Logs\app.log` on Windows); SMB paths are relative to the share.
+
+These settings bound what BOW asks for. They do not restrict the SSH account outside BOW: **the server's own permissions remain the enforcement boundary.** Use an account that can read only the logs you intend to expose.
+
+## Before you start (SSH)
+
+<Steps>
+  <Step title="Prepare the remote account">
+    Use an SSH account with access to the intended logs. By default, inspection is **agentless**: BOW runs a bounded reader in memory using the Python 3 already on a Linux host, or PowerShell on a Windows host. Nothing is installed or written on the server. If the runtime is missing, the connection test fails rather than installing anything.
+  </Step>
+
+  <Step title="Verify the server's identity">
+    Enter the hostname and port, then click **Fetch server key**. BOW shows the server's key fingerprint — fetching does not establish trust. Compare it with a fingerprint from your server administrator or other trusted SSH records, check **I verified this fingerprint using a trusted source**, and click **Verify and trust**. You can also paste a trusted public key under **Advanced**.
+  </Step>
+
+  <Step title="Decide on maintenance access">
+    Choose the shell permissions under **Advanced** (see below), or turn off **Enable maintenance shell** for inspection only. If the inspection account is locked to the restricted reader, use a separate account and connection for maintenance.
+  </Step>
+
+  <Step title="Test and save">
+    Click **Test connection**. A successful test says *"Authenticated; inspection is ready. Remote account permissions apply."*
+  </Step>
+</Steps>
+
+BOW pins the verified key and connects with strict host-key checking on every call. A different or unknown key is rejected, never silently accepted. Changing the hostname or port clears the pinned key in the form. To rotate a server key, verify the new one independently and update the connection.
+
+### Optional: installed restricted reader
+
+Set **Inspection mode** to **Installed restricted reader** to run an administrator-installed helper instead of the in-memory reader. The default locations are `/usr/local/lib/bow/reader.py` on Linux and `C:\ProgramData\BOW\reader.ps1` on Windows; override them with **Installed reader path**. The reader's own server-side policy is an additional restriction: a wildcard in BOW cannot widen it. The reader and its setup notes ship with BOW under `tools/remote_server/`.
+
+## Before you start (SMB)
+
+<Steps>
+  <Step title="Create a read-only log share">
+    Share only the application and IIS log folders. Grant the account read and list access in **both** share and NTFS permissions, inherited by rotated logs. Avoid administrative drive shares such as `d$`.
+  </Step>
+
+  <Step title="Allow network access">
+    Allow TCP 445 from the BOW backend. No privileged container or host mount is needed. SMB encryption is required by default; Kerberos also needs DNS, clock synchronization and KDC access.
+  </Step>
+
+  <Step title="Test and save">
+    A successful test says *"Authenticated; configured SMB folders are readable."* It opens each allowed root on the share.
+  </Step>
+</Steps>
+
+SMB connections never follow DFS referrals or connect to a server other than the configured host, so the account's password is not forwarded elsewhere. Reparse points are refused.
+
+## Fields — Remote Server (SSH)
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Hostname or IP address only — no URL, username or options. |
+| `port` | No | `22` | |
+| `operating_system` | No | `linux` | `linux` or `windows`. |
+| `linux_shell` | No | `bash` | `bash` or `sh`, for maintenance commands on Linux. |
+| `host_public_key` | Yes | — | The verified server key, in `ssh-ed25519 AAAA…` or `ssh-rsa AAAA…` format. Filled in by **Verify and trust**. A fingerprint or a private key is refused. |
+| `inspection_mode` | No | `agentless` | `agentless` (no installation) or `restricted_reader` (administrator-installed helper). |
+| `reader_path` | No | _(blank)_ | Absolute path of the installed reader, when it is not in the default location. |
+| `allowed_paths` | No | _(empty)_ | Allowed log/file roots. Empty denies file access — see [How paths are scoped](#how-paths-are-scoped). |
+| `allowed_operations` | No | all four | Which inspection tools exist: `list_directory`, `read_file`, `search_file`, `system_status`. |
+| `enable_shell` | No | `true` | Exposes `execute_shell`: arbitrary Bash or PowerShell with this account's privileges. |
+| `shell_policy` | No | `policy` | How shell commands are authorized — see [Shell permissions](#shell-permissions). |
+| `shell_rules` | No | `[]` | Connection-wide command rules, as JSON. At most 200. |
+| `connection_idle_seconds` | No | `120` | How long an idle SSH connection is kept open for reuse (10–900). |
+| `timeout_seconds` | No | `30` | Per-call timeout (1–120). |
+| `max_output_bytes` | No | `65536` | Output cap per call (1,024–1,048,576). |
+| `max_lines` | No | `200` | Lines or entries returned per call (1–2,000). |
+
+## Fields — Windows Logs (SMB)
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `host` | Yes | — | Hostname or IP address only. |
+| `port` | No | `445` | |
+| `share` | Yes | — | One share name, such as `BOWLogs` — not a path. |
+| `require_encryption` | No | `true` | Require SMB encryption. |
+| `allowed_paths` | No | _(empty)_ | Share-relative roots or patterns. Empty denies file access. |
+| `allowed_operations` | No | all three | `list_directory`, `read_file`, `search_file`. `system_status` is not available over SMB. |
+| `connection_idle_seconds` | No | `120` | 10–900. |
+| `timeout_seconds` | No | `30` | 1–120. |
+| `max_output_bytes` | No | `65536` | 1,024–1,048,576. |
+| `max_lines` | No | `200` | 1–2,000. |
+
+## Authentication
+
+Every mode is available at system and user scope, so each person can connect with their own server account.
+
+**Remote Server (SSH)**
+
+| Mode | Fields | Notes |
+| :-- | :-- | :-- |
+| **SSH key / certificate** — `key` (default) | `username`, `private_key`, optional `passphrase`, optional `certificate` | Paste the private key or upload the key file (under 64 KB). Add an SSH user certificate if your servers use one. |
+| **Password** — `password` | `username`, `password` | |
+| **Keyboard-interactive** — `keyboard_interactive` | `username`, `password` | A single password prompt. Interactive MFA is not supported. |
+| **Kerberos keytab** — `kerberos` | `username`, `principal`, `keytab_base64` | A dedicated service-account keytab, base64-encoded. Requires the deployment's `krb5.conf`, DNS, clock sync and KDC access. Credentials are not delegated to the server. |
+
+**Windows Logs (SMB)**
+
+| Mode | Fields | Notes |
+| :-- | :-- | :-- |
+| **Domain / local account (NTLMv2)** — `ntlm` (default) | `username` (`DOMAIN\user` or `SERVER\localuser`), `password` | |
+| **Kerberos keytab** — `kerberos` | `username`, `principal`, `keytab_base64` | As for SSH. |
+
+## Maintenance shell (SSH)
+
+When **Enable maintenance shell** is on, the agent gets `execute_shell`. Each call names a command and a working directory and runs with the SSH account's privileges, so a command **may modify or destroy data**. Command patterns are **not a sandbox**: use the remote account's own permissions to limit what is possible.
+
+The agent is told never to retry a shell command on its own, and BOW never replays a command after a dropped connection, because the command may already have run.
+
+### Shell permissions
+
+`shell_policy` sets how each command is authorized:
+
+| Option in the form | Value | Behavior |
+| :-- | :-- | :-- |
+| **Policy controlled** (default) | `policy` | Connection rules, each user's personal choice and their saved command rules decide. A command nothing matches **asks**. |
+| **Require approval every time** | `strict` | Every command asks, and the approval card offers **Allow once** and **Deny** only — nothing is remembered. A user's personal **deny** still denies. |
+| **Always allow for everyone** | `allow` | Every command runs without asking, for all authorized users. |
+| **Always deny** | `deny` | No command runs. |
+
+**Command rules** have a `pattern`, an `action` (`allow`, `ask` or `deny`), a `match` (`exact` — the default — or `glob` for a wildcard pattern), and an optional `working_directory`, which limits the rule to that directory. For example:
+
+```json
+[
+  {"pattern": "systemctl status *", "action": "allow", "match": "glob"},
+  {"pattern": "rm *", "action": "deny", "match": "glob"}
+]
+```
+
+How a command is resolved:
+
+1. A connection rule that **denies** the command always wins, in every mode.
+2. **Always allow** and **Always deny** apply next; **Require approval every time** asks.
+3. In **Policy controlled**, the matching connection rules apply, then the user's personal policy for the tool, then the user's own saved command rules — the most personal choice wins.
+
+Two safeguards keep wildcard rules honest:
+
+- A wildcard **allow** never matches a command that contains shell operators or expansion (`;`, `&`, `|`, `<`, `>`, `` ` ``, `$`, parentheses, braces or a line break), so `docker ps*` cannot authorize `docker ps; rm -rf /`. Use an exact rule to allow a specific script, or a bare `*` to allow everything.
+- A wildcard **deny** is also checked against each simple command in a chain, so it cannot be hidden after a separator.
+
+### Approving a command
+
+When a command asks, the run pauses and the chat shows an approval card with the server, the working directory and the exact command. The card also has a **Command rule** box, pre-filled with the command, and a choice of **Exact command** or **Wildcard pattern**:
+
+| Button | Effect |
+| :-- | :-- |
+| **Allow once** | Runs this command, this time. |
+| **Always allow matching** | Runs it, and saves the rule as your own **allow** rule for this tool. |
+| **Allow for this session** | Runs it, and saves the rule for this report only, for 8 hours. |
+| **Deny** | Skips this command. |
+| **Always deny** | Skips it, and saves the rule as your own **deny** rule. |
+
+A saved rule must match the command being approved, and it keeps the command's working directory. Approvals are bound to the exact command, directory, connection settings and credentials shown on the card: if any of them change, the approval does not carry over.
+
+Only the user who started the run can answer. Scheduled and other background runs cannot ask, so a command that would need approval is skipped and the agent continues without it.
+
+### Your saved command rules
+
+Rules saved from approval cards are **yours** — they apply only to your runs. To review or edit them, open the agent's **Tools** tab and click **My shell rules** next to `execute_shell`; the rules are edited as JSON (at most 200). The connection's **Always allow** and **Always deny** settings, and its deny rules, take precedence over your rules.
+
+Admins set the connection-wide policy and rules. On the **Tools** tab, the shell tool offers `allow`, `ask` and `deny` — not `auto`.
+
+### How shell commands appear in chat
+
+Each command shows as a terminal row: the command, its outcome and duration. Expand the row to see the server, the directory, the full command, and the exit code with `stdout` and `stderr`.
+
+| Outcome | Meaning |
+| :-- | :-- |
+| **Awaiting approval** | The run is paused on the approval card. |
+| **Running** / **Completed** / **Failed** | Failed means the command exited non-zero or could not run; inspect the output before retrying. |
+| **Denied** | A rule, a policy or a user declined it. |
+| **Approval expired** | Nobody answered in time. |
+| **Cancelled** | The run was stopped. Stopping a run while a command waits for approval shows **Cancelled before execution.** |
+| **Timed out** | The command passed `timeout_seconds`. |
+
+After **Timed out**, or a stop while the command was running, the row warns: *"The remote process may still be running. Check its state before retrying."*
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The connection refuses the server key">
+    The server presented a key other than the pinned one. Confirm the new key with your server administrator, then fetch, verify and trust it again — or paste the trusted key under **Advanced**.
+  </Accordion>
+
+  <Accordion title="SSH test fails with no clear cause">
+    The test checks the host key, credentials, network and the runtime the inspection mode needs: Python 3 on Linux or PowerShell on Windows for agentless mode, or the installed reader for restricted-reader mode.
+  </Accordion>
+
+  <Accordion title="Every read fails with “Path is outside the configured roots”">
+    `allowed_paths` is empty or does not cover the path. Add the folder or a matching pattern. SSH paths must be absolute; SMB paths are relative to the share.
+  </Accordion>
+
+  <Accordion title="A log search misses older entries">
+    Search covers only the byte window that was read (`max_output_bytes`, from the end of the file by default). Point the agent at the specific rotated file for the period you need.
+  </Accordion>
+
+  <Accordion title="SMB test fails">
+    Check the account's share and NTFS read permissions, SMB encryption, DNS and port 445. For Kerberos, also check the keytab, principal, clock and KDC access.
+  </Accordion>
+
+  <Accordion title="A scheduled report skips a shell command">
+    Background runs cannot show an approval card. Add an exact **allow** rule for that command, or keep maintenance out of scheduled runs.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [MCP connections](/data-sources/mcp) — how tool policies (`allow`, `ask`, `deny`) work across tool connections.
+- [Files and Directories](/data-sources/connectors/files-and-directories) — log folders mounted directly on the BOW host.
+- [Authentication and access](/data-sources/authentication) — shared vs per-user credentials.

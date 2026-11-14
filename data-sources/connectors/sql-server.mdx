@@ -39,6 +39,7 @@ Go to **Data Sources → Add data source → Microsoft SQL Server**.
 | `odbc_driver` | No | `18` | ODBC driver major version — `17` or `18` only. Use `17` for SQL Server 2008 compatibility. |
 | `encrypt` | No | `true` | Encrypt the connection. Disable only for a SQL Server 2008-era instance with no TLS support. |
 | `additional_params` | No | — | Extra ODBC keywords passed through as-is, for example `ApplicationIntent=ReadOnly`. |
+| `index_routines` | No | `false` | **Index stored procedures & functions.** Also index procedures and functions with their source, so the agent can read their logic and may call functions inside queries. Use a read-only database account. |
 
 <Warning>
   `additional_params` cannot weaken the connection. Security-relevant keywords are owned by BOW and any attempt to set them here is silently ignored: `Driver`, `Server`, `Database`, `UID`, `PWD`, `Encrypt`, `TrustServerCertificate`, `Trusted_Connection`, `Authentication`, `Integrated Security`, and `APP`. Use it for behavioral hints like read-intent routing, not to change how the connection authenticates or encrypts.

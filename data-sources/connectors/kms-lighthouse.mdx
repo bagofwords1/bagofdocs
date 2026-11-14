@@ -1,0 +1,134 @@
+---
+title: "KMS Lighthouse"
+description: "Search and read KMS Lighthouse knowledge articles and decision-tree scenarios live, with KMS permissions applied to every call"
+icon: "book-open"
+---
+
+<Note>
+  The KMS Lighthouse connector is part of the **Enterprise Edition**, and is currently in **beta**.
+</Note>
+
+BOW reads a KMS Lighthouse tenant through the **KMS Lighthouse public API**, so a support agent can ask *"how do I reset a customer's PIN?"* and get the answer from the knowledge base. The agent searches, browses and reads KMS **articles** and decision-tree **scenarios** with the file tools — not tables.
+
+The connector is **read-only** and **live**: there is no catalog and no index. Every search, listing and read is a live call made as one KMS identity, so **KMS permissions decide what each person sees**.
+
+## How scope works
+
+- **KMS permissions** of the connected identity decide what can be searched and read. With per-user credentials, each person reads as themselves.
+- **Layout ID** (optional) limits **search** to one KMS layout.
+- **Root folder ID** (optional) limits **browsing only**. Listing starts at that folder, and folders outside it are refused — but search and reads still cover everything the identity can see in KMS, including articles outside the root folder.
+
+By default only **Online** content is shown. Turn on **Include offline content** to also list, search and read drafts and offline content.
+
+## What the agent reads
+
+- **Articles** start with header lines — title, kind, version, language, last update, summary — followed by the body. When KMS provides AI-ready text for the article, BOW uses it, showing only the elements the same identity can see in the article itself; otherwise the article's HTML is converted to plain text, grouped by tab.
+- **Scenarios** are rendered as an indented decision tree: each step's text and remark, then each option and the step it leads to. Images are never fetched; an image shows as its URL.
+- **Browsing by path.** Entries have a path made of folder names below the root folder, ending in `<title>.txt` (for example `Billing/Cards/Reset a PIN.txt`). The agent opens a folder by passing that folder path.
+
+Machine credentials embedded in content — token parameters in URLs, `Bearer` values, JWTs, passwords in `user:password@` URLs and secret keys in config snippets — are removed from everything returned. Text an author wrote for readers is shown as written.
+
+## Before you start
+
+- The **tenant URL**, for example `https://example.lighthouse-cloud.com`.
+- A **KMS account that may use the KMS public API**. For a shared connection, this is usually a dedicated service account whose KMS permissions cover the content agents should see. Accounts that sign in to KMS only through single sign-on may have no KMS password; they need an API token or a separate API account.
+- Prefer an **API token** to a username and password (see [Authentication](#authentication)).
+
+**Test connection** signs in afresh (with a username and password), reads the account name, and lists the first level of the folder tree (the root folder, or the top level). On success it reports the host and the KMS account it connected as, and how many documents it found. It fails when:
+
+- no Root folder ID is set and the top level is empty or refused — set a Root folder ID or check the account's KMS permissions;
+- the Root folder ID returns nothing — KMS answers an invalid folder the same as an empty one, so check the ID;
+- the Layout ID is not valid.
+
+In the last two cases KMS was reachable, so the connection can still be saved and fixed.
+
+## Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| `base_url` | Yes | — | Tenant base URL, e.g. `https://example.lighthouse-cloud.com`. It may include the API prefix, which is stripped. HTTPS only unless `allow_http` is on. |
+| `api_prefix` | No | `/kms/lh/api` | Path of the KMS public API under the base URL. Change it only if your tenant serves the API elsewhere. |
+| `layout_id` | No | _(blank)_ | KMS layout that search is limited to. Blank searches every layout the identity can see. |
+| `root_folder_id` | No | _(blank)_ | KMS folder that browsing starts from. Limits browsing only. `0` is a valid value. |
+| `include_offline` | No | `false` | Also show articles and scenarios that are not Online (drafts, offline). |
+| `max_results` | No | `200` | Upper bound on articles and scenarios returned by one search or listing (1–1000). Folders do not count. |
+| `allow_http` | No | `false` | Unencrypted HTTP, for an isolated test lab only. |
+
+## Authentication
+
+Both modes are available at system and user scope.
+
+**API token (Bearer) — `token`** (the default, recommended)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `api_token` | Yes | KMS Lighthouse access token for this identity, sent as `Authorization: Bearer`. Plain letters, digits and punctuation only, no spaces; surrounding blanks are trimmed. |
+
+A token cannot be renewed by BOW: when KMS rejects it, it is wrong or no longer valid.
+
+**Password in URL (undocumented) — `userpass`**
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| `username` | Yes | KMS Lighthouse login name. Surrounding spaces are trimmed. |
+| `password` | Yes | Used exactly as typed. |
+
+<Warning>
+  This login relies on an undocumented KMS call that sends the password **in the URL**, where KMS, a firewall or a proxy can log it. BOW never logs it, but it cannot stop those systems from doing so. Use an API token when you can.
+</Warning>
+
+When KMS rejects a username and password, BOW pauses new login attempts with that same login for five minutes, so retries and background status checks cannot lock the KMS account. Saving a corrected password logs in at once.
+
+### Per-user credentials
+
+When the connection is set to **each user signs in**, every member connects their own KMS login or token from the connection page.
+
+- **Save checks the login with KMS first.** BOW signs in once with the login before storing it. A login KMS refuses is **not saved**, and the dialog says why: the login was not accepted, KMS accepted it but refused its session (ask the KMS administrator whether the account may use the API), or attempts with it are paused for a few minutes after a recent refusal. If KMS cannot be reached at that moment, the login is saved unchecked.
+- **The page names the KMS account.** After a checked save, the connection page shows **Connected as** followed by the KMS account name KMS reported, so each person can see which KMS identity the agent reads as.
+- A member who has not connected gets a prompt to connect, and no KMS call is made for them.
+
+<Note>
+  On a per-user connection, an org admin who has not saved their own login reads with the connection's system credentials, not with their own KMS permissions. Save your own login to read as yourself. See [Authentication and access](/data-sources/authentication).
+</Note>
+
+## Diagnostics
+
+People who can manage the connection can press **Run diagnostics** on the agent's connection page. It runs read-only checks of the network, certificate, login and KMS behavior, sends one login at most, and takes up to 90 seconds. **Copy report** or **Download JSON** gives a report to send to the BOW team; it stays in English and holds no content, names or passwords.
+
+## Limits
+
+| Limit | Value | Notes |
+| :-- | :-- | :-- |
+| Results per search or listing | `max_results` (200 by default) | A search that hits it is marked incomplete. A listing stops without saying so — open a specific folder or use search. |
+| Folder calls per listing | 40 | A large tree is listed only partly; open a folder by its path. |
+| Search query | 200 characters | Longer queries are cut. |
+| Scenario tree | 400 entries, depth 25 | A truncation marker shows where steps were cut. |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="“KMS Lighthouse did not accept this login, so it was not saved”">
+    The username and password or the API token is wrong. Copy the token again from KMS Lighthouse and paste it as plain text.
+  </Accordion>
+
+  <Accordion title="New login attempts are paused">
+    KMS recently refused this login. Wait a few minutes, or save a corrected login, which is tried at once.
+  </Accordion>
+
+  <Accordion title="KMS accepted the login but refused its session">
+    The password is right, but the account may not use the KMS API. Ask the KMS administrator to enable API access for it.
+  </Accordion>
+
+  <Accordion title="An article is in KMS but not in a listing">
+    It is outside the root folder, it is offline and **Include offline content** is off, or the listing hit its cap. Search for it instead — search is not limited by the root folder.
+  </Accordion>
+
+  <Accordion title="The connection cannot be reached through a proxy">
+    KMS calls do not use `HTTPS_PROXY` or other proxy variables. BOW must reach the tenant directly; **Run diagnostics** shows a proxy-only network as a network failure.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [OpenText Documentum](/data-sources/connectors/documentum) — another live, permission-trimmed document source.
+- [Authentication and access](/data-sources/authentication) — shared vs per-user credentials.
