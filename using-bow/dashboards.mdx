@@ -59,6 +59,8 @@ To turn it on, click the gear (**Dashboard settings**) next to Refresh in the ar
   **Show details on widgets** is separate from **Include Data Tab** on the same page. If viewers shouldn't see the queries and results behind the dashboard, leave both off.
 </Note>
 
+Both are presentation choices for one dashboard, not access controls: they change what the page displays, not which data a viewer's credentials can reach. To restrict data, use [per-user authentication](/data-sources/authentication) or [row-level security](/bow-fast/row-level-security).
+
 ## Add interactive filters
 
 Ask the agent to make a field a filter — "let the viewer filter by region", "add a customer selector" — and it adds a control to the top of the dashboard backed by a [parameterized query](/using-bow/parameterized-queries). Changing the control re-runs the affected queries at the source and refreshes those visualizations in place; the rest of the dashboard is untouched. Choices for a control come from a fixed list or from another query in the report, never from the rows the control filters.
