@@ -124,6 +124,7 @@
               "data-sources/connectors/sharepoint-onedrive",
               "data-sources/connectors/sharepoint-server",
               "data-sources/connectors/documentum",
+              "data-sources/connectors/kms-lighthouse",
               "data-sources/connectors/onenote",
               "data-sources/connectors/sharepoint-lists",
               "data-sources/connectors/google-drive",
