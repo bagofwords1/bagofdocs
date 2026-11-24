@@ -109,6 +109,7 @@ Open **Settings → Channels → Connected applications**. One registration cove
     - **Match people by**: for the backend-signed and identity-provider modes, where BOW looks up the person your system names.
     - **Issuer** (backend-signed mode) or **Audience** (identity-provider mode).
     - **Create people on first sign-in**: off by default. Leave it off when every employee already exists in BOW. See [Match people by](#match-people-by) for what it needs.
+    - **New people join as**: the role of accounts created by signing in through this application, **App user** or **Member**. See [New people join as](#new-people-join-as).
 
     ![The Configure embedding form with an allowed origin, the three sign-in modes, Match people by, Member attribute and the Issuer chinook-erp](/images/guides/embedded-chat/embedding-form.png)
   </Step>
@@ -218,11 +219,24 @@ For the first two modes, **Match people by** decides what the subject in the cre
 | **SCIM external id** | The `externalId` your identity provider sent through SCIM | Signed assertion only |
 | **Member attribute** | The value of a member attribute you name, such as `employee_id` | Signed assertion only. Set the value per member in **Settings → Access → Members**: select the pencil icon (**Edit attributes**) next to the member's attributes, or **Add attribute** when the member has none |
 
-BOW never matches people by email address. A subject that matches nobody, more than one person, or an inactive or non-member user is refused. With **Create people on first sign-in** on, an unknown person who is known to the selected directory joins through that directory's own admission rules (for example invitations or allowed domains) with the organization's default role. The option is not offered for SCIM or member attributes. It also has these limits:
+BOW never matches people by email address. A subject that matches nobody, more than one person, or an inactive or non-member user is refused. With **Create people on first sign-in** on, an unknown person who is known to the selected directory joins through that directory's own admission rules (for example invitations or allowed domains) with the role set in [New people join as](#new-people-join-as). The option is not offered for SCIM or member attributes. It also has these limits:
 
 - For an OpenID Connect, Google or SAML provider, the credential must carry the person's email address in an `email`, `preferred_username` or `upn` claim. Without one, the sign-in is refused.
 - BOW refuses to create a person when that email address already has a BOW account. An existing account is linked only when the person signs in to BOW through the provider itself, never because a host names its email.
 - It is not available for a SAML provider whose subject is the NameID. The provider must use an attribute as its subject.
+
+### New people join as
+
+**New people join as** sets the role of every account created by signing in through this application. The form shows it when **Create people on first sign-in** is on, and always in **BOW sign-in** mode, where people can create their BOW account in the sign-in window.
+
+| Choice | The new person can |
+| --- | --- |
+| **App user** | Use the apps shared with them, not the workspace |
+| **Member** | Also use the workspace: reports, agents and dashboards |
+
+A new application starts with **App user**. An application registered on an earlier BOW version keeps **Member**. The application's row under **Embedding** shows the choice, for example "new people join as App user".
+
+The setting applies only to accounts created through this application. People who already have an account keep their role. An app user who opens BOW directly gets a launcher with the apps shared with them, and a **Request full access** button. To give someone the workspace later, change their role in **Settings → Members**, or add them to a group with a workspace role. See [App users](/users/roles-and-permissions#app-users).
 
 ### Signed assertion (recommended)
 
@@ -469,6 +483,7 @@ The session stays signed in during these states. When the artifact becomes avail
 ## Security notes
 
 - **Every viewer is a real BOW user.** There is no anonymous or shared "app" identity. Agents, connections, row-level security and audit logs all see the employee.
+- **App users stay in their apps.** A person created as an [app user](/users/roles-and-permissions#app-users) who opens BOW in a browser tab gets only the apps shared with them. The rest of BOW, and its API, refuses them.
 - **Access is the intersection of every layer.** To use an agent in the assistant, the application must allow it, the employee must be able to use it in BOW, and the artifact's agent settings must include it. To see the artifact, the employee must pass its normal sharing, and the artifact must allow the application.
 - **Data access is per user.** Queries run with the employee's own access, including per-user connections. Selecting an agent for the application never grants anyone access to it.
 - **Conversations are private.** Each employee sees only their own conversations on that artifact. Nobody else's are listed, opened or continued, including the artifact owner's.
@@ -521,6 +536,7 @@ The session stays signed in during these states. When the artifact becomes avail
 | The application's sign-in wasn't accepted. | Check the key, the issuer, the audience (the public ID), the lifetime, and the server clock |
 | That sign-in was already used. Try again. | Your endpoint returned the same assertion twice. Sign a new one, with a new `jti`, on every call |
 | Your account isn't set up in BOW yet. Ask your admin. | The subject matches nobody through **Match people by**. Check the stored identity or member attribute, or turn on **Create people on first sign-in** where the directory supports it. With that option on, the credential also needs an email claim, and the email must not already have a BOW account |
+| Your account can use the apps shared with you, but not the workspace. | The person is an app user and opened a part of BOW outside their apps. This is expected. To give them the workspace, change their role in **Settings → Members** |
 | More than one BOW account matches you. Ask your admin. | Two members share the same subject, for example the same member attribute value. Make it unique |
 | This application's access to BOW is turned off. | The application is disabled in **General & access** |
 | The sign-in window was blocked | Allow pop-ups for the host page and select **Sign in** again (SSO mode) |
