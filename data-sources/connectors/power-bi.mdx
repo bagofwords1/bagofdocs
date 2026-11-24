@@ -185,6 +185,10 @@ If a semantic model is visible in `app.powerbi.com` but not selectable in BOW, w
   <Accordion title="The workspaces filter is excluding it">
     If you set `workspaces`, only those workspaces are discovered. Clear it to discover everything, or add the workspace's name/ID.
   </Accordion>
+
+  <Accordion title="A schema refresh finished with a skipped model">
+    A semantic model that returns no tables, or that the indexing identity is not allowed to read, is skipped. The rest of the connection is refreshed as usual. The skipped model is named, with its workspace and the reason, in the indexing job's details. If an earlier refresh already indexed it, its tables and agent selections are kept.
+  </Accordion>
 </AccordionGroup>
 
 ## Reference
