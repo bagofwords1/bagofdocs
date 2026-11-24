@@ -1,0 +1,97 @@
+---
+title: "Connect a Microsoft Foundry model"
+sidebarTitle: "Microsoft Foundry"
+description: "Deploy a model in Microsoft Foundry (Azure AI Foundry) and connect the deployment to BOW."
+keywords:
+  - "azure"
+  - "foundry"
+  - "azure ai foundry"
+  - "azure openai"
+  - "deployment"
+  - "claude"
+  - "gpt"
+  - "entra id"
+---
+
+BOW connects to models you deploy in [Microsoft Foundry](https://ai.azure.com) (formerly Azure AI Foundry) through the **Azure OpenAI** provider. One provider covers every deployment on a Foundry resource, including OpenAI models (GPT) and Anthropic models (Claude).
+
+You need two things from Azure: the resource **endpoint** and the **deployment name** of each model. Authentication is an API key or Microsoft Entra ID.
+
+## Before you start
+
+- An Azure subscription with permission to create resources. Deploying a model needs **Contributor** or **Owner** on the resource group.
+- For Claude models: a pay-as-you-go subscription that can buy from the Azure Marketplace, and a resource in a region that offers the model. See Microsoft's [Claude in Foundry](https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/use-foundry-models-claude) prerequisites.
+- Admin access in BOW (**Settings → LLMs**).
+
+## Create a deployment in Foundry
+
+<Steps>
+  <Step title="Open or create a Foundry project">
+    Sign in to [ai.azure.com](https://ai.azure.com) and open a project, or create one. Creating a project also creates the Foundry resource that hosts your deployments.
+  </Step>
+  <Step title="Pick a model from the catalog">
+    Go to **Model catalog** and select a model, for example `gpt-5-mini` or `claude-sonnet-4-5`.
+  </Step>
+  <Step title="Deploy it">
+    Select **Deploy**, then **Custom settings** to review the options. For Claude models, accept the Azure Marketplace terms when prompted.
+
+    - **Deployment name**: defaults to the model name. Note it down; BOW uses it as the model ID.
+    - **Deployment type**: **Global Standard** works for all OpenAI and Claude models. Choose **Data Zone** if you need data to stay in a geography.
+
+    Select **Deploy** and wait for the status to show **Succeeded**.
+  </Step>
+  <Step title="Copy the endpoint and key">
+    Open the deployment's details page (or the project **Overview**). Copy:
+
+    - The **endpoint**, for example `https://<resource>.services.ai.azure.com`.
+    - The **API key**, unless you plan to use Entra ID.
+  </Step>
+</Steps>
+
+<Tip>
+  You can paste any endpoint the portal shows: the resource root, the project endpoint (`.../api/projects/<name>`), the OpenAI or Anthropic target URI, or the classic `https://<resource>.openai.azure.com`. BOW reduces it to the resource root and picks the right API for each model.
+</Tip>
+
+## Connect the deployment in BOW
+
+<Steps>
+  <Step title="Add the provider">
+    Open **Settings → LLMs**, add a provider, and choose **Azure OpenAI**.
+  </Step>
+  <Step title="Enter the endpoint and credentials">
+    - **Endpoint URL**: the endpoint you copied.
+    - **Authentication**: choose one of:
+      - **API Key**: paste the key.
+      - **Entra ID (Service Principal)**: enter the tenant ID, client ID, and client secret of an app registration.
+      - **Entra ID (Default)**: uses the identity BOW runs as (managed identity, workload identity, environment variables, or Azure CLI).
+
+    For either Entra ID option, assign the identity the **Cognitive Services User** role on the Foundry resource.
+  </Step>
+  <Step title="Add your deployments as models">
+    Select **Add Custom Model** for each deployment. Set **Model ID** to the exact deployment name, and optionally a display name, vision support, and context window.
+  </Step>
+  <Step title="Test and save">
+    Select **Test Connection**, then **Save Provider**. Enable the models and set a default in **Settings → LLMs**.
+  </Step>
+</Steps>
+
+## Claude deployments
+
+BOW sends Claude deployments to Foundry's Anthropic Messages API and everything else to the OpenAI-compatible API. It recognizes a Claude deployment by its name:
+
+- Keep `claude` (or `anthropic`) in the deployment name. The default name, such as `claude-sonnet-4-5`, already does. A deployment renamed to something like `analyst-model` is sent to the OpenAI API and fails with `model_not_found`.
+- Use **API Key** authentication. Claude deployments are always called with the stored API key, so a provider set to Entra ID cannot reach them. If you use Entra ID for your OpenAI deployments, add a second Azure OpenAI provider with an API key for Claude.
+
+## Optional settings
+
+- **Use Responses API**: sends OpenAI deployments to the Responses API instead of Chat Completions. Turn it on to enable web search. It applies to OpenAI deployments only and works only with API key authentication.
+- **Custom headers**: edit the provider after saving to add static headers or identity forwarding. See [Models and LLM providers](/using-bow/llm#custom-headers-and-identity-forwarding).
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `model_not_found` or `DeploymentNotFound` | The **Model ID** must match the deployment name exactly. For Claude, the name must contain `claude`. |
+| `401` or `403` | Regenerate or recheck the API key. For Entra ID, confirm the **Cognitive Services User** role and allow a few minutes for it to apply. |
+| `404 api_not_supported` | The deployment is a Claude model whose name hides the model family. Redeploy or rename it to include `claude`. |
+| `429` | The deployment hit its tokens-per-minute quota. Raise the quota in Foundry or add a [fallback model](/using-bow/llm). |
