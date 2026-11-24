@@ -131,7 +131,8 @@
               "data-sources/connectors/google-drive",
               "data-sources/connectors/mail",
               "data-sources/connectors/file-formats",
-              "data-sources/connectors/browser"
+              "data-sources/connectors/browser",
+              "data-sources/connectors/sharepoint-server-lists"
             ]
           },
           "data-sources/mcp",
