@@ -1,0 +1,98 @@
+---
+title: "SharePoint Server Lists (on-prem)"
+description: "Query on-premises SharePoint Server lists as tables over the REST API with NTLM or Kerberos — no Microsoft Graph or Entra app required"
+icon: "microsoft"
+keywords: ["SharePoint Server", "on-prem", "lists", "NTLM", "Kerberos", "List View Threshold"]
+---
+
+<Note>
+  The SharePoint Server Lists connector is part of the **Enterprise Edition**.
+</Note>
+
+This connector reads the **lists** of a self-hosted SharePoint Server site (2013 and later) as tables. Every list on the site becomes a table with typed columns, and the agent queries it the way it queries a database.
+
+It is the on-premises counterpart of [SharePoint Lists](/data-sources/connectors/sharepoint-lists), which goes through Microsoft Graph. Here there is no Graph and no Entra app registration: the backend signs in to the farm directly with Windows credentials or Kerberos, like [SharePoint Server (on-prem)](/data-sources/connectors/sharepoint-server) does for document libraries.
+
+The connection is **read-only**. The agent never writes to SharePoint.
+
+## What the agent sees
+
+The connection points at one site. Every visible list on that site is discovered as its own table:
+
+- **Columns come from the list's own schema**, with display names. A column displayed as `2017` is shown and filtered as `2017`; the connector translates to SharePoint's internal names.
+- **Person and lookup columns** return names. On a list with many of them, the connector falls back to IDs and says so in the result.
+- **Managed metadata (taxonomy) columns** return their labels. Rich text is reduced to plain text, and folders inside a list are skipped.
+- **Document libraries are never included.** Use [SharePoint Server (on-prem)](/data-sources/connectors/sharepoint-server) for those. Hidden system lists can be opted in with **Include Hidden Lists**.
+
+Queries use the same spec as the Graph lists connector:
+
+```json
+{"list": "Tickets",
+ "filter": "Status eq 'Open' and Priority ge 2",
+ "select": ["Title", "Status", "Priority", "Assigned To"],
+ "orderby": "Modified desc",
+ "limit": 1000}
+```
+
+## Large lists
+
+SharePoint Server refuses a filter or sort on an unindexed column once a list has more than 5,000 items (the List View Threshold). So the connector never asks SharePoint to filter or sort. It reads the list in pages and applies the filter and sort itself. Any column can be filtered, on a list of any size, without indexing columns in SharePoint.
+
+One query reads at most **Max items per query** items (20,000 by default). On a larger list, a filtered query covers only that many items and the result says so. Raise the limit for a large list, or narrow the question.
+
+## Connect in BOW
+
+Go to **Data Sources → Add data source** and choose **SharePoint Server Lists (on-prem)**.
+
+### Fields
+
+| Field | Required | Default | Notes |
+| :-- | :-- | :-- | :-- |
+| **Site URL** | Yes | — | SharePoint Server site URL, including `/sites/<name>`, for example `https://sharepoint.example.com/sites/finance`. Not the Central Administration URL. |
+| **Lists** | No | `*` | `*` for every list on the site, or a comma-separated set of list names, for example `Expenses, Vendors`. |
+| **Include Hidden Lists** | No | Off | Also expose lists SharePoint marks as hidden (site plumbing). Usually off. |
+| **Max items per query** | No | `20000` | How many list items one query may read (1 to 100,000). See [Large lists](#large-lists). |
+| **Allow HTTP (test labs only)** | No | Off | Allow unencrypted HTTP for an isolated lab. Use HTTPS with a trusted certificate for customer deployments. |
+
+### Authentication modes
+
+**Windows credentials (NTLM) — `ntlm`** (the default; scopes: system and user)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| **Domain username** | Yes | `DOMAIN\username` or `user@domain`. Use a read-only account. |
+| **Password** | Yes | That account's password. |
+
+At **system** scope the whole connection uses one service account. At **user** scope each member enters their own Windows account, so SharePoint applies that person's list permissions. Each member enters and tests their domain username and password once; it is not automatic single sign-on.
+
+**Kerberos service account — `kerberos`** (scope: system)
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| **Service principal** | No | Optional service-account UPN. |
+
+Kerberos authenticates as the service account, not as the signed-in BOW user. A deployment owner mounts `krb5.conf` and the client keytab (`KRB5_CLIENT_KTNAME`), or provides a ticket cache. The SharePoint-side Kerberos requirements are the same as for [SharePoint Server (on-prem)](/data-sources/connectors/sharepoint-server#requirements-on-the-sharepoint-side).
+
+See [Authentication and access](/data-sources/authentication) for shared vs per-user connections.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A list is missing from the catalog">
+    Document libraries are excluded by design. Hidden lists need **Include Hidden Lists**. If **Lists** names specific lists, the list's name must be one of them. On a per-user connection, the member's own account must be able to read the list.
+  </Accordion>
+
+  <Accordion title="A filtered answer says it covered only part of a list">
+    The list has more items than **Max items per query**. Raise the limit on the connection, or ask about a narrower set of items.
+  </Accordion>
+
+  <Accordion title="A person or lookup column shows numbers instead of names">
+    The list has more person and lookup columns than SharePoint lets one request expand. The connector returns their IDs instead and says so in the result.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [SharePoint Server (on-prem)](/data-sources/connectors/sharepoint-server) — the same farm's document libraries, as files.
+- [SharePoint Lists](/data-sources/connectors/sharepoint-lists) — lists as tables on SharePoint Online, over Microsoft Graph.
+- [Authentication and access](/data-sources/authentication) — shared vs per-user credentials across connectors.

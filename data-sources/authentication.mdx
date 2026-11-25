@@ -40,7 +40,7 @@ Per-user authentication on **database-style connections** — anything the agent
 Per-user authentication for this connector requires an enterprise license.
 ```
 
-Separately, a number of connectors are Enterprise-only in their entirety, regardless of auth policy — Power BI, Power BI Report Server, Tableau, Qlik Sense, Qlik Sense on-prem, Sisense, Oracle BI, Analysis Services, Infor OLAP, Splunk, Zabbix, Timbr, Sybase, QVD, SharePoint, SharePoint Lists, SharePoint Server (on-prem), OneDrive, OneNote, Google Drive, Gmail, Outlook Mail, OpenText Documentum, KMS Lighthouse, Kubernetes, Brocade Fabric OS, and VMware Aria Operations. They appear in the catalog with a lock until a license key is set. See [License Key](/enterprise/license).
+Separately, a number of connectors are Enterprise-only in their entirety, regardless of auth policy — Power BI, Power BI Report Server, Tableau, Qlik Sense, Qlik Sense on-prem, Sisense, Oracle BI, Analysis Services, Infor OLAP, Splunk, Zabbix, Timbr, Sybase, QVD, SharePoint, SharePoint Lists, SharePoint Server (on-prem), SharePoint Server Lists (on-prem), OneDrive, OneNote, Google Drive, Gmail, Outlook Mail, OpenText Documentum, KMS Lighthouse, Kubernetes, Brocade Fabric OS, and VMware Aria Operations. They appear in the catalog with a lock until a license key is set. See [License Key](/enterprise/license).
 
 ## Sign-in methods
 
@@ -72,6 +72,15 @@ Connect required: this connection runs queries with your own credentials.
 ```
 
 Users can re-test, replace, or remove their credentials at any time, and refresh their own schema view — a per-user connection shows each person only the tables or files their own account can reach.
+
+## Turn a personal connector off for chat
+
+A connected personal connector, such as a mailbox, a personal drive or a per-user MCP server like GitHub, joins every chat by default. Each person can switch one off from the **Connectors** menu in the chat composer. The switch is separate from sign-in: a connector stays **Connected** while it is off.
+
+- **On** (the default): the AI can use the connector in chat.
+- **Off**: the AI won't use it. Its tools are not sent to the model, which keeps the first response faster and cheaper when you don't need the connector.
+
+The choice is saved per person and per workspace, so it applies to new chats and after a reload. It also applies to the scheduled runs that person owns. Shared connectors, and personal connectors you haven't signed in to yet, have no switch.
 
 ## Query identity
 

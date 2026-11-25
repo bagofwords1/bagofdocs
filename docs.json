@@ -124,6 +124,7 @@
               "data-sources/connectors/s3",
               "data-sources/connectors/sharepoint-onedrive",
               "data-sources/connectors/sharepoint-server",
+              "data-sources/connectors/sharepoint-server-lists",
               "data-sources/connectors/documentum",
               "data-sources/connectors/kms-lighthouse",
               "data-sources/connectors/onenote",
@@ -164,7 +165,8 @@
           "observe-and-govern/runs-and-traces",
           "observe-and-govern/usage-cost-quality",
           "observe-and-govern/quotas-and-usage-limits",
-          "observe-and-govern/audit-logs"
+          "observe-and-govern/audit-logs",
+          "observe-and-govern/pii-protection"
         ]
       },
       {

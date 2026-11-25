@@ -16,7 +16,7 @@ The **Gmail** and **Outlook Mail** connectors let the agent search and read mess
 
 ## How it works
 
-Both connectors are **per-user** (`catalog_ownership: per_user`) and **read-only**. There is no shared catalog and no admin-side message list — a mailbox is searched and read live, per user, at question time. That is why neither connector has any config fields.
+Both connectors are **per-user** (`catalog_ownership: per_user`). There is no shared catalog and no admin-side message list — a mailbox is searched and read live, per user, at question time. That is why neither connector has any config fields.
 
 The agent gets mail-shaped tools rather than file tools:
 
@@ -33,7 +33,7 @@ The agent gets mail-shaped tools rather than file tools:
 | Per-user sign-in | Sign in with Google (`oauth`) | Sign in with Microsoft (`oauth`) |
 | Config fields | None | None |
 
-Only reading and searching are supported. Neither connector can send, draft, label, or delete mail.
+Gmail is read-only. Outlook Mail is read-only too, unless you grant the extra permissions in [Optional: let the agent act on mail](#optional-let-the-agent-act-on-mail). Neither connector can permanently delete mail.
 
 See [User context and per-user data](/data-sources/user-context) for how per-user connections behave in a conversation.
 
@@ -99,7 +99,7 @@ openid email profile https://www.googleapis.com/auth/gmail.readonly
     **Certificates & secrets** → **New client secret**. Copy the value immediately.
   </Step>
   <Step title="Add the Graph permissions">
-    **API permissions** → **Microsoft Graph** → delegated **`Mail.Read`**, **`User.Read`**, **`openid`**, **`profile`**, **`offline_access`**. Then click **Grant admin consent**.
+    **API permissions** → **Microsoft Graph** → **Delegated permissions** → **`Mail.Read`**, **`User.Read`**, **`openid`**, **`profile`**, **`offline_access`**. Then click **Grant admin consent**. Use delegated permissions only, not application permissions: the connector reads only the signed-in user's mailbox.
   </Step>
   <Step title="Add the redirect URI">
     **Authentication** → **Add a platform** → **Web**:
@@ -128,11 +128,24 @@ openid email profile https://www.googleapis.com/auth/gmail.readonly
 
 **Sign in with Microsoft — `oauth`** (scope: user, no fields). Each user completes the Microsoft authorization-code flow; Graph then serves `/me/messages` for that user only.
 
+### Optional: let the agent act on mail
+
+To let the agent work in the signed-in user's mailbox, also add these delegated permissions and grant admin consent again:
+
+| Permission | Lets the agent |
+| :-- | :-- |
+| `Mail.ReadWrite` | Flag messages, move messages between folders, and save drafts (new, reply, reply-all or forward) |
+| `Mail.Send` | Send a draft or a new message |
+
+Each action is a tool on the connection's **Tools** tab, with a policy (allow, ask, auto or deny) like an [MCP tool](/data-sources/mcp#tool-policies). Calls that need a permission the user's token lacks are refused, and the **Tools** tab shows what is missing.
+
 See [Authentication and access](/data-sources/authentication).
 
 ## Connect in BOW
 
-Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mail**. Enter the admin credential above and save — there is nothing else to configure. Each user then clicks **Connect** on the connection to sign in with their own account before the agent can search their mail.
+Go to **Data Sources → Add data source** and choose **Gmail** or **Outlook Mail**. Enter the admin credential above and save — there is nothing else to configure.
+
+The Outlook Mail form also shows these Entra setup steps, with the exact redirect URI for your deployment to copy. Use that value: it is built the same way as the sign-in request, so it always matches. Each user then clicks **Connect** on the connection to sign in with their own account before the agent can search their mail.
 
 ## Troubleshooting
 

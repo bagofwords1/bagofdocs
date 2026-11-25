@@ -16,7 +16,9 @@ An **MCP connection** points BOW at a Model Context Protocol server. The server'
 
 ## Presets vs custom servers
 
-BOW ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, HubSpot, Google Drive, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+BOW ships one-click **presets** for common servers — Monday, Notion, Linear, Atlassian, GitHub, Sentry, HubSpot, Google Drive, Fathom, and X. A preset fills in the server URL, transport, and OAuth settings; you just sign in. Presets create an ordinary MCP connection, so everything on this page applies to them too.
+
+The **Fathom** preset connects Fathom's hosted MCP server (`https://api.fathom.ai/mcp`) for meetings, summaries and transcripts. It uses per-user sign-in only, with no OAuth app or API key to set up: each person signs in to their own Fathom account, and the agent sees only the meetings Fathom shows that person.
 
 For anything else, add a **custom MCP server** and supply the details yourself.
 

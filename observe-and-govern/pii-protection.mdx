@@ -1,0 +1,62 @@
+---
+title: "PII protection"
+description: "Redact personal data before it reaches an LLM provider, with policies per provider and per agent."
+icon: "shield-check"
+keywords: ["PII", "redaction", "personal data", "privacy", "policy", "agent policy"]
+---
+
+<Note>
+  PII protection is an **Enterprise** capability. See [License Key](/enterprise/license).
+</Note>
+
+PII protection redacts personal data from prompts before they are sent to an LLM provider. Rules run on the user's prompt and on the data the agent reads: query results, data previews, uploaded file text and the conversation.
+
+Admins manage it under **Settings → PII**.
+
+## Policies
+
+A policy is a set of rules for what to protect. Every organization has a **Default** policy. It applies to every provider without a policy of its own, and masks what people see in the app. It can't be renamed or deleted.
+
+Select **New policy** to add another one, for example a stricter policy named "Strict". For each policy you choose:
+
+- **What to protect**: the kinds of personal data the policy covers.
+- **Names, places and organizations**: detection of these in free text.
+- **Custom rules**: your own patterns, for data specific to your organization.
+- **Advanced** options.
+
+Use **Test your rules** to check what a policy redacts before you rely on it.
+
+Deleting a policy sends the providers that used it back to **Default**.
+
+## Provider policies
+
+Under **Provider policies**, choose the policy for each LLM provider. A provider can also be **Exempt (send unredacted)**, for example a self-hosted model that never leaves your network.
+
+## Agent policies
+
+Agent policies protect an agent's data whichever model a chat uses. Use them for agents whose data must never reach a model unredacted, such as an HR agent.
+
+An agent's policy applies to **every request that includes the agent**:
+
+- It covers the whole request, including the data of other agents in the same chat.
+- It applies even on an **Exempt** provider.
+- When several policies apply, from the provider and from each agent in the chat, the strictest option for each rule wins. Adding an agent to a chat can make redaction stricter, never weaker.
+
+<Tip>
+  A chat on **Auto**, with no agent attached, counts every agent the person can access, so every one of their agent policies applies.
+</Tip>
+
+### Set agent policies
+
+In **Settings → PII**, under **Agent policies**:
+
+1. Set **Default for agents**: the policy for agents without their own choice.
+2. For any agent, choose a policy, **Org default** (the default above), or **No agent policy**.
+
+The people who manage an agent can also set its policy from the agent's settings, under **PII policy**. Turning protection off for an agent (**No agent policy**) stays an admin decision, and an agent can't be set to **Exempt**.
+
+## Related
+
+- [AI Settings](/using-bow/settings) — including **Allow LLM to See Data**, which keeps individual values away from the model altogether.
+- [Models and LLM providers](/using-bow/llm) — the providers these policies apply to.
+- [Roles & permissions](/users/roles-and-permissions) — who can manage settings and agents.

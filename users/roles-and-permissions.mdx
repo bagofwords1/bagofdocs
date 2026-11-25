@@ -17,11 +17,14 @@ A person's access is everything they get from all three combined. Permissions on
 | Role | What it can do |
 |---|---|
 | **Admin** | Everything in the organization |
-| **Member** | Use agents, create and share reports, attach files, see other members, and view and run generated code |
+| **Member** | Use the workspace: use agents, create and share reports, attach files, see other members, and view and run generated code |
+| **App user** | Use the apps shared with them, and nothing else in the workspace. See [App users](#app-users) |
 
-## What every member can always do
+## What every member with the workspace can always do
 
-Every member can view, create and share reports, attach files to chats, and see the member list. These rights don't depend on role and can't be removed. Editing, deleting or publishing a report is limited to the person who owns it.
+Every member who has **Use the workspace** can view, create and share reports, attach files to chats, and see the member list. These rights come with **Use the workspace** and can't be removed separately. Editing, deleting or publishing a report is limited to the person who owns it.
+
+A member without **Use the workspace** is an [app user](#app-users) and gets none of these rights.
 
 ## Custom roles
 
@@ -31,6 +34,7 @@ Go to **Settings → Members → Roles** to build a role from these permissions:
 
 | Area | Permission | Allows |
 |---|---|---|
+| Workspace | Use the workspace | Open the workspace itself: home, reports, agents. Without it, a member only has the apps shared with them |
 | Data & Knowledge | Create agents | Create new agents |
 | | Create connections | Add connections; you automatically own what you create |
 | | Manage connections | Edit, test, reindex or delete any connection |
@@ -47,6 +51,29 @@ Go to **Settings → Members → Roles** to build a role from these permissions:
 | | Manage identity providers | Configure SSO, LDAP and SCIM |
 
 <Tip>Members get **View code** and **Run custom code** by default. To hide code from some users, give them a custom role without those two permissions.</Tip>
+
+<Warning>
+  The role editor turns **Use the workspace** on for a new role. Keep it on unless the role is meant for app users: a person whose only roles leave it off is an app user. The Admin and Member roles include it.
+</Warning>
+
+## App users
+
+An app user is a member of your organization who can open the apps (published dashboards and chat assistants) shared with them, and nothing else in BOW. They can't open reports, agents, connections or settings. Use app users for people who reach BOW through an app you [embed in another product](/guides/embed-chatbot), such as an ERP or a customer portal.
+
+What an app user sees:
+
+- **Your apps**: going to BOW directly opens a launcher at `/apps` with the apps shared with them. An app opens with a back arrow to the launcher.
+- **Request full access**: a button on the launcher that asks an admin for the workspace.
+- The same apps inside the host product, signed in as themselves.
+
+A member who has the workspace also has the launcher, with an **Open workspace** button.
+
+### Who becomes an app user
+
+- People whose account is created by signing in through a host application whose **New people join as** setting is **App user**. That is the default for a new host application. See [Embed a chat assistant](/guides/embed-chatbot#match-people-by).
+- Anyone whose roles all leave **Use the workspace** off.
+
+The **App user** role shows in **Settings → Members**. To give an app user the workspace, change their role in the members list, or add them to a group that holds a role with **Use the workspace**. It is the same account throughout, so nothing has to be moved.
 
 ## Resource grants
 
@@ -92,12 +119,15 @@ Shared projects (report folders) use their own **View** or **Manage** access, wh
 
 <AccordionGroup>
   <Accordion title="Analyst who can't see SQL">
-    Create a custom role without **View code** and assign it instead of Member.
+    Create a custom role with **Use the workspace** but without **View code**, and assign it instead of Member.
   </Accordion>
   <Accordion title="Data owner for one connection">
     Keep them as a Member and add a **Manage agents** grant on that connection.
   </Accordion>
   <Accordion title="IT admin without data access">
-    Create a custom role with only **Manage members** and **Manage identity providers**.
+    Create a custom role with only **Use the workspace**, **Manage members** and **Manage identity providers**.
+  </Accordion>
+  <Accordion title="Customer who only uses an embedded assistant">
+    Set the host application's **New people join as** to **App user**. People who sign in through it can use the apps shared with them and nothing else.
   </Accordion>
 </AccordionGroup>
